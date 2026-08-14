@@ -130,7 +130,7 @@ src/test/resources/
 - Put static settings shared by normal runtime profiles in `application.yaml`.
 - Use `dev` as the default profile and keep its local settings consistent with Docker Compose.
 - Select `prod` explicitly with `SPRING_PROFILES_ACTIVE=prod`.
-- Require the production database URL, user, and password from environment variables. Give safe defaults only to non-sensitive values such as the server port and root log level.
+- Require the production database URL, user, password, server port, and root log level from environment variables. Do not give these production values defaults.
 - Use `test` for a small Spring test context without PostgreSQL.
 - Use `itest` for full Spring Boot, HTTP, JPA, Flyway, and PostgreSQL Testcontainers tests.
 - Keep the Testcontainers JDBC connection in `application-itest.yaml`.

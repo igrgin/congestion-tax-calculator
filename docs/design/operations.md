@@ -33,7 +33,7 @@ spring:
     password: congestion_tax
 ```
 
-These values are local development credentials. The production profile requires `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, and `SPRING_DATASOURCE_PASSWORD`. It permits `SERVER_PORT` and `LOGGING_LEVEL_ROOT` overrides with safe defaults. Common static settings stay in `application.yaml`. The committed `.env.example` lists these variable names without production values.
+These values are local development credentials. The production profile requires `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`, `SERVER_PORT`, and `LOGGING_LEVEL_ROOT`. It provides no defaults for these values. Common static settings stay in `application.yaml`. The committed `.env.example` lists these variable names without production values.
 
 Pure unit and Mockito tests start no Spring context and load no profile. Tests that start a small Spring context without PostgreSQL use `test`. Full Spring Boot, HTTP, JPA, Flyway, and PostgreSQL Testcontainers tests use `itest`. Tests that load Spring select their profile explicitly.
 
