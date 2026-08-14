@@ -10,7 +10,6 @@ import org.springframework.boot.resttestclient.TestRestTemplate;
 import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.ActiveProfiles;
 import tools.jackson.databind.JsonNode;
 
@@ -25,7 +24,7 @@ class ActuatorITest {
 
     @Test
     void healthReportsApplicationAndDatabaseAsUpWithoutDetails() {
-        ResponseEntity<JsonNode> response = restTemplate.getForEntity("/actuator/health", JsonNode.class);
+        var response = restTemplate.getForEntity("/actuator/health", JsonNode.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
 
@@ -40,7 +39,7 @@ class ActuatorITest {
     void prometheusPublishesStandardApplicationMetrics() {
         restTemplate.getForEntity("/actuator/prometheus", String.class);
 
-        ResponseEntity<String> response = restTemplate.getForEntity("/actuator/prometheus", String.class);
+        var response = restTemplate.getForEntity("/actuator/prometheus", String.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
 

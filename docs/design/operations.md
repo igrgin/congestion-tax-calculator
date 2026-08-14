@@ -4,7 +4,7 @@ Docker Compose runs PostgreSQL 18.4 as a separate runtime service. A named volum
 
 The Maven Wrapper builds and runs an executable Spring Boot JAR with Java 17. Springdoc exposes OpenAPI JSON and Swagger UI. Spring Boot Actuator exposes only `/actuator/health` and `/actuator/prometheus` over HTTP. Health includes database status. It shows component names and statuses and hides component details. `/actuator/info` and `/actuator/metrics` are not available over HTTP.
 
-One GitHub Actions workflow uses Java 17 and runs `./mvnw verify` for pushes and pull requests. This runs unit and Testcontainers integration tests. The first delivery has no deployment workflow or application container image.
+One GitHub Actions workflow uses Java 17 and runs `./mvnw verify` for pull requests and pushes to `main`. This runs unit and Testcontainers integration tests. The first delivery has no deployment workflow or application container image.
 
 ## Configuration Profiles
 
