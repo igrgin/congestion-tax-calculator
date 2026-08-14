@@ -151,6 +151,10 @@ Follow `docs/design/testing.md` for test levels, seams, and required behavior.
 - Test public behavior. Do not bind a test to a private method, Hibernate implementation detail, or exact generated SQL text.
 - Cover each distinct successful path, common path, boundary, and error path. Add no repeated case only to increase a coverage number.
 - Name full integration test classes with the suffix `ITest`. Name unit tests and small Spring context test classes with the suffix `Test`.
+- Run regular tests with `./mvnw test`.
+- Run integration tests without regular tests with `./mvnw verify -Dskip.regular.tests=true`.
+- Run all tests and build checks with `./mvnw verify`.
+- Use `./mvnw verify -DskipITs` when full build checks are required without integration tests.
 
 ## Documentation
 
