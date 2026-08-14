@@ -150,6 +150,7 @@ Follow `docs/design/testing.md` for test levels, seams, and required behavior.
 - Prefer parameterized tests when many inputs prove the same rule.
 - Test public behavior. Do not bind a test to a private method, Hibernate implementation detail, or exact generated SQL text.
 - Cover each distinct successful path, common path, boundary, and error path. Add no repeated case only to increase a coverage number.
+- Name full integration test classes with the suffix `ITest`. Name unit tests and small Spring context test classes with the suffix `Test`.
 
 ## Documentation
 

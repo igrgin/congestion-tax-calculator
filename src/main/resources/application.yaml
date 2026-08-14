@@ -5,6 +5,10 @@ spring:
     default: dev
 
 management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
   endpoint:
     health:
       show-components: always
