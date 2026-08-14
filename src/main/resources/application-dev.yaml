@@ -1,0 +1,9 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/congestion_tax
+    username: congestion_tax
+    password: congestion_tax
+
+logging:
+  level:
+    io.github.igrgin.congestiontax: DEBUG

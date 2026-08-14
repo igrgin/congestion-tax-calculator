@@ -130,7 +130,7 @@ src/test/resources/
 - Put static settings shared by normal runtime profiles in `application.yaml`.
 - Use `dev` as the default profile and keep its local settings consistent with Docker Compose.
 - Select `prod` explicitly with `SPRING_PROFILES_ACTIVE=prod`.
-- Require the production database URL, user, and password from environment variables. Give safe defaults only to non-sensitive values such as the server port and root log level.
+- Require the production database URL, user, password, server port, and root log level from environment variables. Do not give these production values defaults.
 - Use `test` for a small Spring test context without PostgreSQL.
 - Use `itest` for full Spring Boot, HTTP, JPA, Flyway, and PostgreSQL Testcontainers tests.
 - Keep the Testcontainers JDBC connection in `application-itest.yaml`.
@@ -150,6 +150,11 @@ Follow `docs/design/testing.md` for test levels, seams, and required behavior.
 - Prefer parameterized tests when many inputs prove the same rule.
 - Test public behavior. Do not bind a test to a private method, Hibernate implementation detail, or exact generated SQL text.
 - Cover each distinct successful path, common path, boundary, and error path. Add no repeated case only to increase a coverage number.
+- Name full integration test classes with the suffix `ITest`. Name unit tests and small Spring context test classes with the suffix `Test`.
+- Run regular tests with `./mvnw test`.
+- Run integration tests without regular tests with `./mvnw verify -Dskip.regular.tests=true`.
+- Run all tests and build checks with `./mvnw verify`.
+- Use `./mvnw verify -DskipITs` when full build checks are required without integration tests.
 
 ## Documentation
 

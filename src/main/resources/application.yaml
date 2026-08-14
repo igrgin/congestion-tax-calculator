@@ -1,0 +1,19 @@
+spring:
+  application:
+    name: congestion-tax-calculator
+  profiles:
+    default: dev
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    health:
+      show-components: always
+      show-details: never
+
+logging:
+  level:
+    root: INFO

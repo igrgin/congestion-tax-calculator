@@ -4,7 +4,7 @@ Docker Compose runs PostgreSQL 18.4 as a separate runtime service. A named volum
 
 The Maven Wrapper builds and runs an executable Spring Boot JAR with Java 17. Springdoc exposes OpenAPI JSON and Swagger UI. Spring Boot Actuator exposes only `/actuator/health` and `/actuator/prometheus` over HTTP. Health includes database status. It shows component names and statuses and hides component details. `/actuator/info` and `/actuator/metrics` are not available over HTTP.
 
-One GitHub Actions workflow uses Java 17 and runs `./mvnw verify` for pushes and pull requests. This runs unit and Testcontainers integration tests. The first delivery has no deployment workflow or application container image.
+One GitHub Actions workflow uses Java 17 and runs `./mvnw verify` for pull requests and pushes to `main`. This runs unit and Testcontainers integration tests. The first delivery has no deployment workflow or application container image.
 
 ## Configuration Profiles
 
@@ -33,7 +33,7 @@ spring:
     password: congestion_tax
 ```
 
-These values are local development credentials. The production profile requires `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, and `SPRING_DATASOURCE_PASSWORD`. It permits `SERVER_PORT` and `LOGGING_LEVEL_ROOT` overrides with safe defaults. Common static settings stay in `application.yaml`. The committed `.env.example` lists these variable names without production values.
+These values are local development credentials. The production profile requires `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`, `SERVER_PORT`, and `LOGGING_LEVEL_ROOT`. It provides no defaults for these values. Common static settings stay in `application.yaml`. The committed `.env.example` lists these variable names without production values.
 
 Pure unit and Mockito tests start no Spring context and load no profile. Tests that start a small Spring context without PostgreSQL use `test`. Full Spring Boot, HTTP, JPA, Flyway, and PostgreSQL Testcontainers tests use `itest`. Tests that load Spring select their profile explicitly.
 

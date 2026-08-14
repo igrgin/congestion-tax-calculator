@@ -23,9 +23,13 @@ Cases cover:
 - Several dates with successive rule versions
 - Rejection of mixed currencies in one result
 
+## Test Execution
+
+Maven Surefire runs regular test classes with the suffix `Test` and excludes classes with the suffix `ITest`. Maven Failsafe runs integration test classes with the suffix `ITest`. The `test` phase runs regular tests. The `verify` phase runs both groups and all build checks.
+
 ## HTTP and Database Tests
 
-A foundation integration test starts Spring Boot with PostgreSQL 18.4 through Testcontainers. It verifies that `/actuator/health` reports the application and database as `UP`, shows component statuses without details, and that `/actuator/prometheus` supplies standard metrics. It also verifies that `/actuator/info` and `/actuator/metrics` are unavailable.
+A foundation integration test starts Spring Boot with PostgreSQL 18.4 through Testcontainers. It verifies that `/actuator/health` reports the application and database as `UP`, shows component statuses without details, and that `/actuator/prometheus` supplies standard metrics. The Actuator allowlist exposes only these two endpoints.
 
 One full-path test starts Spring Boot with a temporary PostgreSQL database from Testcontainers. Flyway creates the schema and the initial assignment data. The test sends the complete assignment list through HTTP and verifies these Daily Taxes for `OTHER`:
 
