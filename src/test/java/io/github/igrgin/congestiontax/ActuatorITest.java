@@ -1,5 +1,8 @@
 package io.github.igrgin.congestiontax;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.boot.test.context.SpringBootTest.WebEnvironment.RANDOM_PORT;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.micrometer.metrics.test.autoconfigure.AutoConfigureMetrics;
@@ -10,8 +13,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.ActiveProfiles;
 import tools.jackson.databind.JsonNode;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.boot.test.context.SpringBootTest.WebEnvironment.RANDOM_PORT;
 
 @ActiveProfiles("itest")
 @AutoConfigureMetrics
@@ -24,8 +25,7 @@ class ActuatorITest {
 
     @Test
     void healthReportsApplicationAndDatabaseAsUpWithoutDetails() {
-        ResponseEntity<JsonNode> response =
-                restTemplate.getForEntity("/actuator/health", JsonNode.class);
+        ResponseEntity<JsonNode> response = restTemplate.getForEntity("/actuator/health", JsonNode.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
 
@@ -40,8 +40,7 @@ class ActuatorITest {
     void prometheusPublishesStandardApplicationMetrics() {
         restTemplate.getForEntity("/actuator/prometheus", String.class);
 
-        ResponseEntity<String> response =
-                restTemplate.getForEntity("/actuator/prometheus", String.class);
+        ResponseEntity<String> response = restTemplate.getForEntity("/actuator/prometheus", String.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
 
@@ -54,5 +53,4 @@ class ActuatorITest {
                         "http_server_requests_seconds",
                         "hikaricp_connections");
     }
-
 }

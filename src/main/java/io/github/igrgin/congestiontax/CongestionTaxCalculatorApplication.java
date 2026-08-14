@@ -9,5 +9,4 @@ public class CongestionTaxCalculatorApplication {
     public static void main(String[] args) {
         SpringApplication.run(CongestionTaxCalculatorApplication.class, args);
     }
-
 }
