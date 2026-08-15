@@ -36,7 +36,7 @@ One request contains one database-defined Vehicle Type and the passages for one 
 }
 ```
 
-Daily results are ordered by date and include zero amounts. Vehicle exemption is reported for each date because a request can use successive stored rule versions. One response has one currency. If applicable rule versions have different currencies, the application reports invalid server configuration.
+Daily results are ordered by date and include zero amounts. Vehicle exemption is reported for each date because a request can use successive stored Tax Rule Set snapshots. One response has one currency. If Applicable Tax Rule Sets have different currencies, the application reports invalid server configuration.
 
 The city code in the path selects the stored rules without changing the API contract. Springdoc supplies OpenAPI JSON and Swagger UI for the exact contract.
 

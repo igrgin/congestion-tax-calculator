@@ -88,7 +88,7 @@ The plan includes all agreed behavior. During implementation, simplify implement
 
 The first implementation has no shared cache and does not cache complete HTTP responses. The provider bulk-loads the required data once and reuses it in immutable maps that exist only for the current request.
 
-Complete requests are likely to be unique and can become stale when stored content changes. Add a shared cache only after measurements show a need. Measure database time, query count, p50, p95, and p99 response time, requests per second, connection-pool wait, CPU, memory, repeated rule use, expected hit ratio, and stale-data behavior. If justified, cache immutable rule sets by city and version instead of complete responses.
+Complete requests are likely to be unique and can become stale when stored content changes. Add a shared cache only after measurements show a need. Measure database time, query count, p50, p95, and p99 response time, requests per second, connection-pool wait, CPU, memory, repeated rule use, expected hit ratio, and stale-data behavior. If justified, cache immutable Tax Rule Sets by city and effective date instead of complete responses.
 
 The first delivery does not include authentication, rate limiting, custom CORS behavior, an administration endpoint, a Prometheus server, metric dashboards, alerts, or production deployment because the assignment does not define those requirements.
 

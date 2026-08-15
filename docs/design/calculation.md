@@ -25,11 +25,11 @@ For one vehicle, the application:
 3. Sorts passages by instant and groups them by city-local date.
 4. Selects the applicable stored rules for each date.
 5. Produces zero tax when the Vehicle Type is exempt for that date.
-6. Produces zero tax on an exempt weekday, exempt month, public holiday, or configured date relative to a holiday.
+6. Produces zero tax on an exempt day of week, exempt month, stored public-holiday date, or configured number of dates before a public holiday.
 7. Finds the time-band amount for each remaining passage. No matching positive band means zero.
-8. Starts a charge window with the first passage. It includes later passages no more than the configured number of actual minutes after that first passage.
-9. Charges only the highest passage amount in each window.
-10. Adds the window amounts and applies the daily maximum.
+8. When windowed charging applies, starts a Charge Window with the first passage. It includes later passages no more than the configured number of actual minutes after that first passage.
+9. Charges only the highest passage amount in each Charge Window. Without windowed charging, each Passage keeps its own amount.
+10. Adds the charges and applies the Daily Tax limit. An unlimited Daily Tax keeps the complete sum.
 11. Returns one Daily Tax for each input date and the sum of all Daily Taxes.
 
 A window does not slide forward when a later passage arrives. Every passage, including a zero-amount passage, participates and can start a window. Repeated timestamps are accepted and follow the same rule. A window cannot cross a city-local calendar-date boundary.
@@ -51,15 +51,23 @@ classDiagram
         +String code
     }
     class TaxRuleSet {
-        +int version
         +LocalDate effectiveFrom
-        +Money dailyMaximum
-        +Duration singleChargeDuration
+        +DailyTaxLimit dailyTaxLimit
+        +PassageChargingRule passageChargingRule
         +Set~DayOfWeek~ exemptWeekdays
         +Set~Month~ exemptMonths
-        +Set~Integer~ holidayOffsets
+        +Set~LocalDate~ publicHolidays
+        +int holidayPrecedingDays
         +Set~VehicleType~ exemptVehicleTypes
         +List~TimeBand~ timeBands
+    }
+    class DailyTaxLimit {
+        <<interface>>
+        +apply(Money) Money
+    }
+    class PassageChargingRule {
+        <<interface>>
+        +calculate(List~PassageAmount~) Money
     }
     class TimeBand {
         +LocalTime startTime
@@ -87,9 +95,13 @@ classDiagram
     CongestionTaxCalculator --> CalculationResult
     TaxRuleSet *-- TimeBand
     TaxRuleSet *-- Money
+    TaxRuleSet *-- DailyTaxLimit
+    TaxRuleSet *-- PassageChargingRule
     TimeBand *-- Money
     CalculationResult *-- DailyTax
     CalculationResult *-- Money
 ```
 
 `Money` contains `BigDecimal` and Java `Currency`. It prevents arithmetic between different currencies. The calculator has no Spring annotations, repository calls, database calls, or access to the system clock. The same inputs always produce the same result.
+
+`DailyTaxLimit` represents capped or unlimited Daily Tax. `PassageChargingRule` represents separate Passage charges or highest-amount charging within a Charge Window. The Tax Rule Provider creates these explicit values from stored Tax Rule Options. The calculation model does not use database type codes, nullable option values, or JPA entities.

@@ -20,7 +20,10 @@ Cases cover:
 - Each tax-free weekday, month, holiday, and preceding-holiday date
 - Each initial exempt Vehicle Type
 - The daily maximum
-- Several dates with successive rule versions
+- Unlimited Daily Tax when `DAILY_MAXIMUM` is absent
+- Separate Passage charges when `CHARGE_WINDOW` is absent
+- Zero preceding dates when `HOLIDAY_PRECEDING` is absent
+- Several dates with successive Tax Rule Set snapshots
 - Rejection of mixed currencies in one result
 
 ## Test Execution
@@ -45,6 +48,6 @@ One full-path test starts Spring Boot with a temporary PostgreSQL database from 
 
 This test proves that HTTP parsing, Flyway data, JPA loading, time conversion, calculation, and JSON output work together. After the calculation, it scrapes `/actuator/prometheus` and verifies the standard and custom meter families. Focused assertions check only the required meter names, bounded tags, and configured boundaries. They do not compare the complete scrape or volatile metric values. Add a separate repository test only when an important query is not covered through this path. Tests do not require Hibernate to produce an exact SQL string.
 
-A second integration fixture defines a test-only city with a different time zone, currency, time bands, exemptions, daily maximum, and single-charge duration. It proves that different database content changes the calculation without a Java code change. Invented rules do not enter the initial seed data. This proof can be completed after the primary assignment path is verified, but the application design must support it from the start.
+A second integration fixture defines a test-only city with a different time zone, currency, time bands, and Tax Exemptions. It omits `DAILY_MAXIMUM`, `CHARGE_WINDOW`, and `HOLIDAY_PRECEDING`. It proves that different database content changes the calculation without a Java code change. Invented rules do not enter the initial seed data. This proof can be completed after the primary assignment path is verified, but the application design must support it from the start.
 
 Error tests cover an unknown city, unknown Vehicle Type, empty or oversized passage list, timestamp without an offset, local date outside 2013, several invalid passages, missing or inconsistent rules, and an unavailable database.
