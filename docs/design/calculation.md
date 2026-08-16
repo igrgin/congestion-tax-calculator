@@ -40,7 +40,7 @@ Time-band starts are inclusive and ends are exclusive. Thus, `06:29:59` is in th
 
 ```mermaid
 classDiagram
-    class CongestionTaxCalculator {
+    class TaxCalculator {
         +calculate(vehicleType, passages, rulesByDate) CalculationResult
     }
     class LocalizedPassage {
@@ -49,9 +49,11 @@ classDiagram
     }
     class VehicleType {
         +String code
+        +String description
     }
     class TaxRuleSet {
         +LocalDate effectiveFrom
+        +Currency currency
         +DailyTaxLimit dailyTaxLimit
         +PassageChargingRule passageChargingRule
         +Set~DayOfWeek~ exemptWeekdays
@@ -59,49 +61,55 @@ classDiagram
         +Set~LocalDate~ publicHolidays
         +int holidayPrecedingDays
         +Set~VehicleType~ exemptVehicleTypes
-        +List~TimeBand~ timeBands
+        +List~TaxTimeBand~ taxTimeBands
     }
     class DailyTaxLimit {
-        <<interface>>
-        +apply(Money) Money
+        +unlimited(currency) DailyTaxLimit
+        +cappedAt(maximumAmount) DailyTaxLimit
+        +apply(TaxAmount) TaxAmount
     }
     class PassageChargingRule {
         <<interface>>
-        +calculate(List~PassageAmount~) Money
+        +separateCharges() PassageChargingRule
+        +calculate(List~PassageAmount~) TaxAmount
     }
-    class TimeBand {
+    class TaxTimeBand {
         +LocalTime startTime
         +LocalTime endTime
-        +Money amount
+        +TaxAmount amount
         +includes(LocalTime) boolean
     }
-    class Money {
+    class TaxAmount {
         +BigDecimal amount
         +Currency currency
+        +zero(currency) TaxAmount
+        +add(other) TaxAmount
+        +min(other) TaxAmount
     }
     class DailyTax {
         +LocalDate date
         +boolean vehicleExempt
-        +Money amount
+        +TaxAmount amount
     }
     class CalculationResult {
         +VehicleType vehicleType
-        +Money total
+        +Currency currency
         +List~DailyTax~ dailyTaxes
+        +TaxAmount totalAmount
     }
 
-    CongestionTaxCalculator --> LocalizedPassage
-    CongestionTaxCalculator --> TaxRuleSet
-    CongestionTaxCalculator --> CalculationResult
-    TaxRuleSet *-- TimeBand
-    TaxRuleSet *-- Money
+    TaxCalculator --> LocalizedPassage
+    TaxCalculator --> TaxRuleSet
+    TaxCalculator --> CalculationResult
+    TaxRuleSet *-- TaxTimeBand
+    TaxRuleSet *-- TaxAmount
     TaxRuleSet *-- DailyTaxLimit
     TaxRuleSet *-- PassageChargingRule
-    TimeBand *-- Money
+    TaxTimeBand *-- TaxAmount
     CalculationResult *-- DailyTax
-    CalculationResult *-- Money
+    CalculationResult *-- TaxAmount
 ```
 
-`Money` contains `BigDecimal` and Java `Currency`. It prevents arithmetic between different currencies. The calculator has no Spring annotations, repository calls, database calls, or access to the system clock. The same inputs always produce the same result.
+`TaxAmount` contains `BigDecimal` and Java `Currency`. It prevents arithmetic between different currencies. It accepts non-negative values with two decimal places and does not round an input. The calculator has no Spring annotations, repository calls, database calls, system-clock access, logging, or metrics. The same inputs always produce the same result.
 
 `DailyTaxLimit` represents capped or unlimited Daily Tax. `PassageChargingRule` represents separate Passage charges or highest-amount charging within a Charge Window. The Tax Rule Provider creates these explicit values from stored Tax Rule Options. The calculation model does not use database type codes, nullable option values, or JPA entities.

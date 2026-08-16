@@ -137,6 +137,8 @@ Flyway owns the schema and the initial rule data supplied by the assignment. Hib
 
 The JPA entity for a Tax Rule Set has no child collections. Each Tax Rule Option, Tax Time Band, and Tax Exemption entity refers to its parent Tax Rule Set ID. The provider explicitly bulk-loads the required child rows for the required IDs. This makes database reads visible and avoids one large join that repeats parent data.
 
+Map these parent IDs as scalar fields. Add a JPA association only when application code needs entity navigation, an association fetch plan, or cascade behavior. PostgreSQL foreign keys enforce the stored relationships. The supporting research is in [`docs/research/jpa-scalar-foreign-key-guidance.md`](../research/jpa-scalar-foreign-key-guidance.md).
+
 The Tax Rule Option and Tax Exemption entities map their `type_code` values to Java enums as strings. The provider validates each type-specific value. It maps Tax Rule Options to explicit Daily Tax limit, Passage charging, and holiday-preceding values. It maps Tax Exemptions to typed calculation collections. The calculation model does not depend on type codes or nullable persistence values.
 
 `loadRules` uses a method-level `@Transactional(readOnly = true)` boundary. It calls the required repositories inside one transaction, then maps the rows to immutable values before it returns. There is no cascade-based write workflow.

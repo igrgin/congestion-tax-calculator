@@ -23,6 +23,28 @@ For specifications, issues, branches, pull requests, and time records, follow `d
 - Make defensive copies when a record receives a mutable collection.
 - Keep JPA entities inside the persistence area and map them to immutable calculation values before data leaves that area.
 - Inject a Spring service through its interface.
+- Declare access explicitly where Java permits it. Fields are private unless a supported interface requires wider access.
+- Use `private final` for a field whose reference must not change after construction. Use `final` for a local variable when it makes an important invariant clear.
+
+### Packages and Dependencies
+
+- Group types by the durable responsibility that owns them.
+- Create a subpackage for several related types or for an important adapter seam.
+- Name packages for project concepts and responsibilities that remain stable when a library or storage technology changes.
+- Keep transport DTOs and exceptions inside their owning area.
+- Group each stored concept's entity and repository in one package under `persistence`.
+- Mirror production packages in tests and test behavior through the area's supported interface.
+
+Use these dependency directions:
+
+```text
+calculation.http -> calculation
+calculation -> domain
+calculation -> ruleprovider
+ruleprovider -> domain
+ruleprovider.persistence -> ruleprovider + domain
+domain -> JDK only
+```
 
 ### Spring Services
 
@@ -33,7 +55,7 @@ XService
 XServiceImpl
 ```
 
-For example, `CongestionTaxCalculationService` is the interface and `CongestionTaxCalculationServiceImpl` is its `@Service` implementation. Consumers inject `CongestionTaxCalculationService`.
+For example, `CalculationService` is the interface and `CalculationServiceImpl` is its `@Service` implementation. Consumers inject `CalculationService`.
 
 This convention applies to Spring services. It does not rename controllers, Spring Data repositories, configuration classes, the pure calculator, or provider adapters that are not Spring services.
 

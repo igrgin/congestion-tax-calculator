@@ -40,6 +40,10 @@ _Avoid_: Active rules, current rules
 A period of City Local Time with one positive tax amount. Its start is included and its end is excluded.
 _Avoid_: Rate slot, tariff interval
 
+**Tax Amount**:
+A non-negative congestion-tax value expressed in one currency. A Tax Amount cannot be combined with a Tax Amount in another currency.
+_Avoid_: Money, Monetary amount
+
 **Charge Window**:
 A period that starts with its first passage and includes applicable passages no later than 60 minutes after that first passage.
 _Avoid_: Sliding window, chained group
