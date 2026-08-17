@@ -1,10 +1,10 @@
 # Operations Design
 
-Docker Compose runs PostgreSQL 18.4 as a separate runtime service. A named volume retains development data. `docker compose down -v` removes that data when a clean start is necessary. Environment variables configure the database URL, user, and password. Flyway creates the schema and the initial rule data supplied by the assignment.
+Docker Compose runs PostgreSQL 18.4 as a separate runtime service. A named volume retains development data. `docker compose down -v` removes that data when a clean start is necessary. Environment variables configure the database URL, user, and password. Flyway creates the schema and the current one-Passage seed data.
 
-The Maven Wrapper builds and runs an executable Spring Boot JAR with Java 17. Springdoc exposes OpenAPI JSON and Swagger UI. Spring Boot Actuator exposes only `/actuator/health` and `/actuator/prometheus` over HTTP. Health includes database status. It shows component names and statuses and hides component details. `/actuator/info` and `/actuator/metrics` are not available over HTTP.
+The Maven project compiles for Java 17. The Maven Wrapper uses the active compatible JDK. Spring Boot Actuator exposes only `/actuator/health` and `/actuator/prometheus` over HTTP. Health includes database status. It shows component names and statuses and hides component details. `/actuator/info` and `/actuator/metrics` are not available over HTTP.
 
-One GitHub Actions workflow uses Java 17 and runs `./mvnw verify` for pull requests and pushes to `main`. This runs unit and Testcontainers integration tests. The first delivery has no deployment workflow or application container image.
+The repository does not yet contain a GitHub Actions workflow, deployment workflow, or application container image. A later delivery can add a workflow that uses Java 17 and runs `./mvnw verify` for pull requests and pushes to `main`.
 
 ## Configuration Profiles
 
@@ -33,11 +33,11 @@ spring:
     password: congestion_tax
 ```
 
-These values are local development credentials. The production profile requires `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`, `SERVER_PORT`, and `LOGGING_LEVEL_ROOT`. It provides no defaults for these values. Common static settings stay in `application.yaml`. The committed `.env.example` lists these variable names without production values.
+These values are local development credentials. The production profile requires `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`, `SERVER_PORT`, `LOGGING_LEVEL_ROOT`, and `LOGGING_LEVEL_APPLICATION`. It provides no defaults for these values. Common static settings stay in `application.yaml`. The committed `.env.example` lists these variable names without production values.
 
 Pure unit and Mockito tests start no Spring context and load no profile. Tests that start a small Spring context without PostgreSQL use `test`. Full Spring Boot, HTTP, JPA, Flyway, and PostgreSQL Testcontainers tests use `itest`. Tests that load Spring select their profile explicitly.
 
-The `test` and `itest` profiles enable `DEBUG` logging for the application package when diagnostic application messages are useful. They keep framework logging at a quieter level. Test classes can use `@Slf4j` for meaningful scenario and failure context.
+The `test` and `itest` profiles enable `DEBUG` logging for the application package. They keep framework logging at a quieter level. Test code does not write its own log messages.
 
 The `itest` datasource uses a declarative Testcontainers JDBC URL:
 
@@ -53,18 +53,41 @@ This URL starts the temporary PostgreSQL container without a Java dynamic-proper
 
 There is no unqualified `src/test/resources/application.yaml`, because it would override main configuration for all tests.
 
-Application-specific settings use validated `@ConfigurationProperties` records kept near their consuming package and registered through configuration-properties scanning. Standard Spring Boot settings, such as datasource properties, use Spring Boot's existing property types.
+## Logging
+
+The common profile sets the root level to `INFO`. The `dev`, `test`, and `itest` profiles enable `DEBUG` for `io.github.igrgin.congestiontax`. Production reads its root and application-package levels from separate environment variables. This lets an operator enable application diagnostics without enabling verbose framework diagnostics.
+
+The application uses plain parameterized SLF4J messages. It does not add structured JSON output, a correlation identifier, or `TRACE` events. `DEBUG` records diagnostic decisions. `INFO` records successful calculation completion. At the HTTP exception boundary, `WARN` records a handled `4xx` response and `ERROR` records a handled `5xx` response. `WARN` also records a failure that the application suppresses while it continues.
+
+Each feature issue owns the events required by that feature. One boundary logs each event or exception. `CONTRIBUTING.md` defines the safe context and prohibited data.
 
 ## Metrics
 
-Spring Boot Actuator and Micrometer supply standard JVM, process, HTTP, and database-pool metrics. The Prometheus registry publishes them at `/actuator/prometheus`. The first delivery does not run a Prometheus server and does not supply dashboards, alerts, or deployment configuration. A deployment must restrict access to the scrape endpoint at its network boundary because application authentication is outside the project scope.
+Spring Boot Actuator and Micrometer supply standard JVM, process, HTTP, and database-pool metrics. The Prometheus registry publishes them at `/actuator/prometheus`. The current application does not run a Prometheus server and does not supply dashboards, alerts, or deployment configuration.
 
-The application adds two focused meters:
+A deployment must restrict access to the scrape endpoint at its network boundary because application authentication is outside the project scope.
 
-- `congestion.tax.calculation` is a timer around the Calculation Service. It records the bounded `outcome` values `success`, `rejected`, and `failed`. Its Prometheus histogram supports aggregate latency percentiles.
-- `congestion.tax.calculation.passages` is a distribution summary for the number of accepted Passages in a calculation. Its configured boundaries are 1, 10, 100, 1,000, and 10,000.
+The application adds one custom timer:
 
-The meters do not use tax amounts, timestamps, identifiers, city codes, Vehicle Type codes, or exception text as tags. Standard HTTP metrics supply request count, duration, outcome, and status. The application does not duplicate those signals with a custom request or error counter.
+```text
+congestion.tax.calculation
+```
+
+The timer surrounds the Calculation Service operation. It records these bounded `outcome` tag values:
+
+```text
+success
+rejected
+failed
+```
+
+The configured Prometheus histogram supports aggregate latency analysis.
+
+The timer does not use Tax Amounts, Passage timestamps, City codes, Vehicle Type codes, exception messages, or other unbounded values as tags. Standard HTTP metrics supply request count, duration, outcome, and status.
+
+A metrics failure cannot change the calculation result. `CalculationMetrics` catches failures that occur when it starts or stops the timer and logs a warning.
+
+Each feature issue owns any metric required by its behavior. It adds a custom meter only when standard meters and existing custom meters cannot answer the operational question.
 
 ## Implementation Time Plan
 
@@ -72,7 +95,7 @@ Planning time is outside the assignment's six-hour implementation limit. The ini
 
 | Work area | Minutes |
 |---|---:|
-| Project foundation, dependencies, Docker Compose, metrics, and CI | 35 |
+| Project foundation, dependencies, Docker Compose, logging, metrics, and CI | 35 |
 | Database schema and Flyway | 60 |
 | Calculation code, parameterized tests, and focused metrics | 80 |
 | JPA loading and application coordination | 50 |
@@ -86,12 +109,12 @@ The plan includes all agreed behavior. During implementation, simplify implement
 
 ## Caching Decision
 
-The first implementation has no shared cache and does not cache complete HTTP responses. The provider bulk-loads the required data once and reuses it in immutable maps that exist only for the current request.
+The current implementation has no shared cache and does not cache HTTP responses. The City Local Time Service and Tax Rule Service load the required stored content for each calculation.
 
 Complete requests are likely to be unique and can become stale when stored content changes. Add a shared cache only after measurements show a need. Measure database time, query count, p50, p95, and p99 response time, requests per second, connection-pool wait, CPU, memory, repeated rule use, expected hit ratio, and stale-data behavior. If justified, cache immutable Tax Rule Sets by city and effective date instead of complete responses.
 
 The first delivery does not include authentication, rate limiting, custom CORS behavior, an administration endpoint, a Prometheus server, metric dashboards, alerts, or production deployment because the assignment does not define those requirements.
 
-## README Requirements
+## Planned README requirements
 
-The root README explains the assignment scope, architecture, prerequisites, database startup and reset, application startup, profiles, health, metrics, tests, API examples, error format, supplied-data result, known limits, time spent, and additional work. It links to every design document, architecture decision record, and `questions.md`.
+The planned root README will explain the assignment scope, architecture, prerequisites, database startup and reset, application startup, profiles, logging, health, metrics, tests, API examples, error format, supplied-data result, known limits, time spent, and additional work. It will link to every design document, architecture decision record, and `questions.md`.

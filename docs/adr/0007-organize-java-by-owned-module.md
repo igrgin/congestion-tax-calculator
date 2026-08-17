@@ -1,3 +1,21 @@
-# Organize Java by Owned Module
+# Organize Java by Owned Business Responsibility
 
-Organize Java types first by the durable module that owns the behavior: `calculation`, `domain`, and `ruleprovider`. Keep HTTP transport under `calculation.http` and stored adapters under `ruleprovider.persistence`. Group each stored concept's entity and repository below that persistence package. Dependencies point from coordination and adapters toward supported interfaces and the JDK-only domain. This structure keeps related changes together, makes package ownership visible, and keeps replaceable technologies out of package names.
+Organize Java types first by the durable business responsibility that owns the behavior:
+
+```text
+calculation
+citylocaltime
+domain
+metrics
+taxrule
+```
+
+Keep HTTP transport under `calculation.http`. Keep JPA entities, repository interfaces, and JPA service implementations under the persistence package of the business responsibility that owns them.
+
+`citylocaltime.persistence` owns City storage and City Local Time conversion. `taxrule.persistence` owns Vehicle Type and Tax Rule storage. One service can use one repository or several repositories. The service boundary follows the business responsibility, not the number of database tables.
+
+The `domain` package contains the pure calculation model. It depends on the JDK and compile-time Lombok annotations. It has no Lombok runtime dependency. `calculation` coordinates the complete use case. The top-level `metrics` package owns calculation instrumentation.
+
+Each Spring service has a matching interface and implementation. Consumers depend on the interface. Persistence entities do not leave their owning persistence package.
+
+This structure keeps related changes together, makes ownership and dependency directions visible, and keeps replaceable technology details outside the pure domain.

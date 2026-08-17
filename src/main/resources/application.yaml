@@ -3,6 +3,10 @@ spring:
     name: congestion-tax-calculator
   profiles:
     default: dev
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
 
 management:
   endpoints:
@@ -13,6 +17,10 @@ management:
     health:
       show-components: always
       show-details: never
+  metrics:
+    distribution:
+      percentiles-histogram:
+        congestion.tax.calculation: true
 
 logging:
   level:

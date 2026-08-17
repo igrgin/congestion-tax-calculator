@@ -1,53 +1,219 @@
 # Testing Design
 
-The test plan uses a small number of carefully selected tests. It covers each distinct successful path, common path, boundary, and error path. It does not repeat the same behavior only to increase a coverage number. There is no required coverage percentage.
+The test suite uses a small number of tests that prove distinct behavior, boundaries, and failures. It does not repeat the same behavior only to increase a coverage number. The project has no required coverage percentage.
 
-## Pure Calculation Tests
+## Test levels
 
-Use JUnit 5 parameterized tests when many inputs prove the same rule. Each case name states the input condition and expected result. Tests call public operations and do not test private methods.
+The project uses these test levels:
 
-Tests use parameterized SLF4J messages when logs make execution easier to follow. Integration tests log meaningful scenario boundaries and useful failure context. Focused calculation tests log only when the parameterized case name and assertion output are not sufficient. Tests do not add a routine log for every assertion.
+- pure domain tests;
+- service tests with mocked repositories or collaborators;
+- controller tests with a mocked Calculation Service;
+- schema integration tests with PostgreSQL;
+- full-path Spring Boot integration tests.
 
-Cases cover:
+Tests call public operations. They do not test private methods.
 
-- Each time-band start and exclusive end, including seconds
-- Same-date, midnight-crossing, and full-day bands
-- A passage exactly at and just after the charge-window boundary
-- The non-sliding window rule
-- A zero-amount passage that starts a window
-- Unsorted and repeated passages
-- City-local date grouping at midnight
-- Each tax-free weekday, month, holiday, and preceding-holiday date
-- Each initial exempt Vehicle Type
-- The daily maximum
-- Unlimited Daily Tax when `DAILY_MAXIMUM` is absent
-- Separate Passage charges when `CHARGE_WINDOW` is absent
-- Zero preceding dates when `HOLIDAY_PRECEDING` is absent
-- Several dates with successive Tax Rule Set snapshots
-- Rejection of mixed currencies in one result
+Application logging remains active when a test uses a Spring profile. Test code does not write log messages, and tests do not assert log output. Metric tests use the highest practical public seam and assert only the required meter, tags, and boundaries.
 
-## Test Execution
+## Current domain tests
 
-Maven Surefire runs regular test classes with the suffix `Test` and excludes classes with the suffix `ITest`. Maven Failsafe runs integration test classes with the suffix `ITest`. The `test` phase runs regular tests. The `verify` phase runs both groups and all build checks.
+`TaxAmountTest` proves:
 
-## HTTP and Database Tests
+- addition;
+- minimum selection;
+- zero creation;
+- rejection of null values;
+- rejection of negative amounts;
+- rejection of arithmetic between different currencies.
 
-A foundation integration test starts Spring Boot with PostgreSQL 18.4 through Testcontainers. It verifies that `/actuator/health` reports the application and database as `UP`, shows component statuses without details, and that `/actuator/prometheus` supplies standard metrics. The Actuator allowlist exposes only these two endpoints.
+`TaxTimeBandTest` proves:
 
-One full-path test starts Spring Boot with a temporary PostgreSQL database from Testcontainers. Flyway creates the schema and the initial assignment data. The test sends the complete assignment list through HTTP and verifies these Daily Taxes for `OTHER`:
+- inclusive start;
+- exclusive end;
+- exclusion outside the band;
+- rejection of null values;
+- rejection of an end equal to the start;
+- rejection of an end before the start;
+- rejection of a non-positive Tax Amount.
 
-| Date | Amount in SEK |
-|---|---:|
-| 2013-01-14 | 0.00 |
-| 2013-01-15 | 0.00 |
-| 2013-02-07 | 21.00 |
-| 2013-02-08 | 60.00 |
-| 2013-03-26 | 8.00 |
-| 2013-03-28 | 0.00 |
-| **Total** | **89.00** |
+`TaxRuleSetTest` proves:
 
-This test proves that HTTP parsing, Flyway data, JPA loading, time conversion, calculation, and JSON output work together. After the calculation, it scrapes `/actuator/prometheus` and verifies the standard and custom meter families. Focused assertions check only the required meter names, bounded tags, and configured boundaries. They do not compare the complete scrape or volatile metric values. Add a separate repository test only when an important query is not covered through this path. Tests do not require Hibernate to produce an exact SQL string.
+- rejection of null fields;
+- rejection of an empty Tax Time Band list.
 
-A second integration fixture defines a test-only city with a different time zone, currency, time bands, and Tax Exemptions. It omits `DAILY_MAXIMUM`, `CHARGE_WINDOW`, and `HOLIDAY_PRECEDING`. It proves that different database content changes the calculation without a Java code change. Invented rules do not enter the initial seed data. This proof can be completed after the primary assignment path is verified, but the application design must support it from the start.
+`DailyTaxTest` proves that the convenience constructor uses an empty Tax Exemption Reason set.
 
-Error tests cover an unknown city, unknown Vehicle Type, empty or oversized passage list, timestamp without an offset, local date outside 2013, several invalid passages, missing or inconsistent rules, and an unavailable database.
+`TaxCalculatorTest` proves:
+
+- one taxed Passage;
+- zero Tax outside the Tax Time Bands;
+- rejection of an empty Passage list;
+- rejection of an empty Applicable Tax Rule Set map;
+- rejection of a missing Applicable Tax Rule Set for the Passage date;
+- rejection of null calculation inputs.
+
+## Current service and controller tests
+
+`CityLocalTimeServiceImplTest` proves:
+
+- conversion from an instant to City Local Time with the stored IANA time zone;
+- rejection of an unknown City.
+
+`TaxRuleServiceImplTest` proves:
+
+- Vehicle Type loading;
+- rejection of an unknown Vehicle Type;
+- Applicable Tax Rule Set selection;
+- loading of adjacent Tax Time Bands;
+- rejection of a missing Applicable Tax Rule Set;
+- rejection of a Tax Rule Set without Tax Time Bands;
+- rejection of overlapping Tax Time Bands independent of repository order.
+
+`CalculationServiceImplTest` proves:
+
+- coordination of City Local Time, stored Tax Rules, and the pure calculator;
+- translation of unknown City and Vehicle Type failures into calculation-owned exceptions while preserving their causes;
+- the `rejected` metric outcome for known lookup failures;
+- the `failed` metric outcome for an unexpected failure.
+
+`CalculationControllerTest` proves:
+
+- the one-Passage HTTP request and response mapping;
+- rejection of a null or blank Vehicle Type;
+- rejection of a null or empty Passage list;
+- rejection of a null Passage value;
+- rejection of multiple Passages;
+- rejection of a Passage timestamp without an offset.
+
+The controller test uses the `test` profile. It does not connect to PostgreSQL.
+
+## Schema integration test
+
+`TaxRuleSchemaITest` starts Spring Boot with PostgreSQL through Testcontainers. It inserts synthetic schema-test data. It does not test the Gothenburg assignment values.
+
+The test proves:
+
+- valid rows can be inserted;
+- City codes are unique;
+- a Tax Rule Set must reference a known City;
+- a City cannot have two Tax Rule Sets with the same effective date;
+- a Tax Time Band must reference a known Tax Rule Set;
+- a Tax Time Band amount must be positive;
+- a Tax Time Band end must be after its start;
+- an exact Tax Time Band duplicate is rejected;
+- a Tax Rule Option must reference a known Tax Rule Set;
+- a Tax Rule Set cannot select the same option type twice;
+- each Tax Rule Option has the correct positive value shape.
+
+Cross-row Tax Time Band overlap is a Tax Rule Service check. It is not a database constraint.
+
+## Full-path integration test
+
+`CalculationITest` starts the complete Spring Boot application with a temporary PostgreSQL database. Flyway creates the schema and inserts the current Gothenburg seed data.
+
+The test sends:
+
+```json
+{
+  "vehicleType": "OTHER",
+  "passages": [
+    "2013-02-08T05:20:27Z"
+  ]
+}
+```
+
+The selected City time zone converts the Passage to `2013-02-08T06:20:27`. The stored `06:00–06:30` Tax Time Band produces `8.00 SEK`.
+
+The test verifies this response:
+
+```json
+{
+  "cityCode": "gothenburg",
+  "vehicleType": "OTHER",
+  "currency": "SEK",
+  "totalAmount": 8.00,
+  "dailyTaxes": [
+    {
+      "date": "2013-02-08",
+      "taxExemptionReasons": [],
+      "amount": 8.00
+    }
+  ]
+}
+```
+
+This test proves that HTTP parsing, City Local Time conversion, Flyway data, JPA loading, Tax calculation, and JSON output work together.
+
+It also verifies that Prometheus publishes the calculation timer with the bounded `success` outcome.
+
+The test also verifies:
+
+- a Passage outside the stored Tax Time Bands returns zero Tax;
+- invalid request bodies return HTTP `400`;
+- an unknown City returns HTTP `404`;
+- an unknown Vehicle Type returns HTTP `400`.
+
+## Tax Rule Service integration test
+
+`TaxRuleServiceITest` starts the application with a temporary PostgreSQL database and calls the real Tax Rule Service. It uses synthetic rows to verify:
+
+- stored Vehicle Type lookup;
+- Applicable Tax Rule Set selection by City and calculation date;
+- isolation between Cities;
+- rejection of a selected Tax Rule Set with no Tax Time Bands;
+- rejection of overlapping Tax Time Bands.
+
+An `@AfterEach` method removes the synthetic rows. The test does not use a test transaction or mock repositories.
+
+## Actuator integration test
+
+`ActuatorITest` verifies that:
+
+- application health is `UP`;
+- database health is `UP`;
+- health component details are hidden;
+- Prometheus publishes standard JVM, process, HTTP, and connection-pool metrics.
+
+## Test execution
+
+Maven Surefire runs regular test classes with the suffix `Test`. It excludes classes with the suffix `ITest`.
+
+Maven Failsafe runs integration test classes with the suffix `ITest`.
+
+Use:
+
+```text
+./mvnw test
+```
+
+to run regular tests.
+
+Use:
+
+```text
+./mvnw verify
+```
+
+to run regular tests, integration tests, and build checks.
+
+Tests that start Spring without PostgreSQL use the `test` profile. Full Spring Boot and PostgreSQL integration tests use the `itest` profile.
+
+## Later test coverage
+
+Later calculation issues will add focused tests for:
+
+- multiple Passage ordering and date grouping;
+- Charge Window boundaries and non-sliding behavior;
+- zero-amount Passages in a Charge Window;
+- repeated Passages;
+- weekday, month, public-holiday, and preceding-date Tax Exemptions;
+- Vehicle Type Tax Exemptions;
+- Daily Tax limits;
+- missing optional Tax Rules;
+- successive Applicable Tax Rule Sets;
+- mixed currencies in one calculation;
+- complete transport validation and Problem Details;
+- a second City with different stored Tax Rules.
+
+The complete assignment full-path test will be added when the related calculation behavior and seed data exist.
