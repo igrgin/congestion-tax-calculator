@@ -13,6 +13,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.Month;
 import java.util.Currency;
 import java.util.List;
 import java.util.Map;
@@ -20,13 +21,13 @@ import org.junit.jupiter.api.Test;
 
 class TaxCalculatorTest {
 
-    private static final LocalDate DATE = LocalDate.of(2013, 2, 8);
+    private static final LocalDate DATE = LocalDate.of(2013, Month.FEBRUARY, 8);
     private static final Currency SEK = Currency.getInstance("SEK");
     private static final VehicleType VEHICLE_TYPE = new VehicleType("OTHER", "Other vehicle");
     private static final TaxAmount TAX_AMOUNT = new TaxAmount(new BigDecimal("8.00"), SEK);
     private static final TaxRuleSet TAX_RULE_SET = new TaxRuleSet(
             "gothenburg",
-            LocalDate.of(2013, 1, 1),
+            LocalDate.of(2013, Month.JANUARY, 1),
             SEK,
             List.of(new TaxTimeBand(LocalTime.of(6, 0), LocalTime.of(6, 30), TAX_AMOUNT)));
 
@@ -34,7 +35,8 @@ class TaxCalculatorTest {
 
     @Test
     void calculatesOneTaxedPassage() {
-        var passage = new Passage(Instant.parse("2013-02-08T05:20:27Z"), LocalDateTime.of(2013, 2, 8, 6, 20, 27));
+        var passage = new Passage(
+                Instant.parse("2013-02-08T05:20:27Z"), LocalDateTime.of(2013, Month.FEBRUARY, 8, 6, 20, 27));
 
         var result = calculator.calculate(VEHICLE_TYPE, List.of(passage), Map.of(DATE, TAX_RULE_SET));
 
@@ -44,7 +46,8 @@ class TaxCalculatorTest {
 
     @Test
     void calculatesZeroOutsideTaxTimeBands() {
-        var passage = new Passage(Instant.parse("2013-02-08T04:59:00Z"), LocalDateTime.of(2013, 2, 8, 5, 59));
+        var passage =
+                new Passage(Instant.parse("2013-02-08T04:59:00Z"), LocalDateTime.of(2013, Month.FEBRUARY, 8, 5, 59));
 
         var result = calculator.calculate(VEHICLE_TYPE, List.of(passage), Map.of(DATE, TAX_RULE_SET));
 
@@ -65,7 +68,8 @@ class TaxCalculatorTest {
 
     @Test
     void rejectsEmptyApplicableTaxRuleSets() {
-        var passage = new Passage(Instant.parse("2013-02-08T05:20:27Z"), LocalDateTime.of(2013, 2, 8, 6, 20, 27));
+        var passage = new Passage(
+                Instant.parse("2013-02-08T05:20:27Z"), LocalDateTime.of(2013, Month.FEBRUARY, 8, 6, 20, 27));
         var passages = List.of(passage);
         var applicableTaxRuleSets = Map.<LocalDate, TaxRuleSet>of();
 
@@ -76,7 +80,8 @@ class TaxCalculatorTest {
 
     @Test
     void rejectsMissingApplicableTaxRuleSetForPassageDate() {
-        var passage = new Passage(Instant.parse("2013-02-08T05:20:27Z"), LocalDateTime.of(2013, 2, 8, 6, 20, 27));
+        var passage = new Passage(
+                Instant.parse("2013-02-08T05:20:27Z"), LocalDateTime.of(2013, Month.FEBRUARY, 8, 6, 20, 27));
         var passages = List.of(passage);
         var applicableTaxRuleSets = Map.of(DATE.minusDays(1), TAX_RULE_SET);
 
@@ -87,7 +92,8 @@ class TaxCalculatorTest {
 
     @Test
     void rejectsNullVehicleType() {
-        var passage = new Passage(Instant.parse("2013-02-08T05:20:27Z"), LocalDateTime.of(2013, 2, 8, 6, 20, 27));
+        var passage = new Passage(
+                Instant.parse("2013-02-08T05:20:27Z"), LocalDateTime.of(2013, Month.FEBRUARY, 8, 6, 20, 27));
         var passages = List.of(passage);
         var applicableTaxRuleSets = Map.of(DATE, TAX_RULE_SET);
 
@@ -105,7 +111,8 @@ class TaxCalculatorTest {
 
     @Test
     void rejectsNullApplicableTaxRuleSets() {
-        var passage = new Passage(Instant.parse("2013-02-08T05:20:27Z"), LocalDateTime.of(2013, 2, 8, 6, 20, 27));
+        var passage = new Passage(
+                Instant.parse("2013-02-08T05:20:27Z"), LocalDateTime.of(2013, Month.FEBRUARY, 8, 6, 20, 27));
         var passages = List.of(passage);
 
         assertThatThrownBy(() -> calculator.calculate(VEHICLE_TYPE, passages, null))

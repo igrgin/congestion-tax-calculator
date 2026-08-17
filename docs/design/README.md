@@ -26,7 +26,7 @@ The planned root `README.md` will be the guide for building, running, and callin
 | Single charge within 60 minutes | Stored `CHARGE_WINDOW` Tax Rule Option |
 | Tax-exempt vehicles | Database-defined Vehicle Types and Tax Rule Set-specific exemptions |
 | Tax Rules outside the application | PostgreSQL runtime content loaded through the Tax Rule Service |
-| Support content for different Cities | City code, currency, and effective Tax Rule Set snapshots stored per City; the request supplies the IANA time zone |
+| Support content for different Cities | City code, IANA time zone, currency, and effective Tax Rule Set snapshots stored per City |
 | Submit questions | Root `questions.md` pairs each unresolved question with the assumption used |
 | Six-hour limit and prioritization | Implementation budget and additional-work boundary in the operations design and planned README |
 
@@ -34,7 +34,8 @@ The one-Passage issue implements the first vertical path through this design. La
 
 ## Common terms
 
-- **Passage**: One recorded occurrence of a vehicle passing a tolling station in either direction. Its timestamp gives City Local Time. The request supplies the IANA time zone.
+- **City**: The place whose Tax Rules and IANA time zone control a Congestion Tax Calculation. A city code selects it.
+- **Passage**: One recorded occurrence of a vehicle passing a tolling station in either direction. Its timestamp gives City Local Time, and the selected City supplies its IANA time zone.
 - **City Local Time**: The local date and clock time supplied in a Passage timestamp for the selected City.
 - **Tax Rule**: A rule that determines if a Passage is taxable and which charge applies.
 - **Tax Exemption**: A Tax Rule that makes a Passage tax-free when its City Local Time or Vehicle Type matches stored content.

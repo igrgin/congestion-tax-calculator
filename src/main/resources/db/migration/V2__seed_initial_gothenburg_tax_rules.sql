@@ -1,5 +1,5 @@
-INSERT INTO city (code, name)
-VALUES ('gothenburg', 'Gothenburg');
+INSERT INTO city (code, name, time_zone)
+VALUES ('gothenburg', 'Gothenburg', 'Europe/Stockholm');
 
 INSERT INTO vehicle_type (code, description)
 VALUES ('OTHER', 'Other vehicle');

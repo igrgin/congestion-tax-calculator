@@ -4,16 +4,16 @@ This document defines how the application calculates Congestion Tax. The assignm
 
 ## Passage time handling
 
-The HTTP API supplies one IANA time zone and each Passage as City Local Time in `uuuu-MM-dd HH:mm:ss` format. The application accepts the request time zone as correct for all Passages.
+The HTTP API supplies each Passage as City Local Time in `uuuu-MM-dd HH:mm:ss` format. The selected City supplies one stored IANA time zone for all its Passages.
 
 A `Passage` contains:
 
 - the City Local Time supplied by the caller;
-- the `Instant` derived with the request time zone.
+- the `Instant` derived with the stored City time zone.
 
 The instant provides chronological order and measures actual elapsed time. City Local Time supplies the calculation date and the local time that selects a Tax Time Band.
 
-The application does not store a City time zone or compare the request time zone with City content. Missing and repeated local times during daylight-saving changes are outside the supported input contract.
+The Tax Rule module validates the stored City time zone as an IANA identifier when it loads the City. The Calculation module uses that time zone to create complete Passage values. Missing and repeated local times during daylight-saving changes are outside the supported input contract.
 
 ## One-Passage calculation
 
@@ -21,11 +21,12 @@ The current HTTP operation requires exactly one Passage. The controller enforces
 
 The Calculation Service:
 
-1. gets the calculation date from the Passage City Local Time;
-2. asks the Tax Rule Service for the Applicable Tax Rule Set and confirms that the City exists;
-3. asks the Tax Rule Service for the Vehicle Type;
-4. calls the pure `TaxCalculator`;
-5. returns the calculated City and result.
+1. gets the calculation date from the supplied City Local Time;
+2. asks the Tax Rule Service for the stored City time zone and the Applicable Tax Rule Set;
+3. creates the complete Passage with the City Local Time and its derived instant;
+4. asks the Tax Rule Service for the Vehicle Type;
+5. calls the pure `TaxCalculator`;
+6. returns the calculated City and result.
 
 The Tax Calculator:
 

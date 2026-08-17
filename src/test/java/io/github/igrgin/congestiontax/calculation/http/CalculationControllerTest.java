@@ -13,11 +13,10 @@ import io.github.igrgin.congestiontax.domain.TaxAmount;
 import io.github.igrgin.congestiontax.domain.VehicleType;
 import io.github.igrgin.congestiontax.domain.calculation.CalculationResult;
 import io.github.igrgin.congestiontax.domain.calculation.DailyTax;
-import io.github.igrgin.congestiontax.domain.calculation.Passage;
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.Month;
 import java.util.Currency;
 import java.util.List;
 import java.util.stream.Stream;
@@ -47,14 +46,14 @@ class CalculationControllerTest {
     void calculatesTaxForOnePassage() throws Exception {
         var cityCode = "gothenburg";
         var vehicleType = new VehicleType("OTHER", "Other vehicle");
-        var passage = new Passage(Instant.parse("2013-02-08T05:20:27Z"), LocalDateTime.of(2013, 2, 8, 6, 20, 27));
-        var calculationDate = LocalDate.of(2013, 2, 8);
+        var cityDateTime = LocalDateTime.of(2013, Month.FEBRUARY, 8, 6, 20, 27);
+        var calculationDate = LocalDate.of(2013, Month.FEBRUARY, 8);
         var currency = Currency.getInstance("SEK");
         var taxAmount = new TaxAmount(new BigDecimal("8.00"), currency);
         var calculationResult =
                 new CalculationResult(vehicleType, List.of(new DailyTax(calculationDate, taxAmount)), taxAmount);
 
-        given(calculationService.calculate(new CalculationCommand(cityCode, vehicleType.code(), List.of(passage))))
+        given(calculationService.calculate(new CalculationCommand(cityCode, vehicleType.code(), List.of(cityDateTime))))
                 .willReturn(new CalculatedTax(cityCode, calculationResult));
 
         mockMvc.perform(post("/api/v1/cities/{cityCode}" + "/congestion-tax/calculations", cityCode)
@@ -62,7 +61,6 @@ class CalculationControllerTest {
                         .content("""
                                 {
                                   "vehicleType": "OTHER",
-                                  "timeZone": "Europe/Stockholm",
                                   "passages": [
                                     "2013-02-08 06:20:27"
                                   ]
@@ -86,34 +84,6 @@ class CalculationControllerTest {
                         """));
     }
 
-    @Test
-    void derivesSummerInstantFromRequestTimeZone() throws Exception {
-        var cityCode = "gothenburg";
-        var vehicleType = new VehicleType("OTHER", "Other vehicle");
-        var passage = new Passage(Instant.parse("2013-07-08T04:20:27Z"), LocalDateTime.of(2013, 7, 8, 6, 20, 27));
-        var calculationDate = LocalDate.of(2013, 7, 8);
-        var currency = Currency.getInstance("SEK");
-        var taxAmount = new TaxAmount(new BigDecimal("8.00"), currency);
-        var calculationResult =
-                new CalculationResult(vehicleType, List.of(new DailyTax(calculationDate, taxAmount)), taxAmount);
-
-        given(calculationService.calculate(new CalculationCommand(cityCode, vehicleType.code(), List.of(passage))))
-                .willReturn(new CalculatedTax(cityCode, calculationResult));
-
-        mockMvc.perform(post("/api/v1/cities/{cityCode}" + "/congestion-tax/calculations", cityCode)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "vehicleType": "OTHER",
-                                  "timeZone": "Europe/Stockholm",
-                                  "passages": [
-                                    "2013-07-08 06:20:27"
-                                  ]
-                                }
-                                """))
-                .andExpect(status().isOk());
-    }
-
     @ParameterizedTest(name = "{0}")
     @MethodSource("invalidRequests")
     void rejectsInvalidRequest(String scenario, String requestBody) throws Exception {
@@ -128,14 +98,12 @@ class CalculationControllerTest {
                 Arguments.of("empty Passage list", """
                         {
                           "vehicleType": "OTHER",
-                          "timeZone": "Europe/Stockholm",
                           "passages": []
                         }
                         """),
                 Arguments.of("null Vehicle Type", """
                         {
                           "vehicleType": null,
-                          "timeZone": "Europe/Stockholm",
                           "passages": [
                             "2013-02-08 06:20:27"
                           ]
@@ -144,7 +112,6 @@ class CalculationControllerTest {
                 Arguments.of("blank Vehicle Type", """
                         {
                           "vehicleType": " ",
-                          "timeZone": "Europe/Stockholm",
                           "passages": [
                             "2013-02-08 06:20:27"
                           ]
@@ -153,34 +120,14 @@ class CalculationControllerTest {
                 Arguments.of("null Passage list", """
                         {
                           "vehicleType": "OTHER",
-                          "timeZone": "Europe/Stockholm",
                           "passages": null
                         }
                         """),
                 Arguments.of("null Passage", """
                         {
                           "vehicleType": "OTHER",
-                          "timeZone": "Europe/Stockholm",
                           "passages": [
                             null
-                          ]
-                        }
-                        """),
-                Arguments.of("null time zone", """
-                        {
-                          "vehicleType": "OTHER",
-                          "timeZone": null,
-                          "passages": [
-                            "2013-02-08 06:20:27"
-                          ]
-                        }
-                        """),
-                Arguments.of("blank time zone", """
-                        {
-                          "vehicleType": "OTHER",
-                          "timeZone": " ",
-                          "passages": [
-                            "2013-02-08 06:20:27"
                           ]
                         }
                         """));
@@ -193,7 +140,6 @@ class CalculationControllerTest {
                         .content("""
                                 {
                                   "vehicleType": "OTHER",
-                                  "timeZone": "Europe/Stockholm",
                                   "passages": [
                                     "2013-02-08 05:20:27",
                                     "2013-02-08 06:20:27"
@@ -211,7 +157,6 @@ class CalculationControllerTest {
                         .content("""
                                 {
                                   "vehicleType": "OTHER",
-                                  "timeZone": "Europe/Stockholm",
                                   "passages": [
                                     "%s"
                                   ]
@@ -220,20 +165,19 @@ class CalculationControllerTest {
                 .andExpect(status().isBadRequest());
     }
 
-    @ParameterizedTest
-    @ValueSource(strings = {"Mars/Olympus", "+01:00"})
-    void rejectsInvalidTimeZone(String timeZone) throws Exception {
+    @Test
+    void rejectsRemovedTimeZoneProperty() throws Exception {
         mockMvc.perform(post("/api/v1/cities/{cityCode}" + "/congestion-tax/calculations", "gothenburg")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
                                   "vehicleType": "OTHER",
-                                  "timeZone": "%s",
+                                  "timeZone": "Europe/Stockholm",
                                   "passages": [
                                     "2013-02-08 06:20:27"
                                   ]
                                 }
-                                """.formatted(timeZone)))
+                                """))
                 .andExpect(status().isBadRequest());
     }
 
@@ -255,7 +199,6 @@ class CalculationControllerTest {
                         .content("""
                                 {
                                   "vehicleType": "OTHER",
-                                  "timeZone": "Europe/Stockholm",
                                   "passages": [
                                     "2013-02-08 06:20:27"
                                   ]

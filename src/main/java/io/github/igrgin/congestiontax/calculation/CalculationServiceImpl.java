@@ -4,11 +4,13 @@ import io.github.igrgin.congestiontax.calculation.exception.CityNotFoundExceptio
 import io.github.igrgin.congestiontax.calculation.exception.VehicleTypeNotFoundException;
 import io.github.igrgin.congestiontax.calculation.model.CalculatedTax;
 import io.github.igrgin.congestiontax.calculation.model.CalculationCommand;
+import io.github.igrgin.congestiontax.domain.calculation.Passage;
 import io.github.igrgin.congestiontax.domain.calculation.TaxCalculator;
 import io.github.igrgin.congestiontax.metrics.CalculationMetrics;
 import io.github.igrgin.congestiontax.taxrule.TaxRuleService;
 import io.github.igrgin.congestiontax.taxrule.exception.UnknownCityException;
 import io.github.igrgin.congestiontax.taxrule.exception.UnknownVehicleTypeException;
+import java.time.LocalDateTime;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,7 +31,7 @@ public class CalculationServiceImpl implements CalculationService {
                 "Started Congestion Tax Calculation. cityCode={} vehicleTypeCode={} passageCount={}",
                 command.cityCode(),
                 command.vehicleTypeCode(),
-                command.passages().size());
+                command.passageCityDateTimes().size());
 
         try {
             var calculatedTax = calculationMetrics.recordCalculation(() -> calculateTax(command));
@@ -39,7 +41,7 @@ public class CalculationServiceImpl implements CalculationService {
                             + " cityCode={} vehicleTypeCode={} passageCount={} dailyTaxCount={}",
                     command.cityCode(),
                     command.vehicleTypeCode(),
-                    command.passages().size(),
+                    command.passageCityDateTimes().size(),
                     calculatedTax.calculationResult().dailyTaxes().size());
 
             return calculatedTax;
@@ -51,15 +53,24 @@ public class CalculationServiceImpl implements CalculationService {
     }
 
     private CalculatedTax calculateTax(CalculationCommand command) {
-        var calculationDates = command.passages().stream()
-                .map(passage -> passage.cityDateTime().toLocalDate())
+        var calculationDates = command.passageCityDateTimes().stream()
+                .map(LocalDateTime::toLocalDate)
                 .collect(Collectors.toUnmodifiableSet());
 
         var applicableTaxRuleSets = taxRuleService.getApplicableTaxRuleSets(command.cityCode(), calculationDates);
 
+        var passages = command.passageCityDateTimes().stream()
+                .map(cityDateTime -> new Passage(
+                        cityDateTime
+                                .atZone(applicableTaxRuleSets.cityTimeZone())
+                                .toInstant(),
+                        cityDateTime))
+                .toList();
+
         var vehicleType = taxRuleService.getVehicleType(command.vehicleTypeCode());
 
-        var calculationResult = taxCalculator.calculate(vehicleType, command.passages(), applicableTaxRuleSets);
+        var calculationResult =
+                taxCalculator.calculate(vehicleType, passages, applicableTaxRuleSets.taxRuleSetsByCalculationDate());
 
         return new CalculatedTax(command.cityCode(), calculationResult);
     }

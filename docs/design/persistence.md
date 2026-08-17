@@ -10,6 +10,7 @@ erDiagram
         bigint id PK
         varchar code UK
         varchar name
+        varchar time_zone
     }
 
     VEHICLE_TYPE {
@@ -53,7 +54,7 @@ erDiagram
     TAX_RULE_SET ||--o{ TAX_TIME_BAND : "defines charges"
 ```
 
-`CITY` stores the API code and display name. The request supplies the IANA time zone.
+`CITY` stores the API code, display name, and required IANA time-zone identifier. The identifier uses the same region format as `Europe/Stockholm`. A fixed offset such as `+01:00` is invalid.
 
 `VEHICLE_TYPE` stores each known Vehicle Type code and description. A Vehicle Type has one meaning across all Cities.
 
@@ -129,15 +130,17 @@ The Tax Rule Service uses:
 
 ```text
 taxrule.TaxRuleServiceImpl
+taxrule.persistence.CityRepository
 taxrule.persistence.VehicleTypeRepository
 taxrule.persistence.TaxRuleSetRepository
 taxrule.persistence.TaxTimeBandRepository
+taxrule.persistence.CityEntity
 taxrule.persistence.VehicleTypeEntity
 taxrule.persistence.TaxRuleSetEntity
 taxrule.persistence.TaxTimeBandEntity
 ```
 
-It confirms that the selected City exists and loads the Vehicle Type, Applicable Tax Rule Sets, and their Tax Time Bands.
+It loads the selected City, validates its stored time zone with the JDK IANA time-zone data, and loads the Vehicle Type, Applicable Tax Rule Sets, and their Tax Time Bands. An invalid stored City time zone is a stored-content failure.
 
 The Tax Rule Set entity does not contain a JPA child collection. `TaxTimeBandEntity` stores its parent ID as a scalar field. The service loads the selected parent rows and then bulk-loads the required Tax Time Bands.
 
@@ -154,6 +157,7 @@ PostgreSQL constraints protect:
 - primary and foreign keys;
 - required columns;
 - unique City codes;
+- non-blank City time zones;
 - unique City and effective-date pairs;
 - three-letter upper-case currency codes;
 - positive Tax Amounts;
@@ -164,6 +168,7 @@ PostgreSQL constraints protect:
 
 Repository-facing services protect cross-row completeness when they assemble calculation values. The current Tax Rule Service checks for:
 
+- invalid stored City time zones;
 - missing Applicable Tax Rule Sets;
 - missing Tax Time Bands;
 - overlapping Tax Time Bands;
@@ -179,6 +184,7 @@ Flyway inserts the minimum stored content for the one-Passage calculation:
 ```text
 City code: gothenburg
 City name: Gothenburg
+City time zone: Europe/Stockholm
 Vehicle Type: OTHER
 Tax Rule Set effective from: 2013-01-01
 Currency: SEK
@@ -189,7 +195,6 @@ Tax Amount: 8.00 SEK
 This data supports the issue acceptance path:
 
 ```text
-Time zone: Europe/Stockholm
 Passage: 2013-02-08 06:20:27
     -> 06:00–06:30 Tax Time Band
     -> 8.00 SEK

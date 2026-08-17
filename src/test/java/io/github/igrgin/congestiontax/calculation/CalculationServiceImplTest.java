@@ -20,6 +20,7 @@ import io.github.igrgin.congestiontax.metrics.CalculationMetrics;
 import io.github.igrgin.congestiontax.taxrule.TaxRuleService;
 import io.github.igrgin.congestiontax.taxrule.exception.UnknownCityException;
 import io.github.igrgin.congestiontax.taxrule.exception.UnknownVehicleTypeException;
+import io.github.igrgin.congestiontax.taxrule.model.ApplicableTaxRuleSets;
 import io.micrometer.core.instrument.Tag;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.math.BigDecimal;
@@ -27,13 +28,19 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.Month;
+import java.time.ZoneId;
 import java.util.Currency;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -57,21 +64,21 @@ class CalculationServiceImplTest {
         calculationService = new CalculationServiceImpl(taxRuleService, taxCalculator, calculationMetrics);
     }
 
-    @Test
-    void calculatesTaxWithCityLocalTimeAndApplicableTaxRules() {
+    @ParameterizedTest
+    @MethodSource("cityTimes")
+    void calculatesTaxWithStoredCityTimeZone(LocalDateTime cityDateTime, Instant passageInstant) {
         var cityCode = "gothenburg";
         var vehicleTypeCode = "OTHER";
-        var passageInstant = Instant.parse("2013-02-08T05:20:27Z");
-        var calculationDate = LocalDate.of(2013, 2, 8);
+        var calculationDate = cityDateTime.toLocalDate();
         var currency = Currency.getInstance("SEK");
         var taxAmount = new TaxAmount(new BigDecimal("8.00"), currency);
-        var passage = new Passage(passageInstant, LocalDateTime.of(2013, 2, 8, 6, 20, 27));
+        var passage = new Passage(passageInstant, cityDateTime);
         var passages = List.of(passage);
         var calculationDates = Set.of(calculationDate);
         var vehicleType = new VehicleType(vehicleTypeCode, "Other vehicle");
         var taxRuleSet = new TaxRuleSet(
                 cityCode,
-                LocalDate.of(2013, 1, 1),
+                LocalDate.of(2013, Month.JANUARY, 1),
                 currency,
                 List.of(new TaxTimeBand(LocalTime.of(6, 0), LocalTime.of(6, 30), taxAmount)));
         var applicableTaxRuleSets = Map.of(calculationDate, taxRuleSet);
@@ -79,12 +86,13 @@ class CalculationServiceImplTest {
                 new CalculationResult(vehicleType, List.of(new DailyTax(calculationDate, taxAmount)), taxAmount);
 
         given(taxRuleService.getApplicableTaxRuleSets(cityCode, calculationDates))
-                .willReturn(applicableTaxRuleSets);
+                .willReturn(new ApplicableTaxRuleSets(ZoneId.of("Europe/Stockholm"), applicableTaxRuleSets));
         given(taxRuleService.getVehicleType(vehicleTypeCode)).willReturn(vehicleType);
         given(taxCalculator.calculate(vehicleType, passages, applicableTaxRuleSets))
                 .willReturn(calculationResult);
 
-        var result = calculationService.calculate(new CalculationCommand(cityCode, vehicleTypeCode, passages));
+        var result =
+                calculationService.calculate(new CalculationCommand(cityCode, vehicleTypeCode, List.of(cityDateTime)));
 
         assertThat(result).isEqualTo(new CalculatedTax(cityCode, calculationResult));
 
@@ -94,9 +102,9 @@ class CalculationServiceImplTest {
     @Test
     void translatesUnknownCityAndRecordsRejectedOutcome() {
         var cityCode = "unknown";
-        var passage = new Passage(Instant.parse("2013-02-08T05:20:27Z"), LocalDateTime.of(2013, 2, 8, 6, 20, 27));
-        var command = new CalculationCommand(cityCode, "OTHER", List.of(passage));
-        var calculationDates = Set.of(LocalDate.of(2013, 2, 8));
+        var cityDateTime = LocalDateTime.of(2013, Month.FEBRUARY, 8, 6, 20, 27);
+        var command = new CalculationCommand(cityCode, "OTHER", List.of(cityDateTime));
+        var calculationDates = Set.of(cityDateTime.toLocalDate());
         var cause = new UnknownCityException(cityCode);
 
         given(taxRuleService.getApplicableTaxRuleSets(cityCode, calculationDates))
@@ -114,15 +122,14 @@ class CalculationServiceImplTest {
     void translatesUnknownVehicleTypeAndRecordsRejectedOutcome() {
         var cityCode = "gothenburg";
         var vehicleTypeCode = "UNKNOWN";
-        var passageInstant = Instant.parse("2013-02-08T05:20:27Z");
-        var passages = List.of(new Passage(passageInstant, LocalDateTime.of(2013, 2, 8, 6, 20, 27)));
-        var command = new CalculationCommand(cityCode, vehicleTypeCode, passages);
-        var calculationDate = LocalDate.of(2013, 2, 8);
+        var cityDateTime = LocalDateTime.of(2013, Month.FEBRUARY, 8, 6, 20, 27);
+        var command = new CalculationCommand(cityCode, vehicleTypeCode, List.of(cityDateTime));
+        var calculationDate = LocalDate.of(2013, Month.FEBRUARY, 8);
         var applicableTaxRuleSets = Map.<LocalDate, TaxRuleSet>of();
         var cause = new UnknownVehicleTypeException(vehicleTypeCode);
 
         given(taxRuleService.getApplicableTaxRuleSets(cityCode, Set.of(calculationDate)))
-                .willReturn(applicableTaxRuleSets);
+                .willReturn(new ApplicableTaxRuleSets(ZoneId.of("Europe/Stockholm"), applicableTaxRuleSets));
         given(taxRuleService.getVehicleType(vehicleTypeCode)).willThrow(cause);
 
         assertThatThrownBy(() -> calculationService.calculate(command))
@@ -136,9 +143,9 @@ class CalculationServiceImplTest {
     @Test
     void recordsFailedOutcomeForUnexpectedFailure() {
         var cityCode = "gothenburg";
-        var passage = new Passage(Instant.parse("2013-02-08T05:20:27Z"), LocalDateTime.of(2013, 2, 8, 6, 20, 27));
-        var command = new CalculationCommand(cityCode, "OTHER", List.of(passage));
-        var calculationDates = Set.of(LocalDate.of(2013, 2, 8));
+        var cityDateTime = LocalDateTime.of(2013, Month.FEBRUARY, 8, 6, 20, 27);
+        var command = new CalculationCommand(cityCode, "OTHER", List.of(cityDateTime));
+        var calculationDates = Set.of(cityDateTime.toLocalDate());
         var exception = new IllegalStateException("Unexpected failure.");
 
         given(taxRuleService.getApplicableTaxRuleSets(cityCode, calculationDates))
@@ -147,6 +154,13 @@ class CalculationServiceImplTest {
         assertThatThrownBy(() -> calculationService.calculate(command)).isSameAs(exception);
 
         assertCalculationTimer("failed");
+    }
+
+    private static Stream<Arguments> cityTimes() {
+        return Stream.of(
+                Arguments.of(
+                        LocalDateTime.of(2013, Month.FEBRUARY, 8, 6, 20, 27), Instant.parse("2013-02-08T05:20:27Z")),
+                Arguments.of(LocalDateTime.of(2013, Month.JULY, 8, 6, 20, 27), Instant.parse("2013-07-08T04:20:27Z")));
     }
 
     private void assertCalculationTimer(String outcome) {

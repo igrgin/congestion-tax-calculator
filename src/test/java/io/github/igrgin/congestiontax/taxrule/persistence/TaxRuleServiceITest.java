@@ -9,11 +9,15 @@ import io.github.igrgin.congestiontax.domain.VehicleType;
 import io.github.igrgin.congestiontax.domain.rule.TaxRuleSet;
 import io.github.igrgin.congestiontax.domain.rule.TaxTimeBand;
 import io.github.igrgin.congestiontax.taxrule.TaxRuleService;
+import io.github.igrgin.congestiontax.taxrule.exception.InvalidCityTimeZoneException;
 import io.github.igrgin.congestiontax.taxrule.exception.MissingTaxTimeBandsException;
 import io.github.igrgin.congestiontax.taxrule.exception.OverlappingTaxTimeBandsException;
+import io.github.igrgin.congestiontax.taxrule.model.ApplicableTaxRuleSets;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.Month;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Currency;
 import java.util.List;
@@ -81,66 +85,82 @@ class TaxRuleServiceITest {
     @Test
     void loadsApplicableTaxRuleSetsForSelectedCityAndDates() {
         var cityCode = "tax-rule-service-city";
-        var cityId = insertCity(cityCode);
-        var otherCityId = insertCity("tax-rule-service-other-city");
+        var cityId = insertCity(cityCode, "Europe/Stockholm");
+        var otherCityId = insertCity("tax-rule-service-other-city", "Europe/Zagreb");
 
-        var firstRuleSetId = insertTaxRuleSet(cityId, LocalDate.of(2013, 1, 1));
-        var secondRuleSetId = insertTaxRuleSet(cityId, LocalDate.of(2013, 2, 15));
-        var futureRuleSetId = insertTaxRuleSet(cityId, LocalDate.of(2013, 4, 1));
-        var otherCityRuleSetId = insertTaxRuleSet(otherCityId, LocalDate.of(2013, 2, 20));
+        var firstRuleSetId = insertTaxRuleSet(cityId, LocalDate.of(2013, Month.JANUARY, 1));
+        var secondRuleSetId = insertTaxRuleSet(cityId, LocalDate.of(2013, Month.FEBRUARY, 15));
+        var futureRuleSetId = insertTaxRuleSet(cityId, LocalDate.of(2013, Month.APRIL, 1));
+        var otherCityRuleSetId = insertTaxRuleSet(otherCityId, LocalDate.of(2013, Month.FEBRUARY, 20));
 
         insertTaxTimeBand(firstRuleSetId, new BigDecimal("8.00"));
         insertTaxTimeBand(secondRuleSetId, new BigDecimal("13.00"));
         insertTaxTimeBand(futureRuleSetId, new BigDecimal("18.00"));
         insertTaxTimeBand(otherCityRuleSetId, new BigDecimal("99.00"));
 
-        var firstCalculationDate = LocalDate.of(2013, 2, 8);
-        var secondCalculationDate = LocalDate.of(2013, 3, 1);
+        var firstCalculationDate = LocalDate.of(2013, Month.FEBRUARY, 8);
+        var secondCalculationDate = LocalDate.of(2013, Month.MARCH, 1);
 
         var result =
                 taxRuleService.getApplicableTaxRuleSets(cityCode, Set.of(firstCalculationDate, secondCalculationDate));
 
         assertThat(result)
-                .isEqualTo(Map.of(
-                        firstCalculationDate,
-                        taxRuleSet(cityCode, LocalDate.of(2013, 1, 1), new BigDecimal("8.00")),
-                        secondCalculationDate,
-                        taxRuleSet(cityCode, LocalDate.of(2013, 2, 15), new BigDecimal("13.00"))));
+                .isEqualTo(new ApplicableTaxRuleSets(
+                        ZoneId.of("Europe/Stockholm"),
+                        Map.of(
+                                firstCalculationDate,
+                                taxRuleSet(cityCode, LocalDate.of(2013, Month.JANUARY, 1), new BigDecimal("8.00")),
+                                secondCalculationDate,
+                                taxRuleSet(
+                                        cityCode, LocalDate.of(2013, Month.FEBRUARY, 15), new BigDecimal("13.00")))));
     }
 
     @Test
     void rejectsStoredTaxRuleSetWithoutTaxTimeBands() {
         var cityCode = "tax-rule-service-missing-bands";
-        var cityId = insertCity(cityCode);
+        var cityId = insertCity(cityCode, "Europe/Stockholm");
+        var calculationDates = Set.of(LocalDate.of(2013, Month.FEBRUARY, 8));
 
-        insertTaxRuleSet(cityId, LocalDate.of(2013, 1, 1));
+        insertTaxRuleSet(cityId, LocalDate.of(2013, Month.JANUARY, 1));
 
-        assertThatThrownBy(() -> taxRuleService.getApplicableTaxRuleSets(cityCode, Set.of(LocalDate.of(2013, 2, 8))))
+        assertThatThrownBy(() -> taxRuleService.getApplicableTaxRuleSets(cityCode, calculationDates))
                 .isInstanceOf(MissingTaxTimeBandsException.class);
     }
 
     @Test
     void rejectsStoredOverlappingTaxTimeBands() {
         var cityCode = "tax-rule-service-overlap";
-        var cityId = insertCity(cityCode);
-        var ruleSetId = insertTaxRuleSet(cityId, LocalDate.of(2013, 1, 1));
+        var cityId = insertCity(cityCode, "Europe/Stockholm");
+        var ruleSetId = insertTaxRuleSet(cityId, LocalDate.of(2013, Month.JANUARY, 1));
+        var calculationDates = Set.of(LocalDate.of(2013, Month.FEBRUARY, 8));
 
         insertTaxTimeBand(ruleSetId, LocalTime.of(6, 0), LocalTime.of(6, 30), new BigDecimal("8.00"));
         insertTaxTimeBand(ruleSetId, LocalTime.of(6, 15), LocalTime.of(7, 0), new BigDecimal("13.00"));
 
-        assertThatThrownBy(() -> taxRuleService.getApplicableTaxRuleSets(cityCode, Set.of(LocalDate.of(2013, 2, 8))))
+        assertThatThrownBy(() -> taxRuleService.getApplicableTaxRuleSets(cityCode, calculationDates))
                 .isInstanceOf(OverlappingTaxTimeBandsException.class);
     }
 
-    private long insertCity(String code) {
+    @Test
+    void rejectsInvalidStoredCityTimeZone() {
+        var cityCode = "tax-rule-service-invalid-time-zone";
+        var calculationDates = Set.of(LocalDate.of(2013, Month.FEBRUARY, 8));
+        insertCity(cityCode, "Mars/Olympus");
+
+        assertThatThrownBy(() -> taxRuleService.getApplicableTaxRuleSets(cityCode, calculationDates))
+                .isInstanceOf(InvalidCityTimeZoneException.class);
+    }
+
+    private long insertCity(String code, String timeZone) {
         var cityId = jdbcTemplate.queryForObject("""
                 INSERT INTO city (
                     code,
-                    name
+                    name,
+                    time_zone
                 )
-                VALUES (?, ?)
+                VALUES (?, ?, ?)
                 RETURNING id
-                """, Long.class, code, "Tax Rule Service Test City");
+                """, Long.class, code, "Tax Rule Service Test City", timeZone);
 
         insertedCityIds.add(cityId);
 

@@ -7,6 +7,7 @@ import io.github.igrgin.congestiontax.domain.TaxAmount;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.Month;
 import java.util.Currency;
 import java.util.List;
 import java.util.stream.Stream;
@@ -17,7 +18,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 class TaxRuleSetTest {
 
-    private static final LocalDate EFFECTIVE_FROM = LocalDate.of(2013, 1, 1);
+    private static final LocalDate EFFECTIVE_FROM = LocalDate.of(2013, Month.JANUARY, 1);
     private static final Currency CURRENCY = Currency.getInstance("SEK");
     private static final TaxTimeBand TAX_TIME_BAND =
             new TaxTimeBand(LocalTime.of(6, 0), LocalTime.of(6, 30), new TaxAmount(new BigDecimal("8.00"), CURRENCY));

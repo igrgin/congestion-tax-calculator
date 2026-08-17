@@ -58,6 +58,8 @@ Application logging remains active when a test uses a Spring profile. Test code 
 `TaxRuleServiceImplTest` proves:
 
 - rejection of an unknown City;
+- loading and validation of the stored City time zone;
+- rejection of an invalid stored City time zone;
 - Vehicle Type loading;
 - rejection of an unknown Vehicle Type;
 - Applicable Tax Rule Set selection;
@@ -71,6 +73,7 @@ This test stays in the `taxrule.persistence` test package because it uses packag
 `CalculationServiceImplTest` proves:
 
 - coordination of Passages, stored Tax Rules, and the pure calculator;
+- derivation of winter and summer instants with the stored City time zone;
 - translation of unknown City and Vehicle Type failures into calculation-owned exceptions while preserving their causes;
 - the `rejected` metric outcome for known lookup failures;
 - the `failed` metric outcome for an unexpected failure.
@@ -84,9 +87,8 @@ This test stays in the `taxrule.persistence` test package because it uses packag
 - rejection of a null or empty Passage list;
 - rejection of a null Passage value;
 - rejection of multiple Passages;
-- derivation of winter and summer instants with the request IANA time zone;
-- rejection of an invalid IANA time zone;
 - rejection of a Passage timestamp that does not use `uuuu-MM-dd HH:mm:ss`;
+- rejection of unknown JSON properties, including the removed `timeZone` property;
 - rejection of malformed JSON;
 - a safe HTTP `500` response for an unexpected failure.
 
@@ -100,6 +102,7 @@ The test proves:
 
 - valid rows can be inserted;
 - City codes are unique;
+- a City time zone is required and must not be blank;
 - a Tax Rule Set must reference a known City;
 - a City cannot have two Tax Rule Sets with the same effective date;
 - a Tax Time Band must reference a known Tax Rule Set;
@@ -121,14 +124,13 @@ The test sends:
 ```json
 {
   "vehicleType": "OTHER",
-  "timeZone": "Europe/Stockholm",
   "passages": [
     "2013-02-08 06:20:27"
   ]
 }
 ```
 
-The Passage supplies City Local Time `2013-02-08T06:20:27`. The stored `06:00–06:30` Tax Time Band produces `8.00 SEK`. The request time zone derives the instant `2013-02-08T05:20:27Z` for ordering and elapsed-time calculations.
+The Passage supplies City Local Time `2013-02-08T06:20:27`. The stored `06:00–06:30` Tax Time Band produces `8.00 SEK`. The stored City time zone `Europe/Stockholm` derives the instant `2013-02-08T05:20:27Z` for ordering and elapsed-time calculations.
 
 The test verifies this response:
 
@@ -148,7 +150,7 @@ The test verifies this response:
 }
 ```
 
-This test proves that HTTP parsing, request time-zone handling, Flyway data, JPA loading, Tax calculation, and JSON output work together.
+This test proves that HTTP parsing, stored City time-zone handling, Flyway data, JPA loading, Tax calculation, and JSON output work together.
 
 It also verifies that Prometheus publishes the calculation timer with the bounded `success` outcome.
 
@@ -163,6 +165,7 @@ The test also verifies:
 
 `TaxRuleServiceITest` starts the application with a temporary PostgreSQL database and calls the real Tax Rule Service. It uses synthetic rows to verify:
 
+- stored City time-zone loading;
 - stored Vehicle Type lookup;
 - Applicable Tax Rule Set selection by City and calculation date;
 - isolation between Cities;

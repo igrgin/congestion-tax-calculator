@@ -8,8 +8,12 @@ This context defines the language for calculating congestion tax from vehicle pa
 A calculation of congestion tax for one vehicle from a set of passages.
 _Avoid_: Tax query, fee lookup
 
+**City**:
+The place whose Tax Rules and IANA time zone control a Congestion Tax Calculation. A city code selects it.
+_Avoid_: Location, jurisdiction
+
 **Passage**:
-One recorded occurrence of a vehicle passing a tolling station in either direction. Its timestamp gives the City Local Time. The calculation request supplies the IANA time zone for all its Passages, and the application accepts that time zone as correct.
+One recorded occurrence of a vehicle passing a tolling station in either direction. Its timestamp gives the City Local Time, and the selected City supplies its IANA time zone.
 _Avoid_: Entry, exit, transaction
 
 **Vehicle Type**:

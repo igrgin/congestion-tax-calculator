@@ -1,3 +1,7 @@
+---
+status: superseded by ADR-0008
+---
+
 # Accept City Local Passage Times from the Request
 
 The API requires one IANA time zone and Passage timestamps in `uuuu-MM-dd HH:mm:ss` format. Each timestamp is City Local Time.

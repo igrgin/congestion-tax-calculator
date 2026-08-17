@@ -44,9 +44,9 @@ The assignment does not answer the questions below. Because answers were not ava
 
 ### Which time zone applies to the supplied values that have no UTC offset?
 
-**Assumption used:** Each supplied value is City Local Time in Gothenburg. The HTTP request supplies `Europe/Stockholm` as the trusted IANA time zone.
+**Assumption used:** Each supplied value is City Local Time in Gothenburg. The stored Gothenburg City row supplies `Europe/Stockholm` as its IANA time zone.
 
-**Result:** The supplied list can be sent without modification and is compared directly with the Gothenburg Tax Time Bands. The application derives an instant from each local value and the request time zone when it needs ordering or elapsed time. Missing and repeated local times during daylight-saving changes are outside the supported input contract.
+**Result:** The supplied list can be sent without modification and is compared directly with the Gothenburg Tax Time Bands. The Calculation module derives an instant from each local value and the stored City time zone when it needs ordering or elapsed time. A caller cannot override the City time zone. Missing and repeated local times during daylight-saving changes are outside the supported input contract.
 
 ### Does the supplied list belong to one vehicle?
 

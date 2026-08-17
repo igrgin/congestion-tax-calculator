@@ -2,7 +2,7 @@
 
 This document defines the main application components and their dependency directions.
 
-The application uses stored City and Tax Rule data. A city code selects the content for that city. The calculation code does not contain city-specific amounts, Tax Time Bands, or currency data. The request supplies the time zone.
+The application uses stored City and Tax Rule data. A city code selects the content for that city. The calculation code does not contain city-specific time zones, amounts, Tax Time Bands, or currency data.
 
 ```mermaid
 flowchart LR
@@ -16,10 +16,10 @@ flowchart LR
     RULE_REPO --> DB[("PostgreSQL")]
 ```
 
-- The HTTP controller validates transport data, accepts City Local Time, derives Passage instants with the request time zone, and creates the HTTP response.
+- The HTTP controller validates transport data, parses City Local Time, and creates the HTTP response.
 - `CalculationService` defines the operation that coordinates one complete Congestion Tax Calculation.
-- `CalculationServiceImpl` calls the Tax Rule Service, pure calculator, and metrics component.
-- `TaxRuleService` confirms that the City exists and loads the Vehicle Type and Applicable Tax Rule Sets.
+- `CalculationServiceImpl` derives Passage instants with the stored City time zone and calls the Tax Rule Service, pure calculator, and metrics component.
+- `TaxRuleService` confirms that the City exists, validates its stored IANA time zone, and loads the Vehicle Type and Applicable Tax Rule Sets.
 - The pure calculator applies the Tax Rules without Spring, database, HTTP, logging, or metrics behavior.
 - `TaxRuleServiceImpl` loads stored rows and maps them to immutable calculation values.
 - Spring Data repositories contain explicit database read operations.
@@ -44,6 +44,7 @@ io.github.igrgin.congestiontax
 ├── metrics
 └── taxrule
     ├── exception
+    ├── model
     └── persistence
 ```
 
@@ -71,14 +72,16 @@ The domain does not:
 `CalculationService` coordinates the complete use case. It performs this sequence:
 
 1. Record the calculation timer.
-2. Ask `TaxRuleService` to confirm the City and load the Applicable Tax Rule Sets for the calculation dates.
-3. Ask `TaxRuleService` to load the Vehicle Type.
-4. Call `TaxCalculator`.
-5. Return the calculated City and calculation result.
+2. Get the calculation dates from the supplied City Local Times.
+3. Ask `TaxRuleService` to load the stored City time zone and Applicable Tax Rule Sets for the calculation dates.
+4. Derive complete Passages with the stored City time zone.
+5. Ask `TaxRuleService` to load the Vehicle Type.
+6. Call `TaxCalculator`.
+7. Return the calculated City and calculation result.
 
 `CalculationServiceImpl` translates expected collaborator lookup failures into calculation-owned exceptions after metrics records the outcome. It preserves the lower exception as the cause. This keeps the Calculation module interface independent of its collaborator implementations.
 
-`TaxRuleService` owns City existence, Vehicle Type, and Tax Rule loading. Its interface and implementation are in `taxrule`. Its entities and repositories are in `taxrule.persistence`. One business responsibility can use one repository or several repositories. The service seam follows the business responsibility, not the number of tables.
+`TaxRuleService` owns City existence, stored City time-zone validation, Vehicle Type, and Tax Rule loading. It returns one immutable result that contains the validated City time zone and the Applicable Tax Rule Set map. Its interface and implementation are in `taxrule`. Its entities and repositories are in `taxrule.persistence`. One business responsibility can use one repository or several repositories. The service seam follows the business responsibility, not the number of tables.
 
 `TaxRuleService` is the external interface of the Tax Rule module. Persistence classes and repository interfaces can be public because `TaxRuleServiceImpl` uses them across the package split. That Java access does not make them part of the module interface. No caller outside the Tax Rule implementation uses them.
 

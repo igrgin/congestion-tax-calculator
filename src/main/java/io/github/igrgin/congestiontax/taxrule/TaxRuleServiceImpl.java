@@ -2,11 +2,15 @@ package io.github.igrgin.congestiontax.taxrule;
 
 import io.github.igrgin.congestiontax.domain.VehicleType;
 import io.github.igrgin.congestiontax.domain.rule.TaxRuleSet;
+import io.github.igrgin.congestiontax.taxrule.exception.InvalidCityTimeZoneException;
 import io.github.igrgin.congestiontax.taxrule.exception.MissingApplicableTaxRuleSetException;
 import io.github.igrgin.congestiontax.taxrule.exception.MissingTaxTimeBandsException;
 import io.github.igrgin.congestiontax.taxrule.exception.OverlappingTaxTimeBandsException;
 import io.github.igrgin.congestiontax.taxrule.exception.UnknownCityException;
 import io.github.igrgin.congestiontax.taxrule.exception.UnknownVehicleTypeException;
+import io.github.igrgin.congestiontax.taxrule.model.ApplicableTaxRuleSets;
+import io.github.igrgin.congestiontax.taxrule.persistence.CityEntity;
+import io.github.igrgin.congestiontax.taxrule.persistence.CityRepository;
 import io.github.igrgin.congestiontax.taxrule.persistence.TaxRuleSetEntity;
 import io.github.igrgin.congestiontax.taxrule.persistence.TaxRuleSetRepository;
 import io.github.igrgin.congestiontax.taxrule.persistence.TaxTimeBandEntity;
@@ -14,6 +18,7 @@ import io.github.igrgin.congestiontax.taxrule.persistence.TaxTimeBandRepository;
 import io.github.igrgin.congestiontax.taxrule.persistence.VehicleTypeEntity;
 import io.github.igrgin.congestiontax.taxrule.persistence.VehicleTypeRepository;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class TaxRuleServiceImpl implements TaxRuleService {
 
+    private final CityRepository cityRepository;
     private final VehicleTypeRepository vehicleTypeRepository;
     private final TaxRuleSetRepository taxRuleSetRepository;
     private final TaxTimeBandRepository taxTimeBandRepository;
@@ -43,10 +49,12 @@ public class TaxRuleServiceImpl implements TaxRuleService {
 
     @Override
     @Transactional(readOnly = true)
-    public Map<LocalDate, TaxRuleSet> getApplicableTaxRuleSets(String cityCode, Set<LocalDate> calculationDates) {
-        if (!taxRuleSetRepository.cityExists(cityCode)) {
-            throw new UnknownCityException(cityCode);
-        }
+    public ApplicableTaxRuleSets getApplicableTaxRuleSets(String cityCode, Set<LocalDate> calculationDates) {
+        var cityTimeZone = cityRepository
+                .findByCode(cityCode)
+                .map(CityEntity::getTimeZone)
+                .map(timeZone -> parseCityTimeZone(cityCode, timeZone))
+                .orElseThrow(() -> new UnknownCityException(cityCode));
 
         var latestCalculationDate =
                 calculationDates.stream().max(LocalDate::compareTo).orElseThrow();
@@ -65,10 +73,20 @@ public class TaxRuleServiceImpl implements TaxRuleService {
         var taxTimeBandsByRuleSetId = taxTimeBandRepository.findByRuleSetIdIn(selectedRuleSetIds).stream()
                 .collect(Collectors.groupingBy(TaxTimeBandEntity::getRuleSetId));
 
-        return ruleSetEntitiesByDate.entrySet().stream()
+        var taxRuleSetsByCalculationDate = ruleSetEntitiesByDate.entrySet().stream()
                 .collect(Collectors.toUnmodifiableMap(
                         Map.Entry::getKey,
                         entry -> mapCompleteTaxRuleSet(cityCode, entry.getValue(), taxTimeBandsByRuleSetId)));
+
+        return new ApplicableTaxRuleSets(cityTimeZone, taxRuleSetsByCalculationDate);
+    }
+
+    private static ZoneId parseCityTimeZone(String cityCode, String timeZone) {
+        if (!ZoneId.getAvailableZoneIds().contains(timeZone)) {
+            throw new InvalidCityTimeZoneException(cityCode);
+        }
+
+        return ZoneId.of(timeZone);
     }
 
     private static TaxRuleSetEntity selectApplicableTaxRuleSet(
