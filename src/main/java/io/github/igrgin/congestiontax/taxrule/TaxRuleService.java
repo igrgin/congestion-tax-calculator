@@ -8,7 +8,7 @@ import java.util.Set;
 
 public interface TaxRuleService {
 
-    public VehicleType getVehicleType(String vehicleTypeCode);
+    VehicleType getVehicleType(String vehicleTypeCode);
 
-    public Map<LocalDate, TaxRuleSet> getApplicableTaxRuleSets(String cityCode, Set<LocalDate> calculationDates);
+    Map<LocalDate, TaxRuleSet> getApplicableTaxRuleSets(String cityCode, Set<LocalDate> calculationDates);
 }

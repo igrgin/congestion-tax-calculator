@@ -13,7 +13,7 @@ import lombok.NoArgsConstructor;
 @Table(name = "vehicle_type")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PACKAGE)
-class VehicleTypeEntity {
+public class VehicleTypeEntity {
 
     @Id
     @Column(nullable = false, length = 32)
@@ -22,7 +22,7 @@ class VehicleTypeEntity {
     @Column(nullable = false, length = 128)
     private String description;
 
-    VehicleType toVehicleType() {
+    public VehicleType toVehicleType() {
         return new VehicleType(code, description);
     }
 }

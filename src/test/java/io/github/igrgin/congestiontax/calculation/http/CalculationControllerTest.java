@@ -6,9 +6,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import io.github.igrgin.congestiontax.calculation.CalculatedTax;
-import io.github.igrgin.congestiontax.calculation.CalculationCommand;
 import io.github.igrgin.congestiontax.calculation.CalculationService;
+import io.github.igrgin.congestiontax.calculation.model.CalculatedTax;
+import io.github.igrgin.congestiontax.calculation.model.CalculationCommand;
 import io.github.igrgin.congestiontax.domain.TaxAmount;
 import io.github.igrgin.congestiontax.domain.VehicleType;
 import io.github.igrgin.congestiontax.domain.calculation.CalculationResult;

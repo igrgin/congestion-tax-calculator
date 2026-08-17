@@ -66,6 +66,8 @@ Application logging remains active when a test uses a Spring profile. Test code 
 - rejection of a Tax Rule Set without Tax Time Bands;
 - rejection of overlapping Tax Time Bands independent of repository order.
 
+This test stays in the `taxrule.persistence` test package because it uses package-access entity constructors to prepare repository results. It calls the implementation through the `TaxRuleService` interface.
+
 `CalculationServiceImplTest` proves:
 
 - coordination of Passages, stored Tax Rules, and the pure calculator;

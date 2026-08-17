@@ -1,13 +1,18 @@
-package io.github.igrgin.congestiontax.taxrule.persistence;
+package io.github.igrgin.congestiontax.taxrule;
 
 import io.github.igrgin.congestiontax.domain.VehicleType;
 import io.github.igrgin.congestiontax.domain.rule.TaxRuleSet;
-import io.github.igrgin.congestiontax.taxrule.TaxRuleService;
 import io.github.igrgin.congestiontax.taxrule.exception.MissingApplicableTaxRuleSetException;
 import io.github.igrgin.congestiontax.taxrule.exception.MissingTaxTimeBandsException;
 import io.github.igrgin.congestiontax.taxrule.exception.OverlappingTaxTimeBandsException;
 import io.github.igrgin.congestiontax.taxrule.exception.UnknownCityException;
 import io.github.igrgin.congestiontax.taxrule.exception.UnknownVehicleTypeException;
+import io.github.igrgin.congestiontax.taxrule.persistence.TaxRuleSetEntity;
+import io.github.igrgin.congestiontax.taxrule.persistence.TaxRuleSetRepository;
+import io.github.igrgin.congestiontax.taxrule.persistence.TaxTimeBandEntity;
+import io.github.igrgin.congestiontax.taxrule.persistence.TaxTimeBandRepository;
+import io.github.igrgin.congestiontax.taxrule.persistence.VehicleTypeEntity;
+import io.github.igrgin.congestiontax.taxrule.persistence.VehicleTypeRepository;
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;

@@ -11,9 +11,7 @@ flowchart LR
     APP --> CALC["Pure Tax Calculator"]
     APP --> METRICS["Calculation Metrics"]
 
-    RULE -. "implemented by" .-> RULE_JPA["JPA Tax Rule Service"]
-
-    RULE_JPA --> RULE_REPO["Tax Rule Repositories"]
+    RULE --> RULE_REPO["Tax Rule Repositories"]
 
     RULE_REPO --> DB[("PostgreSQL")]
 ```
@@ -23,7 +21,7 @@ flowchart LR
 - `CalculationServiceImpl` calls the Tax Rule Service, pure calculator, and metrics component.
 - `TaxRuleService` confirms that the City exists and loads the Vehicle Type and Applicable Tax Rule Sets.
 - The pure calculator applies the Tax Rules without Spring, database, HTTP, logging, or metrics behavior.
-- The JPA service implementation loads stored rows and maps them to immutable calculation values.
+- `TaxRuleServiceImpl` loads stored rows and maps them to immutable calculation values.
 - Spring Data repositories contain explicit database read operations.
 - PostgreSQL constraints protect row validity and stored relationships.
 
@@ -33,9 +31,10 @@ The application uses one Maven module with four owned package areas. HTTP transp
 io.github.igrgin.congestiontax
 ├── calculation
 │   ├── exception
-│   └── http
-│       ├── dto
-│       └── exception
+│   ├── http
+│   │   ├── dto
+│   │   └── exception
+│   └── model
 ├── domain
 │   ├── calculation
 │   │   └── exception
@@ -79,7 +78,9 @@ The domain does not:
 
 `CalculationServiceImpl` translates expected collaborator lookup failures into calculation-owned exceptions after metrics records the outcome. It preserves the lower exception as the cause. This keeps the Calculation module interface independent of its collaborator implementations.
 
-`TaxRuleService` owns City existence, Vehicle Type, and Tax Rule loading. Its implementation and repositories are in `taxrule.persistence`. One business responsibility can use one repository or several repositories. The service boundary follows the business responsibility, not the number of tables.
+`TaxRuleService` owns City existence, Vehicle Type, and Tax Rule loading. Its interface and implementation are in `taxrule`. Its entities and repositories are in `taxrule.persistence`. One business responsibility can use one repository or several repositories. The service seam follows the business responsibility, not the number of tables.
+
+`TaxRuleService` is the external interface of the Tax Rule module. Persistence classes and repository interfaces can be public because `TaxRuleServiceImpl` uses them across the package split. That Java access does not make them part of the module interface. No caller outside the Tax Rule implementation uses them.
 
 Database constraints protect single-row validity and relationships. Repository-facing services check cross-row completeness when they assemble calculation values. The pure calculator checks only the inputs that it needs to calculate safely.
 
@@ -90,8 +91,8 @@ Dependencies follow these directions:
 ```text
 calculation.http -> calculation + domain
 calculation -> taxrule + domain + metrics
-taxrule -> domain
-taxrule.persistence -> taxrule + domain
+taxrule -> taxrule.persistence + domain
+taxrule.persistence -> domain
 metrics -> taxrule
 domain -> JDK + compile-time Lombok annotations
 ```
@@ -100,7 +101,7 @@ The domain can use Lombok `@NonNull` as a compile-time annotation. It has no Lom
 
 `CalculationServiceImpl` depends on the Tax Rule Service interface. It does not depend on its persistence implementation or repositories.
 
-Each persistence implementation maps database rows to calculation values and supplies unmodifiable collections before it returns them. Receiving records store these collections without making another copy. JPA entities do not leave their owning persistence package.
+`TaxRuleServiceImpl` maps database rows to calculation values and supplies unmodifiable collections before it returns through `TaxRuleService`. Receiving records store these collections without making another copy. JPA entities and repositories do not cross the Tax Rule Service seam.
 
 ## Metrics
 

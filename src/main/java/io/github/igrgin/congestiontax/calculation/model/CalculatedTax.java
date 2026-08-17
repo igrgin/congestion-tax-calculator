@@ -1,4 +1,4 @@
-package io.github.igrgin.congestiontax.calculation;
+package io.github.igrgin.congestiontax.calculation.model;
 
 import io.github.igrgin.congestiontax.domain.calculation.CalculationResult;
 

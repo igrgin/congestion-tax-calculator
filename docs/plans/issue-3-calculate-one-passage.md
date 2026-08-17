@@ -113,7 +113,7 @@ metrics
 taxrule
 ```
 
-HTTP transport stays in `calculation.http`. Persistence stays in `taxrule.persistence`. The pure `domain` package depends on the JDK and compile-time Lombok annotations. It has no Lombok runtime dependency.
+Calculation Service input and output values stay in `calculation.model`. HTTP transport stays in `calculation.http`. The Tax Rule Service interface and implementation stay in `taxrule`. JPA entities and repositories stay in `taxrule.persistence`. The pure `domain` package depends on the JDK and compile-time Lombok annotations. It has no Lombok runtime dependency.
 
 Every Spring service has an interface and implementation. `TaxCalculator` is pure Java and is registered through `CalculationConfiguration`.
 
@@ -201,7 +201,7 @@ Tax Amount: 8.00
 
 Hibernate uses `ddl-auto=validate`. Flyway owns schema creation.
 
-JPA entities map parent foreign keys as scalar IDs. Narrow Spring Data repositories expose only the required reads. JPA entities do not leave their persistence packages.
+JPA entities map parent foreign keys as scalar IDs. Narrow Spring Data repositories expose only the required reads. Persistence types can be public for use by `TaxRuleServiceImpl`, but they do not cross the `TaxRuleService` interface.
 
 `TaxRuleServiceImpl` owns the City existence, Vehicle Type, and Tax Rule repository transactions. It:
 
@@ -355,7 +355,7 @@ Spotless runs as part of `verify`.
 - The canonical request returns `8.00 SEK`.
 - PostgreSQL supplies the City, Vehicle Type, Applicable Tax Rule Set, and Tax Time Band.
 - Passage time is accepted as City Local Time and its instant is derived with the request IANA time zone.
-- JPA entities stay inside their persistence packages.
+- JPA entities and repositories stay internal to the Tax Rule module and do not cross the `TaxRuleService` interface.
 - The pure calculator has no Spring, database, HTTP, logging, or metrics dependency.
 - Missing and overlapping Tax Time Bands are rejected.
 - The calculation timer records bounded outcomes.

@@ -18,7 +18,7 @@ import lombok.NoArgsConstructor;
 @Entity
 @Table(name = "tax_time_band")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-class TaxTimeBandEntity {
+public class TaxTimeBandEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

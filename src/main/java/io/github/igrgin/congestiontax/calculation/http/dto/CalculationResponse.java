@@ -1,6 +1,6 @@
 package io.github.igrgin.congestiontax.calculation.http.dto;
 
-import io.github.igrgin.congestiontax.calculation.CalculatedTax;
+import io.github.igrgin.congestiontax.calculation.model.CalculatedTax;
 import java.math.BigDecimal;
 import java.util.List;
 

@@ -1,12 +1,12 @@
 package io.github.igrgin.congestiontax.calculation.http;
 
-import io.github.igrgin.congestiontax.calculation.CalculationCommand;
 import io.github.igrgin.congestiontax.calculation.CalculationService;
 import io.github.igrgin.congestiontax.calculation.http.dto.CalculationRequest;
 import io.github.igrgin.congestiontax.calculation.http.dto.CalculationResponse;
 import io.github.igrgin.congestiontax.calculation.http.exception.InvalidPassageCountException;
 import io.github.igrgin.congestiontax.calculation.http.exception.InvalidPassageTimestampException;
 import io.github.igrgin.congestiontax.calculation.http.exception.InvalidTimeZoneException;
+import io.github.igrgin.congestiontax.calculation.model.CalculationCommand;
 import io.github.igrgin.congestiontax.domain.calculation.Passage;
 import jakarta.validation.Valid;
 import java.time.LocalDateTime;

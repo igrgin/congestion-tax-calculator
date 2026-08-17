@@ -23,9 +23,9 @@ For specifications, issues, branches, pull requests, and time records, follow `d
 - Return unmodifiable collections across application-area boundaries.
 - The producer owns each collection that crosses an application-area boundary. It must make the collection unmodifiable and must not retain a mutable reference. A receiving record stores the supplied collection without making another copy.
 - Confine mutable transport collections to the HTTP adapter. Map them to unmodifiable application values before they cross into another application area. Do not retain the transport value after mapping.
-- Keep JPA entities inside the persistence area. Map them to calculation values and create unmodifiable collections before data leaves that area.
+- Declare JPA entities and repositories in the persistence package. They can be public when the implementation in the owning application area needs cross-package access. Do not return them through the area's service interface. Map entities to calculation values and create unmodifiable collections before values cross that interface.
 - Inject a Spring service through its interface.
-- Declare access explicitly where Java permits it. Fields are private unless a supported interface requires wider access.
+- Declare access explicitly when it communicates an important interface or implementation limit. Interface methods can omit the redundant `public` modifier. Fields are private unless a supported interface requires wider access.
 - Use `private final` for a field whose reference must not change after construction. Use `final` for a local variable when it makes an important invariant clear.
 
 ### Packages and Dependencies
@@ -35,15 +35,15 @@ For specifications, issues, branches, pull requests, and time records, follow `d
 - Name packages for project concepts and responsibilities that remain stable when a library or storage technology changes.
 - Keep transport DTOs and exceptions inside their owning area.
 - Group each stored concept's entity and repository in one package under `persistence`.
-- Mirror production packages in tests and test behavior through the area's supported interface.
+- Mirror production packages in tests by default and test behavior through the area's supported interface. A test for an internal adapter can stay in the adapter package when it needs package access to test data constructors or helpers.
 
 Use these dependency directions:
 
 ```text
 calculation.http -> calculation + domain
 calculation -> taxrule + domain + metrics
-taxrule -> domain
-taxrule.persistence -> taxrule + domain
+taxrule -> taxrule.persistence + domain
+taxrule.persistence -> domain
 metrics -> taxrule
 domain -> JDK + compile-time Lombok annotations
 ```

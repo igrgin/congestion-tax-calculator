@@ -6,6 +6,8 @@ import static org.mockito.BDDMockito.given;
 
 import io.github.igrgin.congestiontax.calculation.exception.CityNotFoundException;
 import io.github.igrgin.congestiontax.calculation.exception.VehicleTypeNotFoundException;
+import io.github.igrgin.congestiontax.calculation.model.CalculatedTax;
+import io.github.igrgin.congestiontax.calculation.model.CalculationCommand;
 import io.github.igrgin.congestiontax.domain.TaxAmount;
 import io.github.igrgin.congestiontax.domain.VehicleType;
 import io.github.igrgin.congestiontax.domain.calculation.CalculationResult;

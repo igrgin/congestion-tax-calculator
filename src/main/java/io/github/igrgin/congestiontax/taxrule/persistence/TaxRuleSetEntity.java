@@ -19,7 +19,7 @@ import org.hibernate.type.SqlTypes;
 @Entity
 @Table(name = "tax_rule_set")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-class TaxRuleSetEntity {
+public class TaxRuleSetEntity {
 
     @Getter
     @Id
@@ -43,7 +43,7 @@ class TaxRuleSetEntity {
         this.currencyCode = currencyCode;
     }
 
-    TaxRuleSet toTaxRuleSet(String cityCode, List<TaxTimeBandEntity> taxTimeBandEntities) {
+    public TaxRuleSet toTaxRuleSet(String cityCode, List<TaxTimeBandEntity> taxTimeBandEntities) {
         var currency = Currency.getInstance(currencyCode);
 
         var taxTimeBands = taxTimeBandEntities.stream()

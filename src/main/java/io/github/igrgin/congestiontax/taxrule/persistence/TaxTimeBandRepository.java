@@ -4,7 +4,7 @@ import java.util.Collection;
 import java.util.List;
 import org.springframework.data.repository.Repository;
 
-interface TaxTimeBandRepository extends Repository<TaxTimeBandEntity, Long> {
+public interface TaxTimeBandRepository extends Repository<TaxTimeBandEntity, Long> {
 
     public List<TaxTimeBandEntity> findByRuleSetIdIn(Collection<Long> ruleSetIds);
 }

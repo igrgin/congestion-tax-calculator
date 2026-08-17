@@ -6,7 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
 
-interface TaxRuleSetRepository extends Repository<TaxRuleSetEntity, Long> {
+public interface TaxRuleSetRepository extends Repository<TaxRuleSetEntity, Long> {
 
     @Query(value = """
                     SELECT EXISTS (

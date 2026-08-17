@@ -128,13 +128,13 @@ Flyway owns the schema and stored seed data. Hibernate uses `ddl-auto=validate`.
 The Tax Rule Service uses:
 
 ```text
-TaxRuleServiceImpl
-VehicleTypeRepository
-TaxRuleSetRepository
-TaxTimeBandRepository
-VehicleTypeEntity
-TaxRuleSetEntity
-TaxTimeBandEntity
+taxrule.TaxRuleServiceImpl
+taxrule.persistence.VehicleTypeRepository
+taxrule.persistence.TaxRuleSetRepository
+taxrule.persistence.TaxTimeBandRepository
+taxrule.persistence.VehicleTypeEntity
+taxrule.persistence.TaxRuleSetEntity
+taxrule.persistence.TaxTimeBandEntity
 ```
 
 It confirms that the selected City exists and loads the Vehicle Type, Applicable Tax Rule Sets, and their Tax Time Bands.
@@ -143,7 +143,7 @@ The Tax Rule Set entity does not contain a JPA child collection. `TaxTimeBandEnt
 
 This makes database reads explicit and avoids a large join that repeats parent data. PostgreSQL foreign keys enforce the stored relationships.
 
-Each service method uses a read-only transaction. The service maps database rows to calculation values and creates unmodifiable collections before it returns. The receiving records store these collections without making another copy. JPA entities do not leave their persistence package.
+Each service method uses a read-only transaction. The service maps database rows to calculation values and creates unmodifiable collections before it returns. The receiving records store these collections without making another copy. Persistence types can be public for use by `TaxRuleServiceImpl`, but the service never returns them through `TaxRuleService`.
 
 Use Spring Data method-name queries for simple reads. Use JPQL when it expresses a bulk or snapshot query more clearly. Use handwritten PostgreSQL SQL only when a PostgreSQL-specific feature, a measured performance need, or an entity-ownership boundary makes JPQL unsuitable. Cover native queries with PostgreSQL integration tests.
 
