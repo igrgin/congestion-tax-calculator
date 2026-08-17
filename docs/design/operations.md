@@ -100,24 +100,6 @@ A metrics failure cannot change the calculation result. `CalculationMetrics` cat
 
 Each feature issue owns any metric required by its behavior. It adds a custom meter only when standard meters and existing custom meters cannot answer the operational question.
 
-## Implementation Time Plan
-
-Planning time is outside the assignment's six-hour implementation limit. The initial implementation budget is:
-
-| Work area | Minutes |
-|---|---:|
-| Project foundation, dependencies, Docker Compose, logging, metrics, and CI | 35 |
-| Database schema and Flyway | 60 |
-| Calculation code, parameterized tests, and focused metrics | 80 |
-| JPA loading and application coordination | 50 |
-| HTTP API, validation, errors, and OpenAPI | 45 |
-| Full-path and error integration tests | 45 |
-| README, questions, design review, and final verification | 35 |
-| Reserve | 10 |
-| **Total** | **360** |
-
-The plan includes all agreed behavior. During implementation, simplify implementation details when this saves time without changing required behavior. Target the six-hour limit. If actual work runs over, record the real time and explain the overrun honestly.
-
 ## Caching Decision
 
 The current implementation has no shared cache and does not cache HTTP responses. The Tax Rule Service loads the required stored content for each calculation.
@@ -128,4 +110,4 @@ The first delivery does not include authentication, rate limiting, custom CORS b
 
 ## Planned README requirements
 
-The planned root README will explain the assignment scope, architecture, prerequisites, database startup and reset, application startup, profiles, logging, health, metrics, tests, API examples, error format, supplied-data result, known limits, time spent, and additional work. It will link to every design document, architecture decision record, and `questions.md`.
+The planned root README will explain the assignment scope, architecture, prerequisites, database startup and reset, application startup, profiles, logging, health, metrics, tests, API examples, error format, supplied-data result, known limits, and additional work. It will link to every design document, architecture decision record, and `questions.md`.

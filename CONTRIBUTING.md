@@ -12,7 +12,7 @@ Start at `docs/design/README.md`. Read each document that controls the area you 
 
 ## GitHub Workflow
 
-For specifications, issues, branches, pull requests, and time records, follow `docs/agents/issue-tracker.md`. That document is the only source for the GitHub workflow.
+For specifications, issues, branches, and pull requests, follow `docs/agents/issue-tracker.md`. That document is the only source for the GitHub workflow.
 
 ## Java and Spring
 

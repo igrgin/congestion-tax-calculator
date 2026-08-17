@@ -28,7 +28,6 @@ The planned root `README.md` will be the guide for building, running, and callin
 | Tax Rules outside the application | PostgreSQL runtime content loaded through the Tax Rule Service |
 | Support content for different Cities | City code, IANA time zone, currency, and effective Tax Rule Set snapshots stored per City |
 | Submit questions | Root `questions.md` pairs each unresolved question with the assumption used |
-| Six-hour limit and prioritization | Implementation budget and additional-work boundary in the operations design and planned README |
 
 The first calculation issue implements the initial vertical path through this design. Later issues add the remaining assignment Tax Rules without changing the HTTP collection shape or the service boundaries.
 

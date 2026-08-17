@@ -14,9 +14,7 @@ Use the `gh` CLI for issue operations.
 - Do not create or apply triage labels.
 - Do not treat pull requests as requests for new work.
 - Do not use a GitHub Project board for this repository.
-- Put `Estimated minutes` and `Actual minutes` in each implementation issue body.
-- Leave both time values for the user to fill in manually.
-- Keep an issue, estimate, actual, and status summary table in the parent specification.
+- Keep an issue and status summary table in the parent specification.
 
 ## Development Workflow
 
@@ -31,14 +29,12 @@ Use the `gh` CLI for issue operations.
 - When the user and agent agree that the ticket is complete, push the branch and open a pull request into `main`.
 - GitHub Actions must run the required verification for each pull request.
 - The user owns pull-request review. Merge only after required checks pass and the user approves the pull request. Preserve the useful branch history with a normal merge commit.
-- After merge, record actual minutes, add an issue comment that states what was completed, and close the ticket.
-- Keep the parent specification's time and status summary current.
+- After merge, add an issue comment that states what was completed, and close the ticket.
+- Keep the parent specification's status summary current.
 
 More than one issue can be active when its blocking issues are complete. Each active issue uses its own branch and pull request. Do not start an issue while any declared blocker remains open.
 
 Use `grill-with-docs` when an issue needs more design work. Use `implement` when an issue is ready for development. The implementation workflow uses test-driven development at the agreed seams where practical, runs regular focused verification, runs the full test suite at the end, performs a code review, and commits to the current issue branch.
-
-The user records estimates and actual minutes manually in issue bodies. Actual minutes are the active time spent implementing an issue, from the start of its implementation until it is complete. Include active coding, tests, migrations, documentation, verification, and review fixes. Exclude prior planning, waiting for checks, and inactive time. The parent specification summary adds the issue values; it does not count its total as separate implementation time.
 
 ## Definition of Complete
 
