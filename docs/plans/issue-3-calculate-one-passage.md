@@ -325,6 +325,7 @@ Regular tests cover:
 - Applicable Tax Rule Set selection;
 - missing and overlapping Tax Time Bands;
 - Calculation Service coordination and metric outcomes;
+- timer start and stop failures that do not change the calculation result;
 - controller request and response mapping.
 
 `TaxRuleSchemaITest` uses synthetic PostgreSQL data to prove the Flyway constraints.

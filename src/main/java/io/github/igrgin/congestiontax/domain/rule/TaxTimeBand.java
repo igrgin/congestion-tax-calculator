@@ -16,7 +16,7 @@ public record TaxTimeBand(
         }
 
         if (amount.amount().signum() <= 0) {
-            throw new InvalidTaxTimeBandException(amount);
+            throw new InvalidTaxTimeBandException();
         }
     }
 

@@ -73,6 +73,8 @@ Application logging remains active when a test uses a Spring profile. Test code 
 - the `rejected` metric outcome for known lookup failures;
 - the `failed` metric outcome for an unexpected failure.
 
+`CalculationMetricsTest` proves that timer start and stop failures do not change the calculation result.
+
 `CalculationControllerTest` proves:
 
 - the one-Passage HTTP request and response mapping;
@@ -82,7 +84,9 @@ Application logging remains active when a test uses a Spring profile. Test code 
 - rejection of multiple Passages;
 - derivation of winter and summer instants with the request IANA time zone;
 - rejection of an invalid IANA time zone;
-- rejection of a Passage timestamp that does not use `uuuu-MM-dd HH:mm:ss`.
+- rejection of a Passage timestamp that does not use `uuuu-MM-dd HH:mm:ss`;
+- rejection of malformed JSON;
+- a safe HTTP `500` response for an unexpected failure.
 
 The controller test uses the `test` profile. It does not connect to PostgreSQL.
 

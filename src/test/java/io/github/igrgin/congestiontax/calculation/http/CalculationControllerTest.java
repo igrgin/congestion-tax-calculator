@@ -1,5 +1,6 @@
 package io.github.igrgin.congestiontax.calculation.http;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -24,6 +25,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
@@ -202,8 +204,7 @@ class CalculationControllerTest {
     }
 
     @ParameterizedTest
-    @org.junit.jupiter.params.provider.ValueSource(
-            strings = {"2013-02-08T05:20:27Z", "2013-02-08T06:20:27", "2013-02-08 06:20", "2013-02-30 06:20:27"})
+    @ValueSource(strings = {"2013-02-08T05:20:27Z", "2013-02-08T06:20:27", "2013-02-08 06:20", "2013-02-30 06:20:27"})
     void rejectsInvalidPassageTimestamp(String timestamp) throws Exception {
         mockMvc.perform(post("/api/v1/cities/{cityCode}" + "/congestion-tax/calculations", "gothenburg")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -220,7 +221,7 @@ class CalculationControllerTest {
     }
 
     @ParameterizedTest
-    @org.junit.jupiter.params.provider.ValueSource(strings = {"Mars/Olympus", "+01:00"})
+    @ValueSource(strings = {"Mars/Olympus", "+01:00"})
     void rejectsInvalidTimeZone(String timeZone) throws Exception {
         mockMvc.perform(post("/api/v1/cities/{cityCode}" + "/congestion-tax/calculations", "gothenburg")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -234,5 +235,33 @@ class CalculationControllerTest {
                                 }
                                 """.formatted(timeZone)))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void rejectsMalformedJson() throws Exception {
+        mockMvc.perform(post("/api/v1/cities/{cityCode}" + "/congestion-tax/calculations", "gothenburg")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void returnsInternalServerErrorForUnexpectedFailure() throws Exception {
+        given(calculationService.calculate(any(CalculationCommand.class)))
+                .willThrow(new IllegalStateException("Unexpected failure."));
+
+        mockMvc.perform(post("/api/v1/cities/{cityCode}" + "/congestion-tax/calculations", "gothenburg")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "vehicleType": "OTHER",
+                                  "timeZone": "Europe/Stockholm",
+                                  "passages": [
+                                    "2013-02-08 06:20:27"
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isInternalServerError())
+                .andExpect(content().string(""));
     }
 }
