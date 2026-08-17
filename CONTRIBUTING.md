@@ -20,9 +20,33 @@ For specifications, issues, branches, pull requests, and time records, follow `d
 - Keep the calculation model independent of Spring, HTTP, JPA, logging, and metrics.
 - Use immutable values at boundaries between application areas.
 - Prefer Java records for immutable request, response, configuration, and calculation values.
-- Make defensive copies when a record receives a mutable collection.
-- Keep JPA entities inside the persistence area and map them to immutable calculation values before data leaves that area.
+- Return unmodifiable collections across application-area boundaries.
+- The producer owns each collection that crosses an application-area boundary. It must make the collection unmodifiable and must not retain a mutable reference. A receiving record stores the supplied collection without making another copy.
+- Confine mutable transport collections to the HTTP adapter. Map them to unmodifiable application values before they cross into another application area. Do not retain the transport value after mapping.
+- Declare JPA entities and repositories in the persistence package. They can be public when the implementation in the owning application area needs cross-package access. Do not return them through the area's service interface. Map entities to calculation values and create unmodifiable collections before values cross that interface.
 - Inject a Spring service through its interface.
+- Declare access explicitly when it communicates an important interface or implementation limit. Interface methods can omit the redundant `public` modifier. Fields are private unless a supported interface requires wider access.
+- Use `private final` for a field whose reference must not change after construction. Use `final` for a local variable when it makes an important invariant clear.
+
+### Packages and Dependencies
+
+- Group types by the durable responsibility that owns them.
+- Create a subpackage for several related types or for an important adapter seam.
+- Name packages for project concepts and responsibilities that remain stable when a library or storage technology changes.
+- Keep transport DTOs and exceptions inside their owning area.
+- Group each stored concept's entity and repository in one package under `persistence`.
+- Mirror production packages in tests by default and test behavior through the area's supported interface. A test for an internal adapter can stay in the adapter package when it needs package access to test data constructors or helpers.
+
+Use these dependency directions:
+
+```text
+calculation.http -> calculation + domain
+calculation -> taxrule + domain + metrics
+taxrule -> taxrule.persistence + domain
+taxrule.persistence -> domain
+metrics -> taxrule
+domain -> JDK + compile-time Lombok annotations
+```
 
 ### Spring Services
 
@@ -33,7 +57,7 @@ XService
 XServiceImpl
 ```
 
-For example, `CongestionTaxCalculationService` is the interface and `CongestionTaxCalculationServiceImpl` is its `@Service` implementation. Consumers inject `CongestionTaxCalculationService`.
+For example, `CalculationService` is the interface and `CalculationServiceImpl` is its `@Service` implementation. Consumers inject `CalculationService`.
 
 This convention applies to Spring services. It does not rename controllers, Spring Data repositories, configuration classes, the pure calculator, or provider adapters that are not Spring services.
 
@@ -42,6 +66,7 @@ This convention applies to Spring services. It does not rename controllers, Spri
 Use the smallest Lombok annotation set that removes mechanical code and keeps behavior clear. The evidence for these rules is in `docs/research/lombok-guidance.md`.
 
 - Use `@Slf4j` on a class that writes log messages.
+- Use `@NonNull` when an immediate null failure is the complete required behavior. The domain area can use this compile-time annotation.
 - Prefer `@RequiredArgsConstructor` when a Spring-managed class only needs a constructor for required final dependencies. A single generated constructor does not need `@Autowired`.
 - Write an explicit constructor when it validates, converts, or makes a non-obvious choice.
 - Use `@Getter` only for JPA entity values that callers must read.
@@ -69,20 +94,22 @@ Use Spotless Maven Plugin 3.9.0 with Palantir Java Format. Bind the formatting c
 ### Logging
 
 - Use `@Slf4j` instead of declaring an SLF4J logger manually.
-- Select `INFO`, `WARN`, or `ERROR` from the event's operational meaning. Use diagnostic levels only for diagnostic detail.
-- The completed application has at least one natural use of `INFO`, `WARN`, `ERROR`, and `DEBUG`. Do not create an artificial event only to satisfy this list.
+- Each feature change owns the logs required by its behavior. Add or change the event in the same issue as the feature.
+- Use `DEBUG` for diagnostic detail and `INFO` for successful calculation completion. At an HTTP exception boundary, use `WARN` for a handled `4xx` response and `ERROR` for a handled `5xx` response. Use `WARN` for a failure that the application suppresses while it continues.
+- Use each level only for its operational meaning. Do not use `TRACE`.
 - Use parameterized messages for variable values.
-- Keep normal successful calculations quiet unless diagnostic logging is active.
-- Keep database passwords, authorization values, and complete request bodies out of logs.
-- Include safe context, such as city code and calculation date, when it helps diagnose an error.
-- Keep stack traces in internal error logs and out of HTTP responses.
-- Use `@Slf4j` in a test class when scenario progress or failure context helps the person who runs the tests.
-- Keep test log messages parameterized. Log meaningful scenario boundaries and useful failure context, not each assertion.
+- Log each event or exception once at the boundary that knows its final outcome.
+- Safe context includes city code, Vehicle Type code, Passage count, City Local Time calculation date, Tax Rule Set effective date, result counts, and a stable failure category.
+- Keep complete request bodies, raw Passage timestamps, Tax Amounts, authorization values, database credentials, SQL, and expected exception messages out of logs.
+- Omit stack traces from handled `4xx` logs. Include the stack trace when an internal failure is suppressed or the exception handler returns a `5xx` response.
+- Keep stack traces and other internal failure data out of HTTP responses.
+- Test code does not write log messages. Tests do not assert log output.
 
 ### Metrics
 
 Follow the metric inventory and exposure rules in `docs/design/operations.md`. Follow the instrumentation boundary in `docs/design/architecture.md`.
 
+- Each feature change owns any metric required by its behavior. Add or change the meter in the same issue as the feature.
 - Start with the operational question that the metric must answer.
 - Prefer a standard Spring Boot meter when it answers the question.
 - Add a custom meter only when the standard meters do not supply the required signal.
@@ -106,8 +133,13 @@ Use comments and Javadoc sparingly. Explain only a non-obvious reason, assignmen
 
 ### Exceptions
 
-- Keep an exception type near the package where it is primarily used.
-- Use specific application exceptions for expected conditions.
+Choose the exception type from the failed rule and the caller response. The choice is complete when no caller reads an exception message to select a response.
+
+- Use a standard Java exception for a basic value-construction failure, such as a required null value or a scalar value outside its allowed range.
+- Use a custom exception for a failure detected by application or domain logic, including an invalid relation between otherwise valid values.
+- Use a specific custom exception for each condition that a caller must identify separately.
+- Extend the closest standard Java exception when it accurately describes the custom failure.
+- Put each custom exception in the `exception` subpackage of the area that owns the failure.
 - Translate API exceptions to Problem Details in the controller layer.
 - Let unexpected exceptions reach the central handler. It logs the failure and returns a safe response.
 - Catch a broad exception only at a boundary where the code can add useful context or translate it. Every caught exception must have an explicit outcome.
@@ -130,7 +162,7 @@ src/test/resources/
 - Put static settings shared by normal runtime profiles in `application.yaml`.
 - Use `dev` as the default profile and keep its local settings consistent with Docker Compose.
 - Select `prod` explicitly with `SPRING_PROFILES_ACTIVE=prod`.
-- Require the production database URL, user, password, server port, and root log level from environment variables. Do not give these production values defaults.
+- Require the production database URL, user, password, server port, root log level, and application log level from environment variables. Do not give these production values defaults.
 - Use `test` for a small Spring test context without PostgreSQL.
 - Use `itest` for full Spring Boot, HTTP, JPA, Flyway, and PostgreSQL Testcontainers tests.
 - Keep the Testcontainers JDBC connection in `application-itest.yaml`.

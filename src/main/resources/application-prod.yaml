@@ -10,3 +10,4 @@ spring:
 logging:
   level:
     root: ${LOGGING_LEVEL_ROOT}
+    io.github.igrgin.congestiontax: ${LOGGING_LEVEL_APPLICATION}

@@ -8,8 +8,12 @@ This context defines the language for calculating congestion tax from vehicle pa
 A calculation of congestion tax for one vehicle from a set of passages.
 _Avoid_: Tax query, fee lookup
 
+**City**:
+The place whose Tax Rules and IANA time zone control a Congestion Tax Calculation. A city code selects it.
+_Avoid_: Location, jurisdiction
+
 **Passage**:
-One recorded occurrence of a vehicle passing a tolling station in either direction. Its timestamp identifies an instant. The application converts that instant to City Local Time for calculation.
+One recorded occurrence of a vehicle passing a tolling station in either direction. Its timestamp gives the City Local Time, and the selected City supplies its IANA time zone.
 _Avoid_: Entry, exit, transaction
 
 **Vehicle Type**:
@@ -40,6 +44,10 @@ _Avoid_: Active rules, current rules
 A period of City Local Time with one positive tax amount. Its start is included and its end is excluded.
 _Avoid_: Rate slot, tariff interval
 
+**Tax Amount**:
+A non-negative congestion-tax value expressed in one currency. A Tax Amount cannot be combined with a Tax Amount in another currency.
+_Avoid_: Money, Monetary amount
+
 **Charge Window**:
 A period that starts with its first passage and includes applicable passages no later than 60 minutes after that first passage.
 _Avoid_: Sliding window, chained group
@@ -49,5 +57,5 @@ The congestion tax for one vehicle on one local calendar date, after the single 
 _Avoid_: Daily fee, daily charge
 
 **City Local Time**:
-The local civil date and time in the IANA time zone of the city for which congestion tax is calculated.
+The local civil date and time supplied in a Passage timestamp for the selected city.
 _Avoid_: Server time, system time

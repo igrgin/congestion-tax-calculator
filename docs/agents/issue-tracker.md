@@ -25,6 +25,7 @@ Use the `gh` CLI for issue operations.
 - Create tickets as vertical slices of the specification.
 - Assign each ticket to the GitHub account `igrgin` before work starts.
 - Create one branch for each ticket. Use `<issue-number>-<short-description>` in kebab case, with no namespace prefix.
+- Each feature ticket owns the logs and metrics required by its behavior. Add a custom metric only when existing metrics cannot answer the feature's operational question. Follow `CONTRIBUTING.md` for event levels, safe context, and metric design.
 - Implement and verify the ticket on its branch.
 - Use small coherent commits and include the issue number in each commit message.
 - When the user and agent agree that the ticket is complete, push the branch and open a pull request into `main`.

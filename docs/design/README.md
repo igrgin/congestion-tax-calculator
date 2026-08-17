@@ -1,42 +1,48 @@
 # Design Guide
 
-These documents describe how the Congestion Tax Calculator works and why the important design choices were made. They are written for a developer who has not read the planning conversation.
+These documents describe how the Congestion Tax Calculator works and why the main design choices were made. They are written for a developer who has not read the planning conversation.
 
-## Recommended Reading Order
+## Recommended reading order
 
-1. [Calculation](calculation.md) explains the tax behavior, time handling, and calculation model.
+1. [Calculation](calculation.md) explains the Tax behavior, Passage time handling, and calculation model.
 2. [API](api.md) defines the HTTP request, response, validation, and errors.
-3. [Architecture](architecture.md) defines the components and dependency direction.
-4. [Persistence](persistence.md) defines PostgreSQL storage, JPA loading, and effective-dated rule snapshots.
+3. [Architecture](architecture.md) defines the components and dependency directions.
+4. [Persistence](persistence.md) defines PostgreSQL storage, JPA loading, and effective Tax Rule Set snapshots.
 5. [Testing](testing.md) defines the test levels and case-selection strategy.
-6. [Operations](operations.md) defines local setup, configuration, health, metrics, CI, and the caching decision.
+6. [Operations](operations.md) defines local setup, configuration, logging, health, metrics, CI, and the caching decision.
 
-The root `README.md` is the guide for building, running, and calling the application. The root `questions.md` records assignment ambiguities and the plain-language assumptions used by the solution. Architecture decision records in `docs/adr/` explain choices that are costly to reverse.
+The planned root `README.md` will be the guide for building, running, and calling the application. The root `questions.md` records assignment ambiguities and the assumptions used by the solution. Architecture decision records in `docs/adr/` explain choices that are costly to reverse.
 
-## Assignment Coverage
+## Assignment coverage
 
-| Assignment requirement | Planned implementation |
+| Assignment requirement | Design |
 |---|---|
-| Spring Boot with Java 17 or later | Spring Boot project compiled and tested with Java 17 |
-| Call the calculation with different inputs | Versioned HTTP `POST` operation documented in the API design and OpenAPI |
-| Scope can be limited to 2013 | City-local year validation rejects a complete request that contains a date outside 2013 |
-| Gothenburg hours and amounts | Positive-charge bands stored in PostgreSQL and inserted by Flyway |
-| Daily maximum of 60 SEK | Optional stored `DAILY_MAXIMUM` Tax Rule Option set to 60 SEK for Gothenburg |
+| Spring Boot with Java 17 or later | Spring Boot project compiled for Java 17 |
+| Call the calculation with different inputs | Versioned HTTP `POST` operation with a collection-based Passage request |
+| Scope can be limited to 2013 | Final City Local Time validation rejects a request that contains a date outside 2013 |
+| Gothenburg hours and amounts | Positive Tax Time Bands stored in PostgreSQL and installed by Flyway |
+| Daily maximum of 60 SEK | Stored `DAILY_MAXIMUM` Tax Rule Option |
 | Weekends, public holidays, preceding dates, and July are tax-free | Stored Tax Exemptions and a stored public-holiday preceding-date count |
-| Single charge within 60 minutes | Optional stored `CHARGE_WINDOW` Tax Rule Option set to 60 minutes for Gothenburg |
-| Tax-exempt vehicles | Database-defined Vehicle Types and rule-specific exemptions |
-| Rules outside the application | PostgreSQL runtime content behind a Tax Rule Provider |
-| Support content for different cities | City code, time zone, currency, and effective-dated Tax Rule Set snapshots stored per city |
+| Single charge within 60 minutes | Stored `CHARGE_WINDOW` Tax Rule Option |
+| Tax-exempt vehicles | Database-defined Vehicle Types and Tax Rule Set-specific exemptions |
+| Tax Rules outside the application | PostgreSQL runtime content loaded through the Tax Rule Service |
+| Support content for different Cities | City code, IANA time zone, currency, and effective Tax Rule Set snapshots stored per City |
 | Submit questions | Root `questions.md` pairs each unresolved question with the assumption used |
-| Six-hour limit and prioritization | Implementation budget and additional-work boundary in the operations design and future README |
+| Six-hour limit and prioritization | Implementation budget and additional-work boundary in the operations design and planned README |
 
-## Common Terms
+The one-Passage issue implements the first vertical path through this design. Later issues add the remaining assignment Tax Rules without changing the HTTP collection shape or the service boundaries.
 
-- **Passage**: One recorded occurrence of a vehicle passing a tolling station in either direction. Its timestamp identifies an instant that is converted to City Local Time for calculation.
-- **City local time**: The local date and clock time in the selected city's IANA time zone, such as `Europe/Stockholm`.
-- **Tax Rules**: City content that defines taxable times, amounts, tax-free dates, exempt Vehicle Types, and optional calculation behavior.
-- **Tax exemption**: A tax rule that makes a passage tax-free when its city local time or vehicle type matches stored content.
-- **Tax Rule Option**: An optional tax rule with one scalar value that changes calculation behavior or extends an exemption.
-- **Tax Rule Set**: One complete, immutable snapshot of the Tax Rules for a city, with the date on which the snapshot starts to apply.
-- **Charge Window**: When enabled, a group that starts with one Passage and contains later Passages no more than the configured duration after the first Passage. The group produces one charge: its highest amount.
-- **Daily Tax**: The result for one vehicle on one City Local Time date after all applicable exemptions and options are applied.
+## Common terms
+
+- **City**: The place whose Tax Rules and IANA time zone control a Congestion Tax Calculation. A city code selects it.
+- **Passage**: One recorded occurrence of a vehicle passing a tolling station in either direction. Its timestamp gives City Local Time, and the selected City supplies its IANA time zone.
+- **City Local Time**: The local date and clock time supplied in a Passage timestamp for the selected City.
+- **Tax Rule**: A rule that determines if a Passage is taxable and which charge applies.
+- **Tax Exemption**: A Tax Rule that makes a Passage tax-free when its City Local Time or Vehicle Type matches stored content.
+- **Tax Rule Option**: An optional Tax Rule with one scalar value that changes calculation behavior or extends a Tax Exemption.
+- **Tax Rule Set**: One complete, immutable snapshot of the Tax Rules for a City, with the date on which the snapshot starts to apply.
+- **Applicable Tax Rule Set**: The Tax Rule Set with the latest effective date that is not after the calculation date.
+- **Tax Time Band**: A period of City Local Time with one positive Tax Amount. Its start is included and its end is excluded.
+- **Tax Amount**: A non-negative Congestion Tax value in one currency.
+- **Charge Window**: A period that starts with its first Passage and contains applicable Passages no later than the configured duration after that first Passage.
+- **Daily Tax**: The Congestion Tax for one vehicle on one City Local Time date after the applicable Tax Rules are applied.
