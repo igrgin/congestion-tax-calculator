@@ -76,7 +76,7 @@ HOLIDAY_PRECEDING
 - `CHARGE_WINDOW` uses `duration_minutes`;
 - `HOLIDAY_PRECEDING` uses `preceding_days`.
 
-The current one-Passage implementation does not load Tax Rule Options. The tables prepare the schema for later calculation issues without adding unused option behavior to the Java model.
+The Tax Rule Service loads `CHARGE_WINDOW` and `DAILY_MAXIMUM` rows. It maps them to typed, immutable Domain values. An absent row disables only the matching behavior. `HOLIDAY_PRECEDING` remains stored content for the Tax Exemption issue.
 
 All foreign keys use restrictive deletion. The schema does not use `ON DELETE CASCADE` because automatic deletion could remove historical Tax Rule content.
 
@@ -134,15 +134,19 @@ taxrule.persistence.CityRepository
 taxrule.persistence.VehicleTypeRepository
 taxrule.persistence.TaxRuleSetRepository
 taxrule.persistence.TaxTimeBandRepository
+taxrule.persistence.TaxRuleOptionRepository
 taxrule.persistence.CityEntity
 taxrule.persistence.VehicleTypeEntity
 taxrule.persistence.TaxRuleSetEntity
 taxrule.persistence.TaxTimeBandEntity
+taxrule.persistence.TaxRuleOptionEntity
 ```
 
-It loads the selected City, validates its stored time zone with the JDK IANA time-zone data, and loads the Vehicle Type, Applicable Tax Rule Sets, and their Tax Time Bands. An invalid stored City time zone is a stored-content failure.
+It loads the selected City, validates its stored time zone with the JDK IANA time-zone data, and loads the Vehicle Type, Applicable Tax Rule Sets, Tax Time Bands, and Tax Rule Options. An invalid stored City time zone is a stored-content failure.
 
-The Tax Rule Set entity does not contain a JPA child collection. `TaxTimeBandEntity` stores its parent ID as a scalar field. The service loads the selected parent rows and then bulk-loads the required Tax Time Bands.
+The Tax Rule Set entity does not contain a JPA child collection. `TaxTimeBandEntity` and `TaxRuleOptionEntity` store their parent ID as a scalar field. The service loads the selected parent rows. It then uses one bulk read for the required Tax Time Bands and one bulk read for the required Tax Rule Options.
+
+`TaxRuleOptions` owns an unmodifiable collection of typed Domain options. It rejects duplicate option types. Its `chargeWindow()` and `dailyMaximum()` queries return an empty result when the stored row is absent. `ChargeWindow` owns a positive `Duration`. `DailyMaximum` owns a positive `TaxAmount` in the Tax Rule Set currency.
 
 This makes database reads explicit and avoids a large join that repeats parent data. PostgreSQL foreign keys enforce the stored relationships.
 
@@ -169,6 +173,7 @@ PostgreSQL constraints protect:
 Repository-facing services protect cross-row completeness when they assemble calculation values. The current Tax Rule Service checks for:
 
 - invalid stored City time zones;
+- invalid or duplicate stored Tax Rule Options;
 - missing Applicable Tax Rule Sets;
 - missing Tax Time Bands;
 - overlapping Tax Time Bands;
@@ -200,6 +205,6 @@ Passage: 2013-02-08 06:20:27
     -> 8.00 SEK
 ```
 
-The current seed does not claim to contain the complete assignment rules. Later migrations will add the remaining Vehicle Types, Tax Time Bands, Tax Rule Options, and Tax Exemption data when the related calculation behavior is implemented.
+The current seed does not contain Tax Rule Options. Tests use synthetic option rows. A later migration will add the complete Gothenburg Tax Rule Options with the remaining Vehicle Types, Tax Time Bands, and Tax Exemption data.
 
 During development, later Flyway migrations can complete the initial assignment seed before the first release. After release, runtime content workflows must treat each published Tax Rule Set as immutable.

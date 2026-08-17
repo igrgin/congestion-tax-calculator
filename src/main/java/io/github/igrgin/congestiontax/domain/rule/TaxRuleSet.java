@@ -9,11 +9,16 @@ public record TaxRuleSet(
         @NonNull String cityCode,
         @NonNull LocalDate effectiveFrom,
         @NonNull Currency currency,
-        @NonNull List<TaxTimeBand> taxTimeBands) {
+        @NonNull List<TaxTimeBand> taxTimeBands,
+        @NonNull TaxRuleOptions taxRuleOptions) {
 
     public TaxRuleSet {
         if (taxTimeBands.isEmpty()) {
             throw new IllegalArgumentException("Tax Rule Set must contain at least one Tax Time Band.");
         }
+    }
+
+    public TaxRuleSet(String cityCode, LocalDate effectiveFrom, Currency currency, List<TaxTimeBand> taxTimeBands) {
+        this(cityCode, effectiveFrom, currency, taxTimeBands, TaxRuleOptions.empty());
     }
 }

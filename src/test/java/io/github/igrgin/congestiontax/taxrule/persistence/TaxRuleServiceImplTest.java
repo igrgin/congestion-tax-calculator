@@ -12,6 +12,7 @@ import io.github.igrgin.congestiontax.domain.rule.TaxTimeBand;
 import io.github.igrgin.congestiontax.taxrule.TaxRuleService;
 import io.github.igrgin.congestiontax.taxrule.TaxRuleServiceImpl;
 import io.github.igrgin.congestiontax.taxrule.exception.InvalidCityTimeZoneException;
+import io.github.igrgin.congestiontax.taxrule.exception.InvalidTaxRuleOptionException;
 import io.github.igrgin.congestiontax.taxrule.exception.MissingApplicableTaxRuleSetException;
 import io.github.igrgin.congestiontax.taxrule.exception.MissingTaxTimeBandsException;
 import io.github.igrgin.congestiontax.taxrule.exception.OverlappingTaxTimeBandsException;
@@ -37,6 +38,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class TaxRuleServiceImplTest {
 
+    private static final String CITY_CODE = "gothenburg";
+    private static final LocalDate CALCULATION_DATE = LocalDate.of(2013, Month.FEBRUARY, 8);
+    private static final LocalDate EFFECTIVE_FROM = LocalDate.of(2013, Month.JANUARY, 1);
+    private static final long RULE_SET_ID = 1L;
+
     @Mock
     private CityRepository cityRepository;
 
@@ -49,12 +55,19 @@ class TaxRuleServiceImplTest {
     @Mock
     private TaxTimeBandRepository taxTimeBandRepository;
 
+    @Mock
+    private TaxRuleOptionRepository taxRuleOptionRepository;
+
     private TaxRuleService taxRuleService;
 
     @BeforeEach
     void setUp() {
         taxRuleService = new TaxRuleServiceImpl(
-                cityRepository, vehicleTypeRepository, taxRuleSetRepository, taxTimeBandRepository);
+                cityRepository,
+                vehicleTypeRepository,
+                taxRuleSetRepository,
+                taxTimeBandRepository,
+                taxRuleOptionRepository);
     }
 
     @Test
@@ -189,6 +202,36 @@ class TaxRuleServiceImplTest {
     }
 
     @Test
+    void rejectsInvalidStoredChargeWindow() {
+        var taxRuleOption = new TaxRuleOptionEntity(RULE_SET_ID, TaxRuleOptionType.CHARGE_WINDOW, null, null, null);
+
+        assertInvalidStoredTaxRuleOptions(List.of(taxRuleOption), "CHARGE_WINDOW");
+    }
+
+    @Test
+    void rejectsInvalidStoredDailyMaximum() {
+        var taxRuleOption =
+                new TaxRuleOptionEntity(RULE_SET_ID, TaxRuleOptionType.DAILY_MAXIMUM, BigDecimal.ZERO, null, null);
+
+        assertInvalidStoredTaxRuleOptions(List.of(taxRuleOption), "DAILY_MAXIMUM");
+    }
+
+    @Test
+    void rejectsDuplicateStoredTaxRuleOptionTypes() {
+        var firstTaxRuleOption = new TaxRuleOptionEntity(RULE_SET_ID, TaxRuleOptionType.CHARGE_WINDOW, null, 60, null);
+        var secondTaxRuleOption = new TaxRuleOptionEntity(RULE_SET_ID, TaxRuleOptionType.CHARGE_WINDOW, null, 30, null);
+
+        assertInvalidStoredTaxRuleOptions(List.of(firstTaxRuleOption, secondTaxRuleOption), "CHARGE_WINDOW");
+    }
+
+    @Test
+    void rejectsMissingStoredTaxRuleOptionType() {
+        var taxRuleOption = new TaxRuleOptionEntity(RULE_SET_ID, null, null, null, null);
+
+        assertInvalidStoredTaxRuleOptions(List.of(taxRuleOption), "UNKNOWN");
+    }
+
+    @Test
     void rejectsInvalidStoredCityTimeZone() {
         var cityCode = "gothenburg";
         var calculationDates = Set.of(LocalDate.of(2013, Month.FEBRUARY, 8));
@@ -206,5 +249,23 @@ class TaxRuleServiceImplTest {
         given(taxRuleSetEntity.getId()).willReturn(id);
 
         return taxRuleSetEntity;
+    }
+
+    private void assertInvalidStoredTaxRuleOptions(List<TaxRuleOptionEntity> taxRuleOptions, String optionTypeCode) {
+        var taxRuleSet = storedTaxRuleSet(RULE_SET_ID, EFFECTIVE_FROM, "SEK");
+        var taxTimeBand =
+                new TaxTimeBandEntity(RULE_SET_ID, LocalTime.of(6, 0), LocalTime.of(6, 30), new BigDecimal("8.00"));
+
+        given(cityRepository.findByCode(CITY_CODE))
+                .willReturn(Optional.of(new CityEntity(CITY_CODE, "Gothenburg", "Europe/Stockholm")));
+        given(taxRuleSetRepository.findApplicableCandidates(CITY_CODE, CALCULATION_DATE))
+                .willReturn(List.of(taxRuleSet));
+        given(taxTimeBandRepository.findByRuleSetIdIn(Set.of(RULE_SET_ID))).willReturn(List.of(taxTimeBand));
+        given(taxRuleOptionRepository.findByRuleSetIdIn(Set.of(RULE_SET_ID))).willReturn(taxRuleOptions);
+
+        assertThatThrownBy(() -> taxRuleService.getApplicableTaxRuleSets(CITY_CODE, Set.of(CALCULATION_DATE)))
+                .isInstanceOfSatisfying(
+                        InvalidTaxRuleOptionException.class,
+                        exception -> assertThat(exception.optionTypeCode()).isEqualTo(optionTypeCode));
     }
 }

@@ -30,9 +30,10 @@ class TaxRuleSetTest {
             String cityCode,
             LocalDate effectiveFrom,
             Currency currency,
-            List<TaxTimeBand> taxTimeBands) {
+            List<TaxTimeBand> taxTimeBands,
+            TaxRuleOptions taxRuleOptions) {
         assertThatNullPointerException()
-                .isThrownBy(() -> new TaxRuleSet(cityCode, effectiveFrom, currency, taxTimeBands));
+                .isThrownBy(() -> new TaxRuleSet(cityCode, effectiveFrom, currency, taxTimeBands, taxRuleOptions));
     }
 
     @Test
@@ -43,9 +44,30 @@ class TaxRuleSetTest {
 
     private static Stream<Arguments> nullValues() {
         return Stream.of(
-                Arguments.of("null City code", null, EFFECTIVE_FROM, CURRENCY, List.of(TAX_TIME_BAND)),
-                Arguments.of("null effective date", "gothenburg", null, CURRENCY, List.of(TAX_TIME_BAND)),
-                Arguments.of("null currency", "gothenburg", EFFECTIVE_FROM, null, List.of(TAX_TIME_BAND)),
-                Arguments.of("null Tax Time Bands", "gothenburg", EFFECTIVE_FROM, CURRENCY, null));
+                Arguments.of(
+                        "null City code",
+                        null,
+                        EFFECTIVE_FROM,
+                        CURRENCY,
+                        List.of(TAX_TIME_BAND),
+                        TaxRuleOptions.empty()),
+                Arguments.of(
+                        "null effective date",
+                        "gothenburg",
+                        null,
+                        CURRENCY,
+                        List.of(TAX_TIME_BAND),
+                        TaxRuleOptions.empty()),
+                Arguments.of(
+                        "null currency",
+                        "gothenburg",
+                        EFFECTIVE_FROM,
+                        null,
+                        List.of(TAX_TIME_BAND),
+                        TaxRuleOptions.empty()),
+                Arguments.of(
+                        "null Tax Time Bands", "gothenburg", EFFECTIVE_FROM, CURRENCY, null, TaxRuleOptions.empty()),
+                Arguments.of(
+                        "null Tax Rule Options", "gothenburg", EFFECTIVE_FROM, CURRENCY, List.of(TAX_TIME_BAND), null));
     }
 }

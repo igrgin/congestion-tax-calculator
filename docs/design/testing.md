@@ -42,6 +42,12 @@ Application logging remains active when a test uses a Spring profile. Test code 
 - rejection of null fields;
 - rejection of an empty Tax Time Band list.
 
+`ChargeWindowTest` proves rejection of a null, zero, or negative duration.
+
+`DailyMaximumTest` proves rejection of a null or zero Tax Amount.
+
+`TaxRuleOptionsTest` proves rejection of duplicate option types.
+
 `DailyTaxTest` proves that the convenience constructor uses an empty Tax Exemption Reason set.
 
 `TaxCalculatorTest` proves:
@@ -66,7 +72,9 @@ Application logging remains active when a test uses a Spring profile. Test code 
 - loading of adjacent Tax Time Bands;
 - rejection of a missing Applicable Tax Rule Set;
 - rejection of a Tax Rule Set without Tax Time Bands;
-- rejection of overlapping Tax Time Bands independent of repository order.
+- rejection of overlapping Tax Time Bands independent of repository order;
+- safe rejection of invalid stored Charge Window and Daily Maximum content;
+- safe rejection of duplicate stored Tax Rule Option types.
 
 This test stays in the `taxrule.persistence` test package because it uses package-access entity constructors to prepare repository results. It calls the implementation through the `TaxRuleService` interface.
 
@@ -75,6 +83,7 @@ This test stays in the `taxrule.persistence` test package because it uses packag
 - coordination of Passages, stored Tax Rules, and the pure calculator;
 - derivation of winter and summer instants with the stored City time zone;
 - translation of unknown City and Vehicle Type failures into calculation-owned exceptions while preserving their causes;
+- translation of an invalid stored Tax Rule Option into a calculation-owned failure with its safe type code;
 - the `rejected` metric outcome for known lookup failures;
 - the `failed` metric outcome for an unexpected failure.
 
@@ -169,6 +178,8 @@ The test also verifies:
 - stored Vehicle Type lookup;
 - Applicable Tax Rule Set selection by City and calculation date;
 - isolation between Cities;
+- stored Charge Window loading as a typed Domain value;
+- stored Daily Maximum loading as a typed Domain value in the Tax Rule Set currency;
 - rejection of a selected Tax Rule Set with no Tax Time Bands;
 - rejection of overlapping Tax Time Bands.
 
@@ -217,8 +228,7 @@ Later calculation issues will add focused tests for:
 - repeated Passages;
 - weekday, month, public-holiday, and preceding-date Tax Exemptions;
 - Vehicle Type Tax Exemptions;
-- Daily Tax limits;
-- missing optional Tax Rules;
+- Daily Tax limits and missing optional Tax Rule behavior;
 - successive Applicable Tax Rule Sets;
 - mixed currencies in one calculation;
 - complete transport validation and Problem Details;

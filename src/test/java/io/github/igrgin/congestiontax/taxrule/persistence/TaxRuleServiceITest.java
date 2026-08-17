@@ -6,6 +6,8 @@ import static org.springframework.boot.test.context.SpringBootTest.WebEnvironmen
 
 import io.github.igrgin.congestiontax.domain.TaxAmount;
 import io.github.igrgin.congestiontax.domain.VehicleType;
+import io.github.igrgin.congestiontax.domain.rule.ChargeWindow;
+import io.github.igrgin.congestiontax.domain.rule.DailyMaximum;
 import io.github.igrgin.congestiontax.domain.rule.TaxRuleSet;
 import io.github.igrgin.congestiontax.domain.rule.TaxTimeBand;
 import io.github.igrgin.congestiontax.taxrule.TaxRuleService;
@@ -14,6 +16,7 @@ import io.github.igrgin.congestiontax.taxrule.exception.MissingTaxTimeBandsExcep
 import io.github.igrgin.congestiontax.taxrule.exception.OverlappingTaxTimeBandsException;
 import io.github.igrgin.congestiontax.taxrule.model.ApplicableTaxRuleSets;
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.Month;
@@ -116,6 +119,46 @@ class TaxRuleServiceITest {
     }
 
     @Test
+    void loadsStoredChargeWindow() {
+        var cityCode = "tax-rule-service-charge-window";
+        var cityId = insertCity(cityCode, "Europe/Stockholm");
+        var effectiveFrom = LocalDate.of(2013, Month.JANUARY, 1);
+        var calculationDate = LocalDate.of(2013, Month.FEBRUARY, 8);
+        var ruleSetId = insertTaxRuleSet(cityId, effectiveFrom);
+
+        insertTaxTimeBand(ruleSetId, new BigDecimal("8.00"));
+        insertChargeWindow(ruleSetId, 60);
+
+        var result = taxRuleService.getApplicableTaxRuleSets(cityCode, Set.of(calculationDate));
+
+        assertThat(result.taxRuleSetsByCalculationDate()
+                        .get(calculationDate)
+                        .taxRuleOptions()
+                        .chargeWindow())
+                .contains(new ChargeWindow(Duration.ofMinutes(60)));
+    }
+
+    @Test
+    void loadsStoredDailyMaximum() {
+        var cityCode = "tax-rule-service-daily-maximum";
+        var cityId = insertCity(cityCode, "Europe/Stockholm");
+        var effectiveFrom = LocalDate.of(2013, Month.JANUARY, 1);
+        var calculationDate = LocalDate.of(2013, Month.FEBRUARY, 8);
+        var ruleSetId = insertTaxRuleSet(cityId, effectiveFrom);
+
+        insertTaxTimeBand(ruleSetId, new BigDecimal("8.00"));
+        insertDailyMaximum(ruleSetId, new BigDecimal("60.00"));
+
+        var result = taxRuleService.getApplicableTaxRuleSets(cityCode, Set.of(calculationDate));
+
+        assertThat(result.taxRuleSetsByCalculationDate()
+                        .get(calculationDate)
+                        .taxRuleOptions()
+                        .dailyMaximum())
+                .contains(new DailyMaximum(new TaxAmount(new BigDecimal("60.00"), SEK)));
+    }
+
+    @Test
     void rejectsStoredTaxRuleSetWithoutTaxTimeBands() {
         var cityCode = "tax-rule-service-missing-bands";
         var cityId = insertCity(cityCode, "Europe/Stockholm");
@@ -193,6 +236,28 @@ class TaxRuleServiceITest {
                 )
                 VALUES (?, ?, ?, ?)
                 """, ruleSetId, startTime, endTime, amount);
+    }
+
+    private void insertChargeWindow(long ruleSetId, int durationMinutes) {
+        jdbcTemplate.update("""
+                INSERT INTO tax_rule_option (
+                    rule_set_id,
+                    type_code,
+                    duration_minutes
+                )
+                VALUES (?, 'CHARGE_WINDOW', ?)
+                """, ruleSetId, durationMinutes);
+    }
+
+    private void insertDailyMaximum(long ruleSetId, BigDecimal amount) {
+        jdbcTemplate.update("""
+                INSERT INTO tax_rule_option (
+                    rule_set_id,
+                    type_code,
+                    amount
+                )
+                VALUES (?, 'DAILY_MAXIMUM', ?)
+                """, ruleSetId, amount);
     }
 
     private static TaxRuleSet taxRuleSet(String cityCode, LocalDate effectiveFrom, BigDecimal amount) {

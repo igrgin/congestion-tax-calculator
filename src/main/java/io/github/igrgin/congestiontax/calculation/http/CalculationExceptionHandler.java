@@ -1,6 +1,7 @@
 package io.github.igrgin.congestiontax.calculation.http;
 
 import io.github.igrgin.congestiontax.calculation.exception.CityNotFoundException;
+import io.github.igrgin.congestiontax.calculation.exception.InvalidStoredTaxRuleOptionException;
 import io.github.igrgin.congestiontax.calculation.exception.VehicleTypeNotFoundException;
 import io.github.igrgin.congestiontax.calculation.http.exception.InvalidPassageCountException;
 import io.github.igrgin.congestiontax.calculation.http.exception.InvalidPassageTimestampException;
@@ -62,6 +63,16 @@ public class CalculationExceptionHandler {
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public void handleInvalidJson() {
         log.warn("Rejected Congestion Tax Calculation request. reason={}", "invalid-json");
+    }
+
+    @ExceptionHandler(InvalidStoredTaxRuleOptionException.class)
+    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+    public void handleInvalidTaxRuleOption(InvalidStoredTaxRuleOptionException exception) {
+        log.error(
+                "Congestion Tax Calculation failed. reason={} optionTypeCode={}",
+                "invalid-tax-rule-option",
+                exception.optionTypeCode(),
+                exception);
     }
 
     @ExceptionHandler(Exception.class)
