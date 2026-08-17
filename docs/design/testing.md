@@ -22,6 +22,7 @@ Application logging remains active when a test uses a Spring profile. Test code 
 
 - addition;
 - minimum selection;
+- maximum selection;
 - zero creation;
 - rejection of null values;
 - rejection of negative amounts;
@@ -53,6 +54,15 @@ Application logging remains active when a test uses a Spring profile. Test code 
 `TaxCalculatorTest` proves:
 
 - one taxed Passage;
+- addition of all Passage Tax Amounts when the Charge Window is absent;
+- date grouping and ascending Daily Tax order;
+- rejection of a missing Applicable Tax Rule Set for any Passage date;
+- Passage instant ordering and highest Tax Amount selection in a Charge Window;
+- the inclusive configured Charge Window boundary;
+- non-sliding Charge Window behavior;
+- participation of zero-amount and repeated Passages;
+- Daily Maximum application after Charge Window calculation;
+- Tax Time Band selection at second precision, including adjacent boundaries;
 - zero Tax outside the Tax Time Bands;
 - rejection of an empty Passage list;
 - rejection of an empty Applicable Tax Rule Set map;
@@ -92,10 +102,10 @@ This test stays in the `taxrule.persistence` test package because it uses packag
 `CalculationControllerTest` proves:
 
 - the one-Passage HTTP request and response mapping;
+- the several-Passage HTTP request and response mapping;
 - rejection of a null or blank Vehicle Type;
 - rejection of a null or empty Passage list;
 - rejection of a null Passage value;
-- rejection of multiple Passages;
 - rejection of a Passage timestamp that does not use `uuuu-MM-dd HH:mm:ss`;
 - rejection of unknown JSON properties, including the removed `timeZone` property;
 - rejection of malformed JSON;
@@ -165,6 +175,7 @@ It also verifies that Prometheus publishes the calculation timer with the bounde
 
 The test also verifies:
 
+- several Passages are calculated from stored Tax Rules;
 - a Passage outside the stored Tax Time Bands returns zero Tax;
 - invalid request bodies return HTTP `400`;
 - an unknown City returns HTTP `404`;
@@ -222,13 +233,8 @@ Tests that start Spring without PostgreSQL use the `test` profile. Full Spring B
 
 Later calculation issues will add focused tests for:
 
-- multiple Passage ordering and date grouping;
-- Charge Window boundaries and non-sliding behavior;
-- zero-amount Passages in a Charge Window;
-- repeated Passages;
 - weekday, month, public-holiday, and preceding-date Tax Exemptions;
 - Vehicle Type Tax Exemptions;
-- Daily Tax limits and missing optional Tax Rule behavior;
 - successive Applicable Tax Rule Sets;
 - mixed currencies in one calculation;
 - complete transport validation and Problem Details;

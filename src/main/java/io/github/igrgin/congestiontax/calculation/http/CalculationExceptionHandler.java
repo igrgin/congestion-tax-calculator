@@ -3,7 +3,6 @@ package io.github.igrgin.congestiontax.calculation.http;
 import io.github.igrgin.congestiontax.calculation.exception.CityNotFoundException;
 import io.github.igrgin.congestiontax.calculation.exception.InvalidStoredTaxRuleOptionException;
 import io.github.igrgin.congestiontax.calculation.exception.VehicleTypeNotFoundException;
-import io.github.igrgin.congestiontax.calculation.http.exception.InvalidPassageCountException;
 import io.github.igrgin.congestiontax.calculation.http.exception.InvalidPassageTimestampException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -33,15 +32,6 @@ public class CalculationExceptionHandler {
                 "Rejected Congestion Tax Calculation request. reason={} vehicleTypeCode={}",
                 "unknown-vehicle-type",
                 exception.vehicleTypeCode());
-    }
-
-    @ExceptionHandler(InvalidPassageCountException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public void handleInvalidPassageCount(InvalidPassageCountException exception) {
-        log.warn(
-                "Rejected Congestion Tax Calculation request. reason={} passageCount={}",
-                "invalid-passage-count",
-                exception.passageCount());
     }
 
     @ExceptionHandler(InvalidPassageTimestampException.class)

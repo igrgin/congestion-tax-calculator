@@ -29,6 +29,12 @@ public record TaxAmount(@NonNull BigDecimal amount, @NonNull Currency currency) 
         return amount.compareTo(other.amount) <= 0 ? this : other;
     }
 
+    public TaxAmount max(TaxAmount other) {
+        validateSameCurrency(other);
+
+        return amount.compareTo(other.amount) >= 0 ? this : other;
+    }
+
     private void validateSameCurrency(TaxAmount other) {
         if (!currency.equals(other.currency)) {
             throw new CurrencyMismatchException(currency, other.currency);

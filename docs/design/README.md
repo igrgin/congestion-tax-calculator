@@ -30,7 +30,7 @@ The planned root `README.md` will be the guide for building, running, and callin
 | Submit questions | Root `questions.md` pairs each unresolved question with the assumption used |
 | Six-hour limit and prioritization | Implementation budget and additional-work boundary in the operations design and planned README |
 
-The one-Passage issue implements the first vertical path through this design. Later issues add the remaining assignment Tax Rules without changing the HTTP collection shape or the service boundaries.
+The first calculation issue implements the initial vertical path through this design. Later issues add the remaining assignment Tax Rules without changing the HTTP collection shape or the service boundaries.
 
 ## Common terms
 

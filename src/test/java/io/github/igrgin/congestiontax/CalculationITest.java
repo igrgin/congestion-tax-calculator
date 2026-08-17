@@ -85,6 +85,42 @@ class CalculationITest {
     }
 
     @Test
+    void calculatesSeveralPassagesFromStoredTaxRules() throws Exception {
+        var headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        var request = new HttpEntity<>("""
+                {
+                  "vehicleType": "OTHER",
+                  "passages": [
+                    "2013-02-08 06:10:00",
+                    "2013-02-08 06:20:00"
+                  ]
+                }
+                """, headers);
+
+        var response = restTemplate.postForEntity(
+                "/api/v1/cities/gothenburg" + "/congestion-tax/calculations", request, JsonNode.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isEqualTo(objectMapper.readTree("""
+                {
+                  "cityCode": "gothenburg",
+                  "vehicleType": "OTHER",
+                  "currency": "SEK",
+                  "totalAmount": 16.00,
+                  "dailyTaxes": [
+                    {
+                      "date": "2013-02-08",
+                      "taxExemptionReasons": [],
+                      "amount": 16.00
+                    }
+                  ]
+                }
+                """));
+    }
+
+    @Test
     void returnsZeroTaxOutsideStoredTaxTimeBands() throws Exception {
         var headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
@@ -209,15 +245,6 @@ class CalculationITest {
                           "vehicleType": "OTHER",
                           "passages": [
                             null
-                          ]
-                        }
-                        """),
-                Arguments.of("multiple Passages", """
-                        {
-                          "vehicleType": "OTHER",
-                          "passages": [
-                            "2013-02-08 05:20:27",
-                            "2013-02-08 06:20:27"
                           ]
                         }
                         """),

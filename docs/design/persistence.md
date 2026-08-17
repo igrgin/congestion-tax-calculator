@@ -184,7 +184,7 @@ These failures are stored-content or lookup failures. The pure calculator does n
 
 ## Current seed data
 
-Flyway inserts the minimum stored content for the one-Passage calculation:
+Flyway inserts the minimum stored content for the initial calculation path:
 
 ```text
 City code: gothenburg

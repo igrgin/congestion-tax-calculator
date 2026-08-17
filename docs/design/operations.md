@@ -1,6 +1,6 @@
 # Operations Design
 
-Docker Compose runs PostgreSQL 18.4 as a separate runtime service. A named volume retains development data. `docker compose down -v` removes that data when a clean start is necessary. Environment variables configure the database URL, user, and password. Flyway creates the schema and the current one-Passage seed data.
+Docker Compose runs PostgreSQL 18.4 as a separate runtime service. A named volume retains development data. `docker compose down -v` removes that data when a clean start is necessary. Environment variables configure the database URL, user, and password. Flyway creates the schema and the current initial seed data.
 
 The Maven project compiles for Java 17. The Maven Wrapper uses the active compatible JDK. Spring Boot Actuator exposes only `/actuator/health` and `/actuator/prometheus` over HTTP. Health includes database status. It shows component names and statuses and hides component details. `/actuator/info` and `/actuator/metrics` are not available over HTTP.
 

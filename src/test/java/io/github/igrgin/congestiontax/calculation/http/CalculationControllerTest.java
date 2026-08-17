@@ -134,8 +134,22 @@ class CalculationControllerTest {
     }
 
     @Test
-    void rejectsMultiplePassages() throws Exception {
-        mockMvc.perform(post("/api/v1/cities/{cityCode}" + "/congestion-tax/calculations", "gothenburg")
+    void calculatesTaxForSeveralPassages() throws Exception {
+        var cityCode = "gothenburg";
+        var vehicleType = new VehicleType("OTHER", "Other vehicle");
+        var firstPassage = LocalDateTime.of(2013, Month.FEBRUARY, 8, 5, 20, 27);
+        var secondPassage = LocalDateTime.of(2013, Month.FEBRUARY, 8, 6, 20, 27);
+        var calculationDate = LocalDate.of(2013, Month.FEBRUARY, 8);
+        var currency = Currency.getInstance("SEK");
+        var taxAmount = new TaxAmount(new BigDecimal("16.00"), currency);
+        var calculationResult =
+                new CalculationResult(vehicleType, List.of(new DailyTax(calculationDate, taxAmount)), taxAmount);
+
+        given(calculationService.calculate(
+                        new CalculationCommand(cityCode, vehicleType.code(), List.of(firstPassage, secondPassage))))
+                .willReturn(new CalculatedTax(cityCode, calculationResult));
+
+        mockMvc.perform(post("/api/v1/cities/{cityCode}" + "/congestion-tax/calculations", cityCode)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -146,7 +160,22 @@ class CalculationControllerTest {
                                   ]
                                 }
                                 """))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isOk())
+                .andExpect(content().json("""
+                        {
+                          "cityCode": "gothenburg",
+                          "vehicleType": "OTHER",
+                          "currency": "SEK",
+                          "totalAmount": 16.00,
+                          "dailyTaxes": [
+                            {
+                              "date": "2013-02-08",
+                              "taxExemptionReasons": [],
+                              "amount": 16.00
+                            }
+                          ]
+                        }
+                        """));
     }
 
     @ParameterizedTest
