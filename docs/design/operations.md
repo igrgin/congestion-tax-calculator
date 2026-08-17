@@ -67,10 +67,11 @@ Spring Boot Actuator and Micrometer supply standard JVM, process, HTTP, and data
 
 A deployment must restrict access to the scrape endpoint at its network boundary because application authentication is outside the project scope.
 
-The application adds one custom timer:
+The application adds these custom meters:
 
 ```text
 congestion.tax.calculation
+congestion.tax.calculation.passages
 ```
 
 The timer surrounds the Calculation Service operation. It records these bounded `outcome` tag values:
@@ -85,7 +86,17 @@ The configured Prometheus histogram supports aggregate latency analysis.
 
 The timer does not use Tax Amounts, Passage timestamps, City codes, Vehicle Type codes, exception messages, or other unbounded values as tags. Standard HTTP metrics supply request count, duration, outcome, and status.
 
-A metrics failure cannot change the calculation result. `CalculationMetrics` catches failures that occur when it starts or stops the timer and logs a warning.
+The `congestion.tax.calculation.passages` distribution records the Passage count once for each request that passes HTTP validation and reaches the Calculation Service. It records the count even when later lookup, stored-content, or calculation behavior fails. It has no tags and publishes these boundaries:
+
+```text
+1
+10
+100
+1000
+10000
+```
+
+A metrics failure cannot change the calculation result. `CalculationMetrics` catches failures that occur when it records the Passage count or starts or stops the timer. It logs each suppressed failure at `WARN`.
 
 Each feature issue owns any metric required by its behavior. It adds a custom meter only when standard meters and existing custom meters cannot answer the operational question.
 

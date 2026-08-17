@@ -3,14 +3,12 @@ package io.github.igrgin.congestiontax;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.boot.test.context.SpringBootTest.WebEnvironment.RANDOM_PORT;
 
-import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.micrometer.metrics.test.autoconfigure.AutoConfigureMetrics;
 import org.springframework.boot.resttestclient.TestRestTemplate;
 import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -23,7 +21,6 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 @ActiveProfiles("itest")
-@AutoConfigureMetrics
 @AutoConfigureTestRestTemplate
 @SpringBootTest(webEnvironment = RANDOM_PORT)
 class CalculationITest {
@@ -67,21 +64,6 @@ class CalculationITest {
                           ]
                         }
                         """));
-
-        var metricsResponse = restTemplate.getForEntity("/actuator/prometheus", String.class);
-
-        assertThat(metricsResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-
-        String metricsBody = metricsResponse.getBody();
-        assertThat(metricsBody).isNotNull();
-
-        List<String> metricLines = metricsBody.lines().toList();
-
-        assertThat(metricLines)
-                .anyMatch(line -> line.startsWith("congestion_tax_calculation_seconds_bucket{")
-                        && line.contains("outcome=\"success\""))
-                .anyMatch(line -> line.startsWith("congestion_tax_calculation_seconds_count{")
-                        && line.contains("outcome=\"success\""));
     }
 
     @Test

@@ -36,7 +36,8 @@ public class CalculationServiceImpl implements CalculationService {
                 command.passageCityDateTimes().size());
 
         try {
-            var calculatedTax = calculationMetrics.recordCalculation(() -> calculateTax(command));
+            var calculatedTax = calculationMetrics.recordCalculation(
+                    command.passageCityDateTimes().size(), () -> calculateTax(command));
 
             log.info(
                     "Completed Congestion Tax Calculation."

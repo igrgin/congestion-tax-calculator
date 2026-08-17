@@ -5,7 +5,6 @@ import static org.springframework.boot.test.context.SpringBootTest.WebEnvironmen
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.micrometer.metrics.test.autoconfigure.AutoConfigureMetrics;
 import org.springframework.boot.resttestclient.TestRestTemplate;
 import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -14,7 +13,6 @@ import org.springframework.test.context.ActiveProfiles;
 import tools.jackson.databind.JsonNode;
 
 @ActiveProfiles("itest")
-@AutoConfigureMetrics
 @AutoConfigureTestRestTemplate
 @SpringBootTest(webEnvironment = RANDOM_PORT)
 class ActuatorITest {
@@ -33,23 +31,5 @@ class ActuatorITest {
         assertThat(body.at("/status").asString()).isEqualTo("UP");
         assertThat(body.at("/components/db/status").asString()).isEqualTo("UP");
         assertThat(body.at("/components/db/details").isMissingNode()).isTrue();
-    }
-
-    @Test
-    void prometheusPublishesStandardApplicationMetrics() {
-        restTemplate.getForEntity("/actuator/prometheus", String.class);
-
-        var response = restTemplate.getForEntity("/actuator/prometheus", String.class);
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-
-        String body = response.getBody();
-        assertThat(body)
-                .isNotNull()
-                .contains(
-                        "jvm_memory_used_bytes",
-                        "process_uptime_seconds",
-                        "http_server_requests_seconds",
-                        "hikaricp_connections");
     }
 }

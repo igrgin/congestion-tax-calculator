@@ -330,8 +330,7 @@ Regular tests cover:
 - City and Vehicle Type lookup failures;
 - Applicable Tax Rule Set selection;
 - missing and overlapping Tax Time Bands;
-- Calculation Service coordination and metric outcomes;
-- timer start and stop failures that do not change the calculation result;
+- Calculation Service coordination;
 - controller request and response mapping;
 - rejection of unknown JSON properties, including `timeZone`.
 
@@ -339,9 +338,9 @@ Regular tests cover:
 
 `TaxRuleServiceITest` uses synthetic PostgreSQL data to prove stored Vehicle Type lookup, Applicable Tax Rule Set selection, City isolation, and invalid stored Tax Time Band rejection.
 
-`CalculationITest` proves the complete path from HTTP through PostgreSQL and back to JSON. It covers taxed and untaxed Passages, invalid requests, unknown lookup values, and the published success timer.
+`CalculationITest` proves the complete path from HTTP through PostgreSQL and back to JSON. It covers taxed and untaxed Passages, invalid requests, and unknown lookup values.
 
-`ActuatorITest` proves application health, database health, and standard Prometheus metrics.
+`ActuatorITest` proves application health and database health.
 
 Test code does not write log messages, and tests do not assert log output.
 

@@ -14,7 +14,7 @@ The project uses these test levels:
 
 Tests call public operations. They do not test private methods.
 
-Application logging remains active when a test uses a Spring profile. Test code does not write log messages, and tests do not assert log output. Metric tests use the highest practical public seam and assert only the required meter, tags, and boundaries.
+Application logging remains active when a test uses a Spring profile. Test code does not write log messages, and tests do not assert log output.
 
 ## Current domain tests
 
@@ -93,11 +93,7 @@ This test stays in the `taxrule.persistence` test package because it uses packag
 - coordination of Passages, stored Tax Rules, and the pure calculator;
 - derivation of winter and summer instants with the stored City time zone;
 - translation of unknown City and Vehicle Type failures into calculation-owned exceptions while preserving their causes;
-- translation of an invalid stored Tax Rule Option into a calculation-owned failure with its safe type code;
-- the `rejected` metric outcome for known lookup failures;
-- the `failed` metric outcome for an unexpected failure.
-
-`CalculationMetricsTest` proves that timer start and stop failures do not change the calculation result.
+- translation of an invalid stored Tax Rule Option into a calculation-owned failure with its safe type code.
 
 `CalculationControllerTest` proves:
 
@@ -171,8 +167,6 @@ The test verifies this response:
 
 This test proves that HTTP parsing, stored City time-zone handling, Flyway data, JPA loading, Tax calculation, and JSON output work together.
 
-It also verifies that Prometheus publishes the calculation timer with the bounded `success` outcome.
-
 The test also verifies:
 
 - several Passages are calculated from stored Tax Rules;
@@ -202,8 +196,7 @@ An `@AfterEach` method removes the synthetic rows. The test does not use a test 
 
 - application health is `UP`;
 - database health is `UP`;
-- health component details are hidden;
-- Prometheus publishes standard JVM, process, HTTP, and connection-pool metrics.
+- health component details are hidden.
 
 ## Test execution
 

@@ -117,7 +117,7 @@ Follow the metric inventory and exposure rules in `docs/design/operations.md`. F
 - Use bounded, low-cardinality tags. Keep request values, identifiers, timestamps, monetary amounts, free text, and exception messages out of tags.
 - Do not add a counter when a timer or distribution summary already supplies the required count.
 - Keep metric collection independent of the calculation result. A metric failure must not change a Congestion Tax Calculation.
-- Test the required meter name, tag set, and boundaries through the highest practical public seam. Do not compare a complete metrics scrape.
+- Do not add automated tests for metrics.
 
 ### Comments and Javadoc
 

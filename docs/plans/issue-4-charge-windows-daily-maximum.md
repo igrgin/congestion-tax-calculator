@@ -50,8 +50,7 @@ Use these existing module interfaces as the approved test seams:
 
 - `TaxRuleService.getApplicableTaxRuleSets` for stored option loading;
 - `TaxCalculator.calculate` for pure Daily Tax behavior;
-- the calculation HTTP operation and `/actuator/prometheus` for public behavior and metrics;
-- `CalculationMetrics` only for metric-failure suppression.
+- the calculation HTTP operation for public behavior.
 
 Do not test private methods, JPA implementation details, exact SQL, or log output.
 
@@ -192,7 +191,7 @@ Record the Passage count once for every request that passes HTTP validation and 
 
 The meter has no request-value or outcome tags. A meter failure cannot change the calculation result. `CalculationMetrics` catches the failure and logs it at `WARN`.
 
-The public test checks only the required meter family and boundaries in the Prometheus scrape. It does not compare the complete scrape.
+The implementation does not retain automated tests for metrics.
 
 ## Implementation groups
 
@@ -237,10 +236,9 @@ This group adds:
 - the Passage-count distribution and boundaries;
 - count recording for each accepted Calculation Service call;
 - metric-failure suppression;
-- the public Prometheus proof;
 - final metric, architecture, testing, and operations document updates.
 
-The approved main test seams are the calculation HTTP operation, `/actuator/prometheus`, and `CalculationMetrics` for failure suppression.
+The user chose not to retain automated tests for metrics. Group 3 keeps the production metric and failure suppression.
 
 ## Checkpoint flow
 
