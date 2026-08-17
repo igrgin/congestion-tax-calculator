@@ -49,11 +49,15 @@ A non-negative congestion-tax value expressed in one currency. A Tax Amount cann
 _Avoid_: Money, Monetary amount
 
 **Charge Window**:
-A period that starts with its first passage and includes applicable passages no later than 60 minutes after that first passage.
+A period that starts with its first Passage and includes each Passage no later than its configured duration after that first Passage.
 _Avoid_: Sliding window, chained group
 
+**Daily Maximum**:
+A Tax Rule Option with a positive Tax Amount that limits the Daily Tax after the application calculates the Passage charges.
+_Avoid_: Daily Tax limit, daily cap
+
 **Daily Tax**:
-The congestion tax for one vehicle on one local calendar date, after the single charge rule and daily maximum apply.
+The congestion tax for one vehicle on one local calendar date, after the Charge Window and Daily Maximum apply.
 _Avoid_: Daily fee, daily charge
 
 **City Local Time**:
