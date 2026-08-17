@@ -1,4 +1,4 @@
-package io.github.igrgin.congestiontax.citylocaltime.exception;
+package io.github.igrgin.congestiontax.taxrule.exception;
 
 import java.util.NoSuchElementException;
 

@@ -109,7 +109,7 @@ The plan includes all agreed behavior. During implementation, simplify implement
 
 ## Caching Decision
 
-The current implementation has no shared cache and does not cache HTTP responses. The City Local Time Service and Tax Rule Service load the required stored content for each calculation.
+The current implementation has no shared cache and does not cache HTTP responses. The Tax Rule Service loads the required stored content for each calculation.
 
 Complete requests are likely to be unique and can become stale when stored content changes. Add a shared cache only after measurements show a need. Measure database time, query count, p50, p95, and p99 response time, requests per second, connection-pool wait, CPU, memory, repeated rule use, expected hit ratio, and stale-data behavior. If justified, cache immutable Tax Rule Sets by city and effective date instead of complete responses.
 

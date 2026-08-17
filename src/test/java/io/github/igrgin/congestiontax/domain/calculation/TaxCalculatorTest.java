@@ -34,8 +34,7 @@ class TaxCalculatorTest {
 
     @Test
     void calculatesOneTaxedPassage() {
-        var passage =
-                new LocalizedPassage(Instant.parse("2013-02-08T05:20:27Z"), LocalDateTime.of(2013, 2, 8, 6, 20, 27));
+        var passage = new Passage(Instant.parse("2013-02-08T05:20:27Z"), LocalDateTime.of(2013, 2, 8, 6, 20, 27));
 
         var result = calculator.calculate(VEHICLE_TYPE, List.of(passage), Map.of(DATE, TAX_RULE_SET));
 
@@ -45,7 +44,7 @@ class TaxCalculatorTest {
 
     @Test
     void calculatesZeroOutsideTaxTimeBands() {
-        var passage = new LocalizedPassage(Instant.parse("2013-02-08T04:59:00Z"), LocalDateTime.of(2013, 2, 8, 5, 59));
+        var passage = new Passage(Instant.parse("2013-02-08T04:59:00Z"), LocalDateTime.of(2013, 2, 8, 5, 59));
 
         var result = calculator.calculate(VEHICLE_TYPE, List.of(passage), Map.of(DATE, TAX_RULE_SET));
 
@@ -56,7 +55,7 @@ class TaxCalculatorTest {
 
     @Test
     void rejectsEmptyPassages() {
-        var passages = List.<LocalizedPassage>of();
+        var passages = List.<Passage>of();
         var applicableTaxRuleSets = Map.of(DATE, TAX_RULE_SET);
 
         assertThatThrownBy(() -> calculator.calculate(VEHICLE_TYPE, passages, applicableTaxRuleSets))
@@ -66,8 +65,7 @@ class TaxCalculatorTest {
 
     @Test
     void rejectsEmptyApplicableTaxRuleSets() {
-        var passage =
-                new LocalizedPassage(Instant.parse("2013-02-08T05:20:27Z"), LocalDateTime.of(2013, 2, 8, 6, 20, 27));
+        var passage = new Passage(Instant.parse("2013-02-08T05:20:27Z"), LocalDateTime.of(2013, 2, 8, 6, 20, 27));
         var passages = List.of(passage);
         var applicableTaxRuleSets = Map.<LocalDate, TaxRuleSet>of();
 
@@ -78,8 +76,7 @@ class TaxCalculatorTest {
 
     @Test
     void rejectsMissingApplicableTaxRuleSetForPassageDate() {
-        var passage =
-                new LocalizedPassage(Instant.parse("2013-02-08T05:20:27Z"), LocalDateTime.of(2013, 2, 8, 6, 20, 27));
+        var passage = new Passage(Instant.parse("2013-02-08T05:20:27Z"), LocalDateTime.of(2013, 2, 8, 6, 20, 27));
         var passages = List.of(passage);
         var applicableTaxRuleSets = Map.of(DATE.minusDays(1), TAX_RULE_SET);
 
@@ -90,8 +87,7 @@ class TaxCalculatorTest {
 
     @Test
     void rejectsNullVehicleType() {
-        var passage =
-                new LocalizedPassage(Instant.parse("2013-02-08T05:20:27Z"), LocalDateTime.of(2013, 2, 8, 6, 20, 27));
+        var passage = new Passage(Instant.parse("2013-02-08T05:20:27Z"), LocalDateTime.of(2013, 2, 8, 6, 20, 27));
         var passages = List.of(passage);
         var applicableTaxRuleSets = Map.of(DATE, TAX_RULE_SET);
 
@@ -109,8 +105,7 @@ class TaxCalculatorTest {
 
     @Test
     void rejectsNullApplicableTaxRuleSets() {
-        var passage =
-                new LocalizedPassage(Instant.parse("2013-02-08T05:20:27Z"), LocalDateTime.of(2013, 2, 8, 6, 20, 27));
+        var passage = new Passage(Instant.parse("2013-02-08T05:20:27Z"), LocalDateTime.of(2013, 2, 8, 6, 20, 27));
         var passages = List.of(passage);
 
         assertThatThrownBy(() -> calculator.calculate(VEHICLE_TYPE, passages, null))

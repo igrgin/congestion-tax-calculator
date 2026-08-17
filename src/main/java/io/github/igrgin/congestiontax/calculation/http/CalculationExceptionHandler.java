@@ -4,6 +4,7 @@ import io.github.igrgin.congestiontax.calculation.exception.CityNotFoundExceptio
 import io.github.igrgin.congestiontax.calculation.exception.VehicleTypeNotFoundException;
 import io.github.igrgin.congestiontax.calculation.http.exception.InvalidPassageCountException;
 import io.github.igrgin.congestiontax.calculation.http.exception.InvalidPassageTimestampException;
+import io.github.igrgin.congestiontax.calculation.http.exception.InvalidTimeZoneException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -50,6 +51,12 @@ public class CalculationExceptionHandler {
                 "Rejected Congestion Tax Calculation request. reason={} passageIndex={}",
                 "invalid-passage-timestamp",
                 exception.passageIndex());
+    }
+
+    @ExceptionHandler(InvalidTimeZoneException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public void handleInvalidTimeZone() {
+        log.warn("Rejected Congestion Tax Calculation request. reason={}", "invalid-time-zone");
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

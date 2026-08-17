@@ -55,13 +55,9 @@ Application logging remains active when a test uses a Spring profile. Test code 
 
 ## Current service and controller tests
 
-`CityLocalTimeServiceImplTest` proves:
-
-- conversion from an instant to City Local Time with the stored IANA time zone;
-- rejection of an unknown City.
-
 `TaxRuleServiceImplTest` proves:
 
+- rejection of an unknown City;
 - Vehicle Type loading;
 - rejection of an unknown Vehicle Type;
 - Applicable Tax Rule Set selection;
@@ -72,7 +68,7 @@ Application logging remains active when a test uses a Spring profile. Test code 
 
 `CalculationServiceImplTest` proves:
 
-- coordination of City Local Time, stored Tax Rules, and the pure calculator;
+- coordination of Passages, stored Tax Rules, and the pure calculator;
 - translation of unknown City and Vehicle Type failures into calculation-owned exceptions while preserving their causes;
 - the `rejected` metric outcome for known lookup failures;
 - the `failed` metric outcome for an unexpected failure.
@@ -84,7 +80,9 @@ Application logging remains active when a test uses a Spring profile. Test code 
 - rejection of a null or empty Passage list;
 - rejection of a null Passage value;
 - rejection of multiple Passages;
-- rejection of a Passage timestamp without an offset.
+- derivation of winter and summer instants with the request IANA time zone;
+- rejection of an invalid IANA time zone;
+- rejection of a Passage timestamp that does not use `uuuu-MM-dd HH:mm:ss`.
 
 The controller test uses the `test` profile. It does not connect to PostgreSQL.
 
@@ -117,13 +115,14 @@ The test sends:
 ```json
 {
   "vehicleType": "OTHER",
+  "timeZone": "Europe/Stockholm",
   "passages": [
-    "2013-02-08T05:20:27Z"
+    "2013-02-08 06:20:27"
   ]
 }
 ```
 
-The selected City time zone converts the Passage to `2013-02-08T06:20:27`. The stored `06:00–06:30` Tax Time Band produces `8.00 SEK`.
+The Passage supplies City Local Time `2013-02-08T06:20:27`. The stored `06:00–06:30` Tax Time Band produces `8.00 SEK`. The request time zone derives the instant `2013-02-08T05:20:27Z` for ordering and elapsed-time calculations.
 
 The test verifies this response:
 
@@ -143,7 +142,7 @@ The test verifies this response:
 }
 ```
 
-This test proves that HTTP parsing, City Local Time conversion, Flyway data, JPA loading, Tax calculation, and JSON output work together.
+This test proves that HTTP parsing, request time-zone handling, Flyway data, JPA loading, Tax calculation, and JSON output work together.
 
 It also verifies that Prometheus publishes the calculation timer with the bounded `success` outcome.
 

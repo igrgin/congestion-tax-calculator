@@ -146,10 +146,10 @@ class TaxRuleSchemaITest {
 
     private long insertCity(String code) {
         return jdbcTemplate.queryForObject("""
-                INSERT INTO city (code, name, time_zone)
-                VALUES (?, ?, ?)
+                INSERT INTO city (code, name)
+                VALUES (?, ?)
                 RETURNING id
-                """, Long.class, code, "Schema Test City", "Etc/UTC");
+                """, Long.class, code, "Schema Test City");
     }
 
     private void insertVehicleType(String code) {

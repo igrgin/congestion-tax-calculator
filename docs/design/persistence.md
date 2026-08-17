@@ -10,7 +10,6 @@ erDiagram
         bigint id PK
         varchar code UK
         varchar name
-        varchar time_zone
     }
 
     VEHICLE_TYPE {
@@ -54,7 +53,7 @@ erDiagram
     TAX_RULE_SET ||--o{ TAX_TIME_BAND : "defines charges"
 ```
 
-`CITY` stores the API code, display name, and IANA time-zone identifier.
+`CITY` stores the API code and display name. The request supplies the IANA time zone.
 
 `VEHICLE_TYPE` stores each known Vehicle Type code and description. A Vehicle Type has one meaning across all Cities.
 
@@ -126,18 +125,6 @@ The service sorts a copy of the loaded bands by start time for overlap validatio
 
 Flyway owns the schema and stored seed data. Hibernate uses `ddl-auto=validate`. Hibernate checks the entity mappings but does not create or change database objects.
 
-Persistence is split by business responsibility.
-
-The City Local Time Service uses:
-
-```text
-CityLocalTimeServiceImpl
-CityRepository
-CityEntity
-```
-
-It loads the selected City and maps Passage instants to City Local Time.
-
 The Tax Rule Service uses:
 
 ```text
@@ -150,7 +137,7 @@ TaxRuleSetEntity
 TaxTimeBandEntity
 ```
 
-It loads the Vehicle Type, Applicable Tax Rule Sets, and their Tax Time Bands.
+It confirms that the selected City exists and loads the Vehicle Type, Applicable Tax Rule Sets, and their Tax Time Bands.
 
 The Tax Rule Set entity does not contain a JPA child collection. `TaxTimeBandEntity` stores its parent ID as a scalar field. The service loads the selected parent rows and then bulk-loads the required Tax Time Bands.
 
@@ -180,6 +167,7 @@ Repository-facing services protect cross-row completeness when they assemble cal
 - missing Applicable Tax Rule Sets;
 - missing Tax Time Bands;
 - overlapping Tax Time Bands;
+- unknown Cities;
 - unknown Vehicle Types.
 
 These failures are stored-content or lookup failures. The pure calculator does not repeat database validation.
@@ -191,7 +179,6 @@ Flyway inserts the minimum stored content for the one-Passage calculation:
 ```text
 City code: gothenburg
 City name: Gothenburg
-IANA time zone: Europe/Stockholm
 Vehicle Type: OTHER
 Tax Rule Set effective from: 2013-01-01
 Currency: SEK
@@ -202,8 +189,8 @@ Tax Amount: 8.00 SEK
 This data supports the issue acceptance path:
 
 ```text
-2013-02-08T05:20:27Z
-    -> 2013-02-08T06:20:27 Europe/Stockholm
+Time zone: Europe/Stockholm
+Passage: 2013-02-08 06:20:27
     -> 06:00–06:30 Tax Time Band
     -> 8.00 SEK
 ```

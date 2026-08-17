@@ -4,18 +4,16 @@ This document defines how the application calculates Congestion Tax. The assignm
 
 ## Passage time handling
 
-The HTTP API supplies each Passage as an ISO 8601 timestamp with `Z` or an explicit UTC offset. The timestamp identifies one instant. The controller converts it to a Java `Instant`.
+The HTTP API supplies one IANA time zone and each Passage as City Local Time in `uuuu-MM-dd HH:mm:ss` format. The application accepts the request time zone as correct for all Passages.
 
-The City Local Time Service uses the stored IANA time zone for the selected City to create a `LocalizedPassage`. A `LocalizedPassage` contains:
+A `Passage` contains:
 
-- the original `Instant`;
-- the corresponding City Local Time.
+- the City Local Time supplied by the caller;
+- the `Instant` derived with the request time zone.
 
 The instant provides chronological order and measures actual elapsed time. City Local Time supplies the calculation date and the local time that selects a Tax Time Band.
 
-An input offset does not have to equal the offset of the selected City. The input offset identifies the instant. The stored City time zone determines the City Local Time.
-
-The offset-free assignment values are a test-data exception. Test data interprets them as Gothenburg local times in `Europe/Stockholm` and converts them to instants.
+The application does not store a City time zone or compare the request time zone with City content. Missing and repeated local times during daylight-saving changes are outside the supported input contract.
 
 ## One-Passage calculation
 
@@ -23,9 +21,9 @@ The current HTTP operation requires exactly one Passage. The controller enforces
 
 The Calculation Service:
 
-1. asks the City Local Time Service to localize the Passage;
-2. asks the Tax Rule Service for the Vehicle Type;
-3. asks the Tax Rule Service for the Applicable Tax Rule Set for the calculation date;
+1. gets the calculation date from the Passage City Local Time;
+2. asks the Tax Rule Service for the Applicable Tax Rule Set and confirms that the City exists;
+3. asks the Tax Rule Service for the Vehicle Type;
 4. calls the pure `TaxCalculator`;
 5. returns the calculated City and result.
 
@@ -89,7 +87,7 @@ classDiagram
         +calculate(vehicleType, passages, applicableTaxRuleSets) CalculationResult
     }
 
-    class LocalizedPassage {
+    class Passage {
         +Instant occurredAt
         +LocalDateTime cityDateTime
     }
@@ -142,7 +140,7 @@ classDiagram
         +TaxAmount totalAmount
     }
 
-    TaxCalculator --> LocalizedPassage
+    TaxCalculator --> Passage
     TaxCalculator --> VehicleType
     TaxCalculator --> TaxRuleSet
     TaxCalculator --> CalculationResult

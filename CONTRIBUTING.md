@@ -41,12 +41,10 @@ Use these dependency directions:
 
 ```text
 calculation.http -> calculation + domain
-calculation -> citylocaltime + taxrule + domain + metrics
-citylocaltime -> domain
-citylocaltime.persistence -> citylocaltime + domain
+calculation -> taxrule + domain + metrics
 taxrule -> domain
 taxrule.persistence -> taxrule + domain
-metrics -> citylocaltime + taxrule
+metrics -> taxrule
 domain -> JDK + compile-time Lombok annotations
 ```
 

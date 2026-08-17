@@ -7,8 +7,8 @@ Issue 3 adds the first complete Congestion Tax Calculation path.
 One HTTP request:
 
 1. selects a City;
-2. supplies one known Vehicle Type and one offset Passage;
-3. converts the Passage instant to City Local Time;
+2. supplies one known Vehicle Type, one IANA time zone, and one City Local Time Passage;
+3. derives the Passage instant with the request time zone;
 4. loads the Applicable Tax Rule Set from PostgreSQL;
 5. calculates one Daily Tax;
 6. returns the result;
@@ -23,8 +23,9 @@ This issue implements:
 
 - the final collection-based HTTP request shape;
 - exactly one Passage for the current operation;
-- Passage parsing with `Z` or an explicit UTC offset;
-- City lookup and City Local Time conversion;
+- Passage parsing in `uuuu-MM-dd HH:mm:ss` format;
+- request IANA time-zone validation and instant derivation;
+- City existence validation;
 - Vehicle Type lookup;
 - effective-date Tax Rule Set selection;
 - Tax Time Band loading and validation;
@@ -60,13 +61,14 @@ Content-Type: application/json
 
 {
   "vehicleType": "OTHER",
+  "timeZone": "Europe/Stockholm",
   "passages": [
-    "2013-02-08T05:20:27Z"
+    "2013-02-08 06:20:27"
   ]
 }
 ```
 
-The Passage instant is `2013-02-08T06:20:27` in the stored `Europe/Stockholm` time zone. It matches the stored `06:00–06:30` Tax Time Band.
+The Passage supplies City Local Time `2013-02-08T06:20:27`. It matches the stored `06:00–06:30` Tax Time Band. The request time zone derives the instant `2013-02-08T05:20:27Z`.
 
 Return:
 
@@ -91,32 +93,27 @@ Return:
 ```mermaid
 flowchart LR
     HTTP["Calculation Controller"] --> APP["Calculation Service"]
-    APP --> LOCAL["City Local Time Service"]
     APP --> RULE["Tax Rule Service"]
     APP --> CALC["Pure Tax Calculator"]
     APP --> METRICS["Calculation Metrics"]
 
-    LOCAL -. "implemented by" .-> LOCAL_JPA["JPA City Local Time Service"]
     RULE -. "implemented by" .-> RULE_JPA["JPA Tax Rule Service"]
 
-    LOCAL_JPA --> CITY_REPO["City Repository"]
     RULE_JPA --> RULE_REPO["Tax Rule Repositories"]
 
-    CITY_REPO --> DB[("PostgreSQL")]
-    RULE_REPO --> DB
+    RULE_REPO --> DB[("PostgreSQL")]
 ```
 
 The owned package areas are:
 
 ```text
 calculation
-citylocaltime
 domain
 metrics
 taxrule
 ```
 
-HTTP transport stays in `calculation.http`. Persistence stays in `citylocaltime.persistence` and `taxrule.persistence`. The pure `domain` package depends on the JDK and compile-time Lombok annotations. It has no Lombok runtime dependency.
+HTTP transport stays in `calculation.http`. Persistence stays in `taxrule.persistence`. The pure `domain` package depends on the JDK and compile-time Lombok annotations. It has no Lombok runtime dependency.
 
 Every Spring service has an interface and implementation. `TaxCalculator` is pure Java and is registered through `CalculationConfiguration`.
 
@@ -125,23 +122,23 @@ Every Spring service has an interface and implementation. `TaxCalculator` is pur
 `CalculationController`:
 
 1. requires exactly one Passage;
-2. parses the Passage with `OffsetDateTime`;
-3. converts it to an `Instant`;
-4. creates a `CalculationCommand`;
-5. calls `CalculationService`;
-6. maps the result to the HTTP response.
+2. validates the request IANA time zone;
+3. parses the Passage as City Local Time;
+4. derives its `Instant` with the request time zone;
+5. creates a `CalculationCommand`;
+6. calls `CalculationService`;
+7. maps the result to the HTTP response.
 
 `CalculationServiceImpl`:
 
 1. logs calculation start at `DEBUG`;
 2. starts the calculation timer;
-3. asks `CityLocalTimeService` to load the City and localize the Passage;
+3. asks `TaxRuleService` to confirm the City and load the Applicable Tax Rule Set;
 4. asks `TaxRuleService` to load the Vehicle Type;
-5. asks `TaxRuleService` to load the Applicable Tax Rule Set;
-6. calls `TaxCalculator`;
-7. stops the timer with a bounded outcome;
-8. logs successful completion at `INFO`;
-9. returns `CalculatedTax`.
+5. calls `TaxCalculator`;
+6. stops the timer with a bounded outcome;
+7. logs successful completion at `INFO`;
+8. returns `CalculatedTax`.
 
 `TaxCalculator`:
 
@@ -160,7 +157,7 @@ The issue uses these immutable domain values:
 ```text
 TaxAmount
 VehicleType
-LocalizedPassage
+Passage
 TaxTimeBand
 TaxRuleSet
 TaxExemptionReason
@@ -195,7 +192,6 @@ The issue seed inserts:
 
 ```text
 City: gothenburg
-Time zone: Europe/Stockholm
 Vehicle Type: OTHER
 Effective date: 2013-01-01
 Currency: SEK
@@ -207,10 +203,9 @@ Hibernate uses `ddl-auto=validate`. Flyway owns schema creation.
 
 JPA entities map parent foreign keys as scalar IDs. Narrow Spring Data repositories expose only the required reads. JPA entities do not leave their persistence packages.
 
-`CityLocalTimeServiceImpl` owns the City repository transaction.
+`TaxRuleServiceImpl` owns the City existence, Vehicle Type, and Tax Rule repository transactions. It:
 
-`TaxRuleServiceImpl` owns the Vehicle Type and Tax Rule repository transactions. It:
-
+- confirms that the selected City exists;
 - selects the latest Applicable Tax Rule Set;
 - requires at least one Tax Time Band;
 - rejects overlapping Tax Time Bands;
@@ -222,7 +217,8 @@ JPA entities map parent foreign keys as scalar IDs. Narrow Spring Data repositor
 HTTP transport failures:
 
 - `InvalidPassageCountException`;
-- `InvalidPassageTimestampException`.
+- `InvalidPassageTimestampException`;
+- `InvalidTimeZoneException`.
 
 These exceptions return HTTP `400` for this issue.
 
@@ -278,6 +274,7 @@ invalid-json
 invalid-request
 invalid-passage-count
 invalid-passage-timestamp
+invalid-time-zone
 unknown-city
 unknown-vehicle-type
 ```
@@ -323,7 +320,7 @@ Regular tests cover:
 - the Daily Tax default Tax Exemption Reason set;
 - one-Passage calculation;
 - empty and null calculator inputs;
-- City Local Time conversion;
+- request time-zone handling for winter and summer dates;
 - City and Vehicle Type lookup failures;
 - Applicable Tax Rule Set selection;
 - missing and overlapping Tax Time Bands;
@@ -356,13 +353,13 @@ Spotless runs as part of `verify`.
 
 - The canonical request returns `8.00 SEK`.
 - PostgreSQL supplies the City, Vehicle Type, Applicable Tax Rule Set, and Tax Time Band.
-- Passage time is converted with the stored City IANA time zone.
+- Passage time is accepted as City Local Time and its instant is derived with the request IANA time zone.
 - JPA entities stay inside their persistence packages.
 - The pure calculator has no Spring, database, HTTP, logging, or metrics dependency.
 - Missing and overlapping Tax Time Bands are rejected.
 - The calculation timer records bounded outcomes.
 - Application events use the agreed levels, owners, parameterized messages, and safe context.
 - Production controls root and application-package log levels separately.
-- The package dependencies match ADR-0007 and `CONTRIBUTING.md`.
+- The package dependencies match the architecture records and `CONTRIBUTING.md`.
 - Regular and integration tests pass.
 - Later assignment behavior remains outside this issue.

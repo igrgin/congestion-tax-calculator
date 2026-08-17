@@ -3,7 +3,7 @@ package io.github.igrgin.congestiontax.metrics;
 import static io.github.igrgin.congestiontax.metrics.CalculationMetricConstants.OUTCOME_TAG;
 import static io.github.igrgin.congestiontax.metrics.CalculationMetricConstants.TIMER_NAME;
 
-import io.github.igrgin.congestiontax.citylocaltime.exception.UnknownCityException;
+import io.github.igrgin.congestiontax.taxrule.exception.UnknownCityException;
 import io.github.igrgin.congestiontax.taxrule.exception.UnknownVehicleTypeException;
 import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.MeterRegistry;

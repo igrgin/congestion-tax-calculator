@@ -13,6 +13,7 @@ import io.github.igrgin.congestiontax.taxrule.TaxRuleService;
 import io.github.igrgin.congestiontax.taxrule.exception.MissingApplicableTaxRuleSetException;
 import io.github.igrgin.congestiontax.taxrule.exception.MissingTaxTimeBandsException;
 import io.github.igrgin.congestiontax.taxrule.exception.OverlappingTaxTimeBandsException;
+import io.github.igrgin.congestiontax.taxrule.exception.UnknownCityException;
 import io.github.igrgin.congestiontax.taxrule.exception.UnknownVehicleTypeException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -81,6 +82,7 @@ class TaxRuleServiceImplTest {
         var secondTaxTimeBandEntity =
                 new TaxTimeBandEntity(ruleSetId, LocalTime.of(6, 30), LocalTime.of(7, 0), new BigDecimal("13.00"));
 
+        given(taxRuleSetRepository.cityExists(cityCode)).willReturn(true);
         given(taxRuleSetRepository.findApplicableCandidates(cityCode, calculationDate))
                 .willReturn(List.of(taxRuleSetEntity));
         given(taxTimeBandRepository.findByRuleSetIdIn(Set.of(ruleSetId)))
@@ -106,11 +108,23 @@ class TaxRuleServiceImplTest {
     }
 
     @Test
+    void rejectsUnknownCity() {
+        var cityCode = "unknown";
+        var calculationDates = Set.of(LocalDate.of(2013, 2, 8));
+
+        given(taxRuleSetRepository.cityExists(cityCode)).willReturn(false);
+
+        assertThatThrownBy(() -> taxRuleService.getApplicableTaxRuleSets(cityCode, calculationDates))
+                .isInstanceOf(UnknownCityException.class);
+    }
+
+    @Test
     void rejectsDateWithoutApplicableTaxRuleSet() {
         var cityCode = "gothenburg";
         var calculationDate = LocalDate.of(2013, 2, 8);
         var calculationDates = Set.of(calculationDate);
 
+        given(taxRuleSetRepository.cityExists(cityCode)).willReturn(true);
         given(taxRuleSetRepository.findApplicableCandidates(cityCode, calculationDate))
                 .willReturn(List.of());
 
@@ -127,6 +141,7 @@ class TaxRuleServiceImplTest {
         var ruleSetId = 1L;
         var taxRuleSetEntity = storedTaxRuleSet(ruleSetId, effectiveFrom, "SEK");
 
+        given(taxRuleSetRepository.cityExists(cityCode)).willReturn(true);
         given(taxRuleSetRepository.findApplicableCandidates(cityCode, calculationDate))
                 .willReturn(List.of(taxRuleSetEntity));
         given(taxTimeBandRepository.findByRuleSetIdIn(Set.of(ruleSetId))).willReturn(List.of());
@@ -148,6 +163,7 @@ class TaxRuleServiceImplTest {
         var earlierTaxTimeBand =
                 new TaxTimeBandEntity(ruleSetId, LocalTime.of(6, 0), LocalTime.of(7, 0), new BigDecimal("8.00"));
 
+        given(taxRuleSetRepository.cityExists(cityCode)).willReturn(true);
         given(taxRuleSetRepository.findApplicableCandidates(cityCode, calculationDate))
                 .willReturn(List.of(taxRuleSetEntity));
         given(taxTimeBandRepository.findByRuleSetIdIn(Set.of(ruleSetId)))

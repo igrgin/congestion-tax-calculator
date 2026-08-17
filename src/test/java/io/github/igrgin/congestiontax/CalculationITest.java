@@ -42,8 +42,9 @@ class CalculationITest {
         var request = new HttpEntity<>("""
                 {
                   "vehicleType": "OTHER",
+                  "timeZone": "Europe/Stockholm",
                   "passages": [
-                    "2013-02-08T05:20:27Z"
+                    "2013-02-08 06:20:27"
                   ]
                 }
                 """, headers);
@@ -94,8 +95,9 @@ class CalculationITest {
         var request = new HttpEntity<>("""
                 {
                   "vehicleType": "OTHER",
+                  "timeZone": "Europe/Stockholm",
                   "passages": [
-                    "2013-02-08T05:40:27Z"
+                    "2013-02-08 06:40:27"
                   ]
                 }
                 """, headers);
@@ -130,8 +132,9 @@ class CalculationITest {
         var request = new HttpEntity<>("""
                 {
                   "vehicleType": "OTHER",
+                  "timeZone": "Europe/Stockholm",
                   "passages": [
-                    "2013-02-08T05:20:27Z"
+                    "2013-02-08 06:20:27"
                   ]
                 }
                 """, headers);
@@ -150,8 +153,9 @@ class CalculationITest {
         var request = new HttpEntity<>("""
                 {
                   "vehicleType": "UNKNOWN",
+                  "timeZone": "Europe/Stockholm",
                   "passages": [
-                    "2013-02-08T05:20:27Z"
+                    "2013-02-08 06:20:27"
                   ]
                 }
                 """, headers);
@@ -181,34 +185,39 @@ class CalculationITest {
                 Arguments.of("null Vehicle Type", """
                         {
                           "vehicleType": null,
+                          "timeZone": "Europe/Stockholm",
                           "passages": [
-                            "2013-02-08T05:20:27Z"
+                            "2013-02-08 06:20:27"
                           ]
                         }
                         """),
                 Arguments.of("blank Vehicle Type", """
                         {
                           "vehicleType": " ",
+                          "timeZone": "Europe/Stockholm",
                           "passages": [
-                            "2013-02-08T05:20:27Z"
+                            "2013-02-08 06:20:27"
                           ]
                         }
                         """),
                 Arguments.of("null Passage list", """
                         {
                           "vehicleType": "OTHER",
+                          "timeZone": "Europe/Stockholm",
                           "passages": null
                         }
                         """),
                 Arguments.of("empty Passage list", """
                         {
                           "vehicleType": "OTHER",
+                          "timeZone": "Europe/Stockholm",
                           "passages": []
                         }
                         """),
                 Arguments.of("null Passage", """
                         {
                           "vehicleType": "OTHER",
+                          "timeZone": "Europe/Stockholm",
                           "passages": [
                             null
                           ]
@@ -217,17 +226,37 @@ class CalculationITest {
                 Arguments.of("multiple Passages", """
                         {
                           "vehicleType": "OTHER",
+                          "timeZone": "Europe/Stockholm",
                           "passages": [
-                            "2013-02-08T05:20:27Z",
-                            "2013-02-08T06:20:27Z"
+                            "2013-02-08 05:20:27",
+                            "2013-02-08 06:20:27"
                           ]
                         }
                         """),
-                Arguments.of("Passage without offset", """
+                Arguments.of("Passage with offset", """
                         {
                           "vehicleType": "OTHER",
+                          "timeZone": "Europe/Stockholm",
                           "passages": [
-                            "2013-02-08T06:20:27"
+                            "2013-02-08T05:20:27Z"
+                          ]
+                        }
+                        """),
+                Arguments.of("unknown time zone", """
+                        {
+                          "vehicleType": "OTHER",
+                          "timeZone": "Mars/Olympus",
+                          "passages": [
+                            "2013-02-08 06:20:27"
+                          ]
+                        }
+                        """),
+                Arguments.of("fixed offset", """
+                        {
+                          "vehicleType": "OTHER",
+                          "timeZone": "+01:00",
+                          "passages": [
+                            "2013-02-08 06:20:27"
                           ]
                         }
                         """));

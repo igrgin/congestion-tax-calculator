@@ -37,7 +37,7 @@ Sources:
 public final class TaxCalculator {
     public CalculationResult calculate(
             VehicleType vehicleType,
-            List<LocalizedPassage> passages,
+            List<Passage> passages,
             Map<LocalDate, TaxRuleSet> applicableRules) {
         // Apply Tax Rules.
     }
@@ -72,7 +72,7 @@ This is the smallest option. It makes `TaxCalculator` an internal implementation
 public interface TaxCalculatorService {
     CalculationResult calculate(
             VehicleType vehicleType,
-            List<LocalizedPassage> passages,
+            List<Passage> passages,
             Map<LocalDate, TaxRuleSet> applicableRules);
 }
 ```

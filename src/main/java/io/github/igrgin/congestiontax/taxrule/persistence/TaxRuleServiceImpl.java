@@ -6,6 +6,7 @@ import io.github.igrgin.congestiontax.taxrule.TaxRuleService;
 import io.github.igrgin.congestiontax.taxrule.exception.MissingApplicableTaxRuleSetException;
 import io.github.igrgin.congestiontax.taxrule.exception.MissingTaxTimeBandsException;
 import io.github.igrgin.congestiontax.taxrule.exception.OverlappingTaxTimeBandsException;
+import io.github.igrgin.congestiontax.taxrule.exception.UnknownCityException;
 import io.github.igrgin.congestiontax.taxrule.exception.UnknownVehicleTypeException;
 import java.time.LocalDate;
 import java.util.Comparator;
@@ -38,6 +39,10 @@ public class TaxRuleServiceImpl implements TaxRuleService {
     @Override
     @Transactional(readOnly = true)
     public Map<LocalDate, TaxRuleSet> getApplicableTaxRuleSets(String cityCode, Set<LocalDate> calculationDates) {
+        if (!taxRuleSetRepository.cityExists(cityCode)) {
+            throw new UnknownCityException(cityCode);
+        }
+
         var latestCalculationDate =
                 calculationDates.stream().max(LocalDate::compareTo).orElseThrow();
 

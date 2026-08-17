@@ -14,7 +14,7 @@ public final class TaxCalculator {
 
     public CalculationResult calculate(
             @NonNull VehicleType vehicleType,
-            @NonNull List<LocalizedPassage> passages,
+            @NonNull List<Passage> passages,
             @NonNull Map<LocalDate, TaxRuleSet> applicableTaxRuleSets) {
 
         validateInput(passages, applicableTaxRuleSets);
@@ -35,8 +35,7 @@ public final class TaxCalculator {
         return new CalculationResult(vehicleType, List.of(dailyTax), amount);
     }
 
-    private static void validateInput(
-            List<LocalizedPassage> passages, Map<LocalDate, TaxRuleSet> applicableTaxRuleSets) {
+    private static void validateInput(List<Passage> passages, Map<LocalDate, TaxRuleSet> applicableTaxRuleSets) {
 
         if (passages.isEmpty()) {
             throw new InvalidCalculationInputException("Passages must not be empty.");

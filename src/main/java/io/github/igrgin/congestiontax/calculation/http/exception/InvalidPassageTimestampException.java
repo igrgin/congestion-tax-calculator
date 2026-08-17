@@ -5,12 +5,7 @@ public final class InvalidPassageTimestampException extends IllegalArgumentExcep
     private final int passageIndex;
 
     public InvalidPassageTimestampException(int passageIndex, Throwable cause) {
-        super(
-                "Passage at index "
-                        + passageIndex
-                        + " must contain a valid timestamp"
-                        + " with an explicit UTC offset.",
-                cause);
+        super("Passage at index " + passageIndex + " must use the format uuuu-MM-dd HH:mm:ss.", cause);
         this.passageIndex = passageIndex;
     }
 

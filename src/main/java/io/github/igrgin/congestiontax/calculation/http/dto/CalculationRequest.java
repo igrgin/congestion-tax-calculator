@@ -6,4 +6,6 @@ import jakarta.validation.constraints.NotNull;
 import java.util.List;
 
 public record CalculationRequest(
-        @NotBlank String vehicleType, @NotEmpty List<@NotNull String> passages) {}
+        @NotBlank String vehicleType,
+        @NotBlank String timeZone,
+        @NotEmpty List<@NotNull String> passages) {}

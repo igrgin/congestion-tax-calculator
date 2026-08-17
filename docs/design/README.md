@@ -25,8 +25,8 @@ The planned root `README.md` will be the guide for building, running, and callin
 | Weekends, public holidays, preceding dates, and July are tax-free | Stored Tax Exemptions and a stored public-holiday preceding-date count |
 | Single charge within 60 minutes | Stored `CHARGE_WINDOW` Tax Rule Option |
 | Tax-exempt vehicles | Database-defined Vehicle Types and Tax Rule Set-specific exemptions |
-| Tax Rules outside the application | PostgreSQL runtime content loaded through the City Local Time Service and Tax Rule Service |
-| Support content for different Cities | City code, IANA time zone, currency, and effective Tax Rule Set snapshots stored per City |
+| Tax Rules outside the application | PostgreSQL runtime content loaded through the Tax Rule Service |
+| Support content for different Cities | City code, currency, and effective Tax Rule Set snapshots stored per City; the request supplies the IANA time zone |
 | Submit questions | Root `questions.md` pairs each unresolved question with the assumption used |
 | Six-hour limit and prioritization | Implementation budget and additional-work boundary in the operations design and planned README |
 
@@ -34,8 +34,8 @@ The one-Passage issue implements the first vertical path through this design. La
 
 ## Common terms
 
-- **Passage**: One recorded occurrence of a vehicle passing a tolling station in either direction. Its timestamp identifies an instant that the application converts to City Local Time.
-- **City Local Time**: The local date and clock time in the selected City IANA time zone, such as `Europe/Stockholm`.
+- **Passage**: One recorded occurrence of a vehicle passing a tolling station in either direction. Its timestamp gives City Local Time. The request supplies the IANA time zone.
+- **City Local Time**: The local date and clock time supplied in a Passage timestamp for the selected City.
 - **Tax Rule**: A rule that determines if a Passage is taxable and which charge applies.
 - **Tax Exemption**: A Tax Rule that makes a Passage tax-free when its City Local Time or Vehicle Type matches stored content.
 - **Tax Rule Option**: An optional Tax Rule with one scalar value that changes calculation behavior or extends a Tax Exemption.

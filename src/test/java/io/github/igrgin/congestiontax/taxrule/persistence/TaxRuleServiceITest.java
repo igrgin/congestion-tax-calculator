@@ -133,16 +133,14 @@ class TaxRuleServiceITest {
     }
 
     private long insertCity(String code) {
-        var cityId =
-                jdbcTemplate.queryForObject("""
+        var cityId = jdbcTemplate.queryForObject("""
                 INSERT INTO city (
                     code,
-                    name,
-                    time_zone
+                    name
                 )
-                VALUES (?, ?, ?)
+                VALUES (?, ?)
                 RETURNING id
-                """, Long.class, code, "Tax Rule Service Test City", "Europe/Stockholm");
+                """, Long.class, code, "Tax Rule Service Test City");
 
         insertedCityIds.add(cityId);
 

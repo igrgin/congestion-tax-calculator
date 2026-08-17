@@ -4,7 +4,6 @@ Organize Java types first by the durable business responsibility that owns the b
 
 ```text
 calculation
-citylocaltime
 domain
 metrics
 taxrule
@@ -12,7 +11,7 @@ taxrule
 
 Keep HTTP transport under `calculation.http`. Keep JPA entities, repository interfaces, and JPA service implementations under the persistence package of the business responsibility that owns them.
 
-`citylocaltime.persistence` owns City storage and City Local Time conversion. `taxrule.persistence` owns Vehicle Type and Tax Rule storage. One service can use one repository or several repositories. The service boundary follows the business responsibility, not the number of database tables.
+`calculation.http` owns request time-zone validation and Passage time mapping. `taxrule.persistence` owns City existence, Vehicle Type, and Tax Rule storage. One service can use one repository or several repositories. The service boundary follows the business responsibility, not the number of database tables.
 
 The `domain` package contains the pure calculation model. It depends on the JDK and compile-time Lombok annotations. It has no Lombok runtime dependency. `calculation` coordinates the complete use case. The top-level `metrics` package owns calculation instrumentation.
 
