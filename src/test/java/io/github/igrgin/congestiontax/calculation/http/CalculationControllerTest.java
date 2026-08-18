@@ -279,16 +279,7 @@ class CalculationControllerTest {
         given(calculationService.calculate(any(CalculationCommand.class)))
                 .willThrow(new IllegalStateException("Unexpected failure."));
 
-        mockMvc.perform(post("/api/v1/cities/{cityCode}" + "/congestion-tax/calculations", "gothenburg")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "vehicleType": "OTHER",
-                                  "passages": [
-                                    "2013-02-08 06:20:27"
-                                  ]
-                                }
-                                """))
+        performOnePassageOtherRequest()
                 .andExpect(status().isInternalServerError())
                 .andExpect(content().string(""));
     }
@@ -299,16 +290,7 @@ class CalculationControllerTest {
         given(calculationService.calculate(any(CalculationCommand.class)))
                 .willThrow(new InvalidStoredTaxExemptionException("PUBLIC_HOLIDAY", cause));
 
-        mockMvc.perform(post("/api/v1/cities/{cityCode}" + "/congestion-tax/calculations", "gothenburg")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "vehicleType": "OTHER",
-                                  "passages": [
-                                    "2013-02-08 06:20:27"
-                                  ]
-                                }
-                                """))
+        performOnePassageOtherRequest()
                 .andExpect(status().isInternalServerError())
                 .andExpect(content().string(""));
     }
