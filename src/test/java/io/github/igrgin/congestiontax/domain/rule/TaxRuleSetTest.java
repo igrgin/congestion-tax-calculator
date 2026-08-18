@@ -1,13 +1,16 @@
 package io.github.igrgin.congestiontax.domain.rule;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.igrgin.congestiontax.domain.TaxAmount;
+import java.lang.reflect.RecordComponent;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.Month;
+import java.util.Arrays;
 import java.util.Currency;
 import java.util.List;
 import java.util.stream.Stream;
@@ -22,6 +25,12 @@ class TaxRuleSetTest {
     private static final Currency CURRENCY = Currency.getInstance("SEK");
     private static final TaxTimeBand TAX_TIME_BAND =
             new TaxTimeBand(LocalTime.of(6, 0), LocalTime.of(6, 30), new TaxAmount(new BigDecimal("8.00"), CURRENCY));
+
+    @Test
+    void doesNotExposeAnEffectiveDate() {
+        assertThat(Arrays.stream(TaxRuleSet.class.getRecordComponents()).map(RecordComponent::getName))
+                .doesNotContain("effectiveFrom");
+    }
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("nullValues")

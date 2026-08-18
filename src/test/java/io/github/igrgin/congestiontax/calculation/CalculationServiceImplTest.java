@@ -22,6 +22,7 @@ import io.github.igrgin.congestiontax.domain.rule.TaxTimeBand;
 import io.github.igrgin.congestiontax.metrics.CalculationMetrics;
 import io.github.igrgin.congestiontax.taxrule.TaxRuleService;
 import io.github.igrgin.congestiontax.taxrule.exception.InvalidTaxRuleOptionException;
+import io.github.igrgin.congestiontax.taxrule.exception.MissingApplicableTaxRuleSetException;
 import io.github.igrgin.congestiontax.taxrule.exception.UnknownCityException;
 import io.github.igrgin.congestiontax.taxrule.exception.UnknownVehicleTypeException;
 import io.github.igrgin.congestiontax.taxrule.model.ApplicableTaxRuleSets;
@@ -165,6 +166,25 @@ class CalculationServiceImplTest {
                     assertThat(exception.optionTypeCode()).isEqualTo("CHARGE_WINDOW");
                     assertThat(exception).hasCause(cause);
                 });
+    }
+
+    @Test
+    void translatesMissingCityTaxRuleSetFailure() {
+        var cityCode = "gothenburg";
+        var cityDateTime = LocalDateTime.of(2013, Month.FEBRUARY, 8, 6, 20, 27);
+        var command = new CalculationCommand(cityCode, "OTHER", List.of(cityDateTime));
+        var calculationDate = cityDateTime.toLocalDate();
+        var cause = new MissingApplicableTaxRuleSetException(cityCode, calculationDate);
+
+        given(taxRuleService.getApplicableTaxRuleSets(cityCode, Set.of(calculationDate)))
+                .willThrow(cause);
+
+        assertThatThrownBy(() -> calculationService.calculate(command))
+                .isInstanceOf(IllegalStateException.class)
+                .isNotSameAs(cause)
+                .hasCause(cause)
+                .satisfies(exception -> assertThat(exception.getClass().getPackageName())
+                        .isEqualTo("io.github.igrgin.congestiontax.calculation.exception"));
     }
 
     @Test
