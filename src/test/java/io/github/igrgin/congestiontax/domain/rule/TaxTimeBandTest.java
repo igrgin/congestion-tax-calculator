@@ -47,6 +47,14 @@ class TaxTimeBandTest {
         assertThat(band.includes(localTime)).isTrue();
     }
 
+    @Test
+    void fullDayTaxTimeBandRejectsNullLocalTime() {
+        var boundary = LocalTime.of(6, 0);
+        var band = new TaxTimeBand(boundary, boundary, AMOUNT);
+
+        assertThatNullPointerException().isThrownBy(() -> band.includes(null));
+    }
+
     @ParameterizedTest(name = "{0}")
     @MethodSource("crossMidnightTimes")
     void matchesCrossMidnightTimeBand(String scenario, LocalTime localTime, boolean expected) {
