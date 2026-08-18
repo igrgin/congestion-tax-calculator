@@ -52,9 +52,9 @@ A Tax Time Band includes its start and excludes its end. For a band from `06:00`
 - `06:29:59` is included;
 - `06:30:00` is excluded.
 
-An end time after the start time defines a same-date band. An end time before the start time defines one band that crosses midnight. For a cross-midnight band, the local time matches when it is on or after the start or before the end. Equal start and end times are invalid.
+An end time after the start time defines a same-date band. An end time before the start time defines one band that crosses midnight. For a cross-midnight band, the local time matches when it is on or after the start or before the end. Equal start and end times define a full-day band, and every local time matches it.
 
-Tax Time Bands can have positive or zero Tax Amounts. Gaps are valid and produce a zero Tax Amount in the Tax Rule Set currency. Tax Time Bands must not overlap when the service compares them around the complete 24-hour clock.
+Tax Time Bands can have positive or zero Tax Amounts. Gaps are valid and produce a zero Tax Amount in the Tax Rule Set currency. Tax Time Bands must not overlap when the service compares them around the complete 24-hour clock. This rule rejects nested bands, such as `06:00–09:00` with `07:00–08:00`. It also means that a full-day band must be the only band in its Tax Rule Set and cannot coexist with another full-day band.
 
 ## Tax exemptions
 
@@ -189,7 +189,7 @@ classDiagram
 
 Collection-owning calculation values receive unmodifiable collections from their producers. They store the supplied collections without making another copy.
 
-`TaxTimeBand` rejects null values, equal start and end times, and a negative Tax Amount. It permits an end before the start and interprets that order as a cross-midnight band.
+`TaxTimeBand` rejects null values and a negative Tax Amount. It interprets an end before the start as a cross-midnight band and equal start and end times as a full-day band.
 
 `TaxRuleSet` rejects null fields and requires at least one Tax Time Band. Its Tax Rule Options can contain one Charge Window and one Daily Maximum.
 

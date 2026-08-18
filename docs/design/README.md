@@ -40,7 +40,7 @@ The first calculation issue implements the initial vertical path through this de
 - **Tax Exemption**: A Tax Rule that makes a Passage tax-free when its City Local Time or Vehicle Type matches stored content.
 - **Tax Rule Option**: An optional Tax Rule with one scalar value that changes calculation behavior or extends a Tax Exemption.
 - **Tax Rule Set**: The complete set of Tax Rules stored for one City. Each City has one Tax Rule Set.
-- **Tax Time Band**: A period of City Local Time with one Tax Amount. Its start is included, its end is excluded, and it can cross midnight.
+- **Tax Time Band**: A period of City Local Time with one Tax Amount. Its start is included, and its end is excluded. It can remain within one date, cross midnight, or cover a full day when its start and end are equal.
 - **Tax Amount**: A non-negative Congestion Tax value in one currency.
 - **Charge Window**: A period that starts with its first Passage and contains each Passage no later than the configured duration after that first Passage. It can cross City Local Time date boundaries.
 - **Daily Tax**: The Congestion Tax for one vehicle on one City Local Time date after the Charge Window and Daily Maximum apply.

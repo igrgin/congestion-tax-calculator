@@ -28,11 +28,11 @@ The assignment does not answer the questions below. Because answers were not ava
 
 **Result:** The range written as 06:00–06:29 includes values from 06:00:00 up to, but not including, 06:30:00. A passage at 06:29:59 has an amount of 8 SEK. A passage at 06:30:00 has an amount of 13 SEK.
 
-### Can one Tax Time Band cross midnight?
+### Can one Tax Time Band cross midnight or cover a full day?
 
-**Assumption used:** Yes. PostgreSQL keeps the existing start time, end time, and amount fields. An end time before the start time means that the band continues through midnight. Equal start and end times are invalid.
+**Assumption used:** Yes. PostgreSQL keeps the existing start time, end time, and amount fields. An end time before the start time means that the band continues through midnight. Equal start and end times define a full-day band that ends at the same local time on the next date.
 
-**Result:** The supplied `18:30–05:59` period is one stored Tax Time Band. Under the existing exclusive-end convention, PostgreSQL stores `18:30:00` as its start and `06:00:00` as its end. The application permits a zero Tax Amount and matches the band on either side of midnight.
+**Result:** The supplied `18:30–05:59` period is one stored Tax Time Band. Under the existing exclusive-end convention, PostgreSQL stores `18:30:00` as its start and `06:00:00` as its end. The application permits a zero Tax Amount and matches the band on either side of midnight. A full-day Tax Time Band matches every City Local Time and cannot coexist with another Tax Time Band in the same Tax Rule Set.
 
 ### How many days before a public holiday are tax-free?
 

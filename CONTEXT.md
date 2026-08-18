@@ -37,7 +37,7 @@ The complete set of Tax Rules stored for one City. Each City has one Tax Rule Se
 _Avoid_: Rule configuration, current rules
 
 **Tax Time Band**:
-A period of City Local Time with one tax amount. Its start is included, its end is excluded, and it can cross midnight.
+A period of City Local Time with one Tax Amount. Its start is included, and its end is excluded. It can remain within one date, cross midnight, or cover a full day when its start and end are equal.
 _Avoid_: Rate slot, tariff interval
 
 **Tax Amount**:

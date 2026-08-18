@@ -105,7 +105,7 @@ A Tax Time Band follows these rules:
 - the end is excluded;
 - an end after the start defines a same-date band;
 - an end before the start defines a band that crosses midnight;
-- an end equal to the start is invalid;
+- an end equal to the start defines a full-day band that ends at the same local time on the next date;
 - the amount must be zero or positive;
 - the same Tax Rule Set cannot contain an exact duplicate start and end pair.
 
@@ -118,7 +118,7 @@ Adjacent bands are valid. For example, `06:00–06:30` and `06:30–07:00` do no
 
 Gaps are valid. If no Tax Time Band contains a Passage local time, the calculator returns a zero Tax Amount in the Tax Rule Set currency.
 
-The service validates overlap around the complete 24-hour clock. It does not depend on repository result order. This check detects overlaps on the same date and across midnight.
+The service validates overlap around the complete 24-hour clock. It does not depend on repository result order. This check detects overlaps on the same date and across midnight. It rejects nested bands and a full-day band combined with any other band, including another full-day band.
 
 ## JPA loading
 
@@ -163,7 +163,6 @@ PostgreSQL constraints protect:
 - one Tax Rule Set for each City;
 - three-letter upper-case currency codes;
 - non-negative Tax Time Band amounts;
-- unequal Tax Time Band boundaries;
 - exact duplicate Tax Time Bands;
 - valid Tax Rule Option value shapes;
 - one Tax Rule Option of each type in a Tax Rule Set.

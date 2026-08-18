@@ -34,7 +34,7 @@ Application logging remains active when a test uses a Spring profile. Test code 
 - exclusive end;
 - exclusion outside the band;
 - rejection of null values;
-- rejection of an end equal to the start;
+- matching every City Local Time when the start and end are equal;
 - matching on both sides of midnight when the end is before the start;
 - acceptance of a zero Tax Amount;
 - rejection of a negative Tax Amount.
@@ -85,6 +85,9 @@ Application logging remains active when a test uses a Spring profile. Test code 
 - rejection of a missing Tax Rule Set;
 - rejection of a Tax Rule Set without Tax Time Bands;
 - rejection of overlapping Tax Time Bands independent of repository order;
+- rejection of a nested Tax Time Band;
+- rejection of a full-day Tax Time Band combined with another band;
+- rejection of two full-day Tax Time Bands;
 - safe rejection of invalid stored Charge Window and Daily Maximum content;
 - safe rejection of duplicate stored Tax Rule Option types.
 
@@ -132,7 +135,7 @@ The test proves:
 - a City cannot have two Tax Rule Sets;
 - a Tax Time Band must reference a known Tax Rule Set;
 - a Tax Time Band amount must not be negative;
-- a Tax Time Band start and end must not be equal;
+- a Tax Time Band can have equal start and end times for a full day;
 - a Tax Time Band can have an end before its start;
 - an exact Tax Time Band duplicate is rejected;
 - a Tax Rule Option must reference a known Tax Rule Set;

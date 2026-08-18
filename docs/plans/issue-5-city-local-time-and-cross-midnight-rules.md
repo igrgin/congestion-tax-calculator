@@ -22,9 +22,9 @@ This issue changes stored Tax Rules and multi-date calculation:
 
 - one Tax Rule Set for each City;
 - no effective date, history, snapshot selection, inheritance, or future publication behavior;
-- one Tax Time Band can cross midnight without a new database column;
+- one Tax Time Band can cross midnight;
 - a Tax Time Band can have a zero Tax Amount;
-- equal Tax Time Band start and end times are invalid;
+- equal Tax Time Band start and end times define a full-day band;
 - Tax Time Band overlap validation covers the complete 24-hour clock;
 - one Charge Window can contain Passages from different City Local Time dates;
 - the highest Passage Tax Amount in a Charge Window is charged once;
@@ -65,18 +65,18 @@ end_time TIME WITHOUT TIME ZONE
 amount NUMERIC(12,2)
 ```
 
-The boundary convention does not change. The start is included and the end is excluded.
+The start-inclusive and end-exclusive boundary convention does not change.
 
 Under this existing convention, the supplied `18:30–05:59` display range uses stored boundaries `18:30:00` and `06:00:00`.
 
 - An end after the start defines a same-date band.
 - An end before the start defines one band that crosses midnight.
-- An end equal to the start is invalid.
+- An end equal to the start defines a full-day band that ends at the same local time on the next date.
 - The amount can be zero or positive.
 
 For a cross-midnight band, `TaxTimeBand.includes` matches a local time when it is on or after the start or before the end.
 
-The Tax Rule Service rejects overlaps around the complete clock. Adjacent bands and gaps remain valid. A gap produces a zero Tax Amount in the Tax Rule Set currency.
+For a full-day band, `TaxTimeBand.includes` matches every local time. The Tax Rule Service rejects overlaps around the complete clock. This includes nested bands and a full-day band combined with another band. Adjacent bands and gaps remain valid. A gap produces a zero Tax Amount in the Tax Rule Set currency.
 
 Issue 5 rewrites the initial Flyway migrations because the project has no release. A developer must run `docker compose down -v` before using the rewritten schema with an existing development database.
 
@@ -120,10 +120,10 @@ The calculator creates one Daily Tax for every distinct input date. A date can h
 
 Use these public boundaries:
 
-- `TaxTimeBand` for same-date and cross-midnight matching boundaries;
+- `TaxTimeBand` for same-date, cross-midnight, and full-day matching boundaries;
 - `TaxCalculator.calculate` for cross-date Charge Windows, winner-date assignment, tie behavior, ordered Daily Taxes, and Daily Maximum order;
 - `TaxRuleService` for one-set loading, missing-set handling, child loading, and circular overlap rejection;
-- PostgreSQL schema integration for one set per City, zero amounts, cross-midnight boundaries, and equal-boundary rejection;
+- PostgreSQL schema integration for one set per City, zero amounts, cross-midnight boundaries, and full-day boundaries;
 - the HTTP-to-PostgreSQL operation for the selected City's one Tax Rule Set.
 
 Keep the existing Calculation Service winter and summer time-zone tests. Keep the strict timestamp and supported-year HTTP tests. Remove or replace tests that prove effective-date selection, historical snapshots, future snapshots, mixed snapshot currencies, or midnight Charge Window separation.
@@ -135,7 +135,7 @@ Do not test private methods, exact generated SQL, JPA internals, or log output.
 1. Add failing tests at the approved seams.
 2. Simplify the Tax Rule Set Domain and Tax Rule Service interfaces.
 3. Rewrite the pre-release schema and seed migrations.
-4. Add cross-midnight Tax Time Band validation and matching.
+4. Add cross-midnight and full-day Tax Time Band validation and matching.
 5. Change the calculator to create Charge Windows across all ordered Passages.
 6. Assign each window charge to the winner's date and apply the Daily Maximum.
 7. Translate the missing Tax Rule Set failure and remove obsolete logs.
@@ -155,8 +155,8 @@ The implementation is complete when:
 
 - each City has at most one Tax Rule Set;
 - calculation uses the selected City's one Tax Rule Set for all Passages;
-- Tax Time Bands can cross midnight and can contain zero Tax;
-- equal Tax Time Band boundaries and circular overlaps are rejected;
+- Tax Time Bands can cross midnight, can cover a full day, and can contain zero Tax;
+- nested bands, full-day combinations, and other circular overlaps are rejected;
 - Charge Windows can cross City Local Time dates;
 - the winning charge is assigned to the correct date;
 - every input date has one ordered Daily Tax;
