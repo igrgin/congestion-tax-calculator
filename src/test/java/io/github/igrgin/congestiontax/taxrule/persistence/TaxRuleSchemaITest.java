@@ -13,7 +13,9 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.ArgumentsProvider;
 import org.junit.jupiter.params.provider.ArgumentsSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.support.ParameterDeclarations;
+import org.postgresql.util.PSQLException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -125,13 +127,17 @@ class TaxRuleSchemaITest {
     }
 
     @Test
-    void rejectsTaxTimeBandWithEqualBoundaries() {
+    void acceptsFullDayTaxTimeBandWithEqualBoundaries() {
         long cityId = insertCity("equal-band-boundaries");
         long ruleSetId = insertTaxRuleSet(cityId);
         LocalTime boundary = LocalTime.of(6, 0);
 
-        assertThatThrownBy(() -> insertTaxTimeBand(ruleSetId, boundary, boundary, new BigDecimal("8.00")))
-                .isInstanceOf(DataIntegrityViolationException.class);
+        insertTaxTimeBand(ruleSetId, boundary, boundary, new BigDecimal("8.00"));
+
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM tax_time_band WHERE rule_set_id = ?", Integer.class, ruleSetId);
+
+        assertThat(count).isEqualTo(1);
     }
 
     @Test
@@ -159,6 +165,39 @@ class TaxRuleSchemaITest {
 
         assertThatThrownBy(() -> insertTaxTimeBand(ruleSetId, startTime, endTime, duplicateAmount))
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("overlappingTaxTimeBands")
+    void rejectsEveryTaxTimeBandOverlapShape(
+            String scenario, LocalTime firstStart, LocalTime firstEnd, LocalTime secondStart, LocalTime secondEnd) {
+        long cityId = insertCity("overlap-" + scenario);
+        long ruleSetId = insertTaxRuleSet(cityId);
+
+        assertThatThrownBy(() -> {
+                    insertTaxTimeBand(ruleSetId, firstStart, firstEnd, new BigDecimal("8.00"));
+                    insertTaxTimeBand(ruleSetId, secondStart, secondEnd, new BigDecimal("13.00"));
+                })
+                .isInstanceOfSatisfying(
+                        DataIntegrityViolationException.class, exception -> assertThat(exception.getRootCause())
+                                .isInstanceOfSatisfying(PSQLException.class, cause -> assertThat(cause.getSQLState())
+                                        .isEqualTo("23P01")));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("nonOverlappingTaxTimeBands")
+    void acceptsNonOverlappingTaxTimeBands(
+            String scenario, LocalTime firstStart, LocalTime firstEnd, LocalTime secondStart, LocalTime secondEnd) {
+        long cityId = insertCity("non-overlap-" + scenario);
+        long ruleSetId = insertTaxRuleSet(cityId);
+
+        insertTaxTimeBand(ruleSetId, firstStart, firstEnd, new BigDecimal("8.00"));
+        insertTaxTimeBand(ruleSetId, secondStart, secondEnd, new BigDecimal("13.00"));
+
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM tax_time_band WHERE rule_set_id = ?", Integer.class, ruleSetId);
+
+        assertThat(count).isEqualTo(2);
     }
 
     @Test
@@ -251,6 +290,42 @@ class TaxRuleSchemaITest {
                 )
                 VALUES (?, ?, ?, ?, ?)
                 """, ruleSetId, typeCode, amount, durationMinutes, precedingDays);
+    }
+
+    private static Stream<Arguments> overlappingTaxTimeBands() {
+        return Stream.of(
+                Arguments.of(
+                        "partial-same-date",
+                        LocalTime.of(6, 0),
+                        LocalTime.of(8, 0),
+                        LocalTime.of(7, 0),
+                        LocalTime.of(9, 0)),
+                Arguments.of("nested", LocalTime.of(6, 0), LocalTime.of(9, 0), LocalTime.of(7, 0), LocalTime.of(8, 0)),
+                Arguments.of(
+                        "cross-midnight",
+                        LocalTime.of(18, 30),
+                        LocalTime.of(6, 0),
+                        LocalTime.of(5, 0),
+                        LocalTime.of(7, 0)),
+                Arguments.of(
+                        "full-day-and-another-band",
+                        LocalTime.of(7, 0),
+                        LocalTime.of(8, 0),
+                        LocalTime.of(6, 0),
+                        LocalTime.of(6, 0)),
+                Arguments.of(
+                        "two-full-day-bands",
+                        LocalTime.of(6, 0),
+                        LocalTime.of(6, 0),
+                        LocalTime.of(12, 0),
+                        LocalTime.of(12, 0)));
+    }
+
+    private static Stream<Arguments> nonOverlappingTaxTimeBands() {
+        return Stream.of(
+                Arguments.of(
+                        "adjacent", LocalTime.of(6, 0), LocalTime.of(7, 0), LocalTime.of(7, 0), LocalTime.of(8, 0)),
+                Arguments.of("gap", LocalTime.of(6, 0), LocalTime.of(7, 0), LocalTime.of(8, 0), LocalTime.of(9, 0)));
     }
 
     private static final class InvalidTaxRuleOptions implements ArgumentsProvider {

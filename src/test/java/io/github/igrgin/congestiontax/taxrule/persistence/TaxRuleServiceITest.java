@@ -13,7 +13,6 @@ import io.github.igrgin.congestiontax.domain.rule.TaxTimeBand;
 import io.github.igrgin.congestiontax.taxrule.TaxRuleService;
 import io.github.igrgin.congestiontax.taxrule.exception.InvalidCityTimeZoneException;
 import io.github.igrgin.congestiontax.taxrule.exception.MissingTaxTimeBandsException;
-import io.github.igrgin.congestiontax.taxrule.exception.OverlappingTaxTimeBandsException;
 import io.github.igrgin.congestiontax.taxrule.model.CityTaxRuleSet;
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -138,19 +137,6 @@ class TaxRuleServiceITest {
 
         assertThatThrownBy(() -> taxRuleService.getCityTaxRuleSet(cityCode))
                 .isInstanceOf(MissingTaxTimeBandsException.class);
-    }
-
-    @Test
-    void rejectsStoredOverlappingTaxTimeBands() {
-        var cityCode = "tax-rule-service-overlap";
-        var cityId = insertCity(cityCode, "Europe/Stockholm");
-        var ruleSetId = insertTaxRuleSet(cityId);
-
-        insertTaxTimeBand(ruleSetId, LocalTime.of(6, 0), LocalTime.of(6, 30), new BigDecimal("8.00"));
-        insertTaxTimeBand(ruleSetId, LocalTime.of(6, 15), LocalTime.of(7, 0), new BigDecimal("13.00"));
-
-        assertThatThrownBy(() -> taxRuleService.getCityTaxRuleSet(cityCode))
-                .isInstanceOf(OverlappingTaxTimeBandsException.class);
     }
 
     @Test

@@ -26,9 +26,13 @@ import java.time.ZoneId;
 import java.util.Currency;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -116,6 +120,16 @@ class TaxRuleServiceImplTest {
     }
 
     @Test
+    void loadsTaxTimeBandsWithAGap() {
+        givenCompleteTaxRuleSet(List.of(
+                taxTimeBand(LocalTime.of(6, 0), LocalTime.of(7, 0), "8.00"),
+                taxTimeBand(LocalTime.of(8, 0), LocalTime.of(9, 0), "13.00")));
+
+        assertThat(taxRuleService.getCityTaxRuleSet(CITY_CODE).taxRuleSet().taxTimeBands())
+                .hasSize(2);
+    }
+
+    @Test
     void rejectsUnknownCity() {
         given(cityRepository.findByCode("unknown")).willReturn(Optional.empty());
 
@@ -139,21 +153,24 @@ class TaxRuleServiceImplTest {
                 .isInstanceOf(MissingTaxTimeBandsException.class);
     }
 
-    @Test
-    void rejectsOverlappingTaxTimeBandsIndependentOfOrder() {
-        var laterBand = taxTimeBand(LocalTime.of(6, 30), LocalTime.of(7, 30), "13.00");
-        var earlierBand = taxTimeBand(LocalTime.of(6, 0), LocalTime.of(7, 0), "8.00");
-        givenCompleteTaxRuleSet(List.of(laterBand, earlierBand));
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("overlappingTaxTimeBands")
+    void rejectsEveryTaxTimeBandOverlapShape(
+            String scenario, LocalTime firstStart, LocalTime firstEnd, LocalTime secondStart, LocalTime secondEnd) {
+        var firstBand = taxTimeBand(firstStart, firstEnd, "8.00");
+        var secondBand = taxTimeBand(secondStart, secondEnd, "13.00");
+        givenCompleteTaxRuleSet(List.of(firstBand, secondBand));
 
         assertThatThrownBy(() -> taxRuleService.getCityTaxRuleSet(CITY_CODE))
                 .isInstanceOf(OverlappingTaxTimeBandsException.class);
     }
 
     @Test
-    void rejectsOverlapAcrossMidnight() {
-        var crossMidnightBand = taxTimeBand(LocalTime.of(18, 30), LocalTime.of(6, 0), "8.00");
-        var earlyBand = taxTimeBand(LocalTime.of(5, 30), LocalTime.of(6, 30), "13.00");
-        givenCompleteTaxRuleSet(List.of(earlyBand, crossMidnightBand));
+    void stopsValidationAtFirstConflictingPair() {
+        var firstBand = taxTimeBand(LocalTime.of(6, 0), LocalTime.of(8, 0), "8.00");
+        var secondBand = taxTimeBand(LocalTime.of(7, 0), LocalTime.of(9, 0), "13.00");
+        var laterInvalidBand = taxTimeBand(null, null, "18.00");
+        givenCompleteTaxRuleSet(List.of(firstBand, secondBand, laterInvalidBand));
 
         assertThatThrownBy(() -> taxRuleService.getCityTaxRuleSet(CITY_CODE))
                 .isInstanceOf(OverlappingTaxTimeBandsException.class);
@@ -217,6 +234,36 @@ class TaxRuleServiceImplTest {
 
     private static TaxTimeBandEntity taxTimeBand(LocalTime start, LocalTime end, String amount) {
         return new TaxTimeBandEntity(RULE_SET_ID, start, end, new BigDecimal(amount));
+    }
+
+    private static Stream<Arguments> overlappingTaxTimeBands() {
+        return Stream.of(
+                Arguments.of(
+                        "same-date partial overlap",
+                        LocalTime.of(7, 0),
+                        LocalTime.of(9, 0),
+                        LocalTime.of(6, 0),
+                        LocalTime.of(8, 0)),
+                Arguments.of(
+                        "nested band", LocalTime.of(6, 0), LocalTime.of(9, 0), LocalTime.of(7, 0), LocalTime.of(8, 0)),
+                Arguments.of(
+                        "cross-midnight overlap",
+                        LocalTime.of(18, 30),
+                        LocalTime.of(6, 0),
+                        LocalTime.of(5, 0),
+                        LocalTime.of(7, 0)),
+                Arguments.of(
+                        "full-day band with another band",
+                        LocalTime.of(6, 0),
+                        LocalTime.of(6, 0),
+                        LocalTime.of(7, 0),
+                        LocalTime.of(8, 0)),
+                Arguments.of(
+                        "two full-day bands",
+                        LocalTime.of(6, 0),
+                        LocalTime.of(6, 0),
+                        LocalTime.of(12, 0),
+                        LocalTime.of(12, 0)));
     }
 
     private void assertInvalidStoredTaxRuleOptions(List<TaxRuleOptionEntity> options, String optionTypeCode) {

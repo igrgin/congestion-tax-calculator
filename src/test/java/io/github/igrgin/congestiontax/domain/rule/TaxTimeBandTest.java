@@ -2,10 +2,8 @@ package io.github.igrgin.congestiontax.domain.rule;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.igrgin.congestiontax.domain.TaxAmount;
-import io.github.igrgin.congestiontax.domain.rule.exception.InvalidTaxTimeBandException;
 import java.math.BigDecimal;
 import java.time.LocalTime;
 import java.util.Currency;
@@ -40,11 +38,13 @@ class TaxTimeBandTest {
         assertThat(band.includes(LocalTime.of(5, 59))).isFalse();
     }
 
-    @Test
-    void rejectsEndTimeEqualToStartTime() {
-        var time = LocalTime.of(6, 0);
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("fullDayTimes")
+    void fullDayTaxTimeBandMatchesEveryLocalTime(String scenario, LocalTime localTime) {
+        var boundary = LocalTime.of(6, 0);
+        var band = new TaxTimeBand(boundary, boundary, AMOUNT);
 
-        assertThatThrownBy(() -> new TaxTimeBand(time, time, AMOUNT)).isInstanceOf(InvalidTaxTimeBandException.class);
+        assertThat(band.includes(localTime)).isTrue();
     }
 
     @ParameterizedTest(name = "{0}")
@@ -84,5 +84,14 @@ class TaxTimeBandTest {
                 Arguments.of("includes after midnight", LocalTime.of(0, 0), true),
                 Arguments.of("excludes end", LocalTime.of(6, 0), false),
                 Arguments.of("excludes before start", LocalTime.of(18, 29, 59), false));
+    }
+
+    private static Stream<Arguments> fullDayTimes() {
+        return Stream.of(
+                Arguments.of("matches midnight", LocalTime.MIN),
+                Arguments.of("matches before boundary", LocalTime.of(5, 59, 59)),
+                Arguments.of("matches boundary", LocalTime.of(6, 0)),
+                Arguments.of("matches after boundary", LocalTime.of(6, 0, 0, 1)),
+                Arguments.of("matches end of day", LocalTime.MAX));
     }
 }
