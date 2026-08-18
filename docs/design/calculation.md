@@ -19,6 +19,8 @@ The Tax Rule module validates the stored City time zone as an IANA identifier wh
 
 The HTTP operation requires one or more Passages. The Passages can use one or more City Local Time dates.
 
+The HTTP adapter accepts only Passage City Local Time dates in 2013. It validates the year after all timestamps parse and before it calls the Calculation Service. This supported Passage year does not limit stored Tax Rule Set or Tax Exemption dates.
+
 The Calculation Service:
 
 1. gets the distinct calculation dates from the supplied City Local Times;

@@ -52,12 +52,14 @@ For a calculation request:
 - `passages` is required and must not be empty.
 - Each Passage value is required.
 - The Passage must use `uuuu-MM-dd HH:mm:ss` format.
+- Each Passage City Local Time date must be in 2013.
 - Unknown JSON properties are invalid. A removed `timeZone` property is not accepted or ignored.
 - The controller parses each Passage value as City Local Time.
+- After all Passage values parse, the controller collects every zero-based Passage index whose City Local Time date is outside 2013. It rejects the complete request and reports all affected indexes in request order.
 - The Calculation module derives each Passage instant with the stored City time zone.
 - Missing and repeated local times during daylight-saving changes are outside the supported input contract.
 
-Bean Validation checks the reusable request invariants. Complete Problem Details and validation of all Passage indexes belong to the later API validation work.
+Bean Validation checks the reusable request invariants. Supported-year validation belongs to the HTTP adapter and runs before the request reaches the Calculation Service. Complete validation aggregation for other request failures belongs to the later API validation work.
 
 `CalculationRequest` stays inside the HTTP adapter. The controller parses its Passage values and creates a new unmodifiable City Local Time list for `CalculationCommand`. `CalculationCommand` stores this list without making another copy. The mutable transport collection does not cross into the Calculation module.
 
@@ -74,9 +76,9 @@ An invalid stored City time zone is invalid server content and returns HTTP `500
 
 The HTTP exception boundary logs each handled `4xx` response at `WARN` with a stable failure category, safe context, and no stack trace. It logs each handled `5xx` response once at `ERROR` with an internal stack trace. Invalid stored Charge Window or Daily Maximum content uses the `invalid-tax-rule-option` category and includes only the safe option type code. This rule applies to the calculation API exception handler, not to unrelated framework or servlet responses. The response does not contain internal failure data. The first calculation slice returns an empty HTTP `500` response for an unexpected failure. The later API validation issue replaces that body with the final safe Problem Details response.
 
-The final API will use Problem Details JSON with a stable `code` and an optional `errors` list. It will not expose exception class names, SQL, credentials, or stack traces.
+The supported-year response uses Problem Details JSON with a stable top-level `code` and an `errors` list. Each error has a field, a stable code, and a human-readable message. It does not expose exception class names, SQL, credentials, or stack traces.
 
-The planned final error shape is:
+The supported-year error shape is:
 
 ```json
 {
@@ -87,11 +89,14 @@ The planned final error shape is:
   "errors": [
     {
       "field": "passages[2]",
-      "message": "A Passage timestamp must use the format uuuu-MM-dd HH:mm:ss."
+      "code": "UNSUPPORTED_PASSAGE_YEAR",
+      "message": "A Passage City Local Time date must be in 2013."
     }
   ]
 }
 ```
+
+This response uses the top-level code `INVALID_REQUEST`. Several unsupported Passages produce one ordered error entry for each affected index. This issue does not combine unsupported-year errors with other validation failure types.
 
 | Condition | HTTP status |
 |---|---:|

@@ -92,6 +92,8 @@ A newer Tax Rule Set ends the effective period of the preceding set. It does not
 
 A Tax Rule Set does not inherit child rows from a preceding set. A future publication workflow must create a complete new snapshot with all unchanged and changed Tax Rules.
 
+The supported 2013 Passage year does not limit stored content dates. PostgreSQL can contain earlier or future Tax Rule Set effective dates and supporting Tax Exemption dates outside 2013. Selection rules prevent a future Tax Rule Set from applying to an earlier calculation date.
+
 ## Tax Time Bands
 
 Each Tax Time Band stores:

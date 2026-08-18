@@ -107,6 +107,8 @@ This test stays in the `taxrule.persistence` test package because it uses packag
 - rejection of malformed JSON;
 - a safe HTTP `500` response for an unexpected failure.
 
+Issue 5 adds supported-year boundary tests and one response that reports all affected Passage indexes. The response uses one top-level request code and one rule code for each field error.
+
 The controller test uses the `test` profile. It does not connect to PostgreSQL.
 
 ## Schema integration test
@@ -228,9 +230,9 @@ Later calculation issues will add focused tests for:
 
 - weekday, month, public-holiday, and preceding-date Tax Exemptions;
 - Vehicle Type Tax Exemptions;
-- successive Applicable Tax Rule Sets;
-- mixed currencies in one calculation;
 - complete transport validation and Problem Details;
 - a second City with different stored Tax Rules.
+
+Issue 5 adds mixed-currency coverage and an HTTP-to-PostgreSQL case for successive complete Tax Rule Set snapshots, stable historical results, and future-snapshot exclusion.
 
 The complete assignment full-path test will be added when the related calculation behavior and seed data exist.

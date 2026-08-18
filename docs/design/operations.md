@@ -61,6 +61,8 @@ The application uses plain parameterized SLF4J messages. It does not add structu
 
 Each feature issue owns the events required by that feature. One boundary logs each event or exception. `CONTRIBUTING.md` defines the safe context and prohibited data.
 
+Supported-year rejection uses the `unsupported-passage-year` category at `WARN` without a stack trace. Missing Applicable Tax Rule Sets and mixed Tax Rule Set currencies use `missing-applicable-tax-rule-set` and `mixed-tax-rule-set-currencies` at `ERROR` with their causes. These events contain no Passage timestamp or Tax Amount.
+
 ## Metrics
 
 Spring Boot Actuator and Micrometer supply standard JVM, process, HTTP, and database-pool metrics. The Prometheus registry publishes them at `/actuator/prometheus`. The current application does not run a Prometheus server and does not supply dashboards, alerts, or deployment configuration.

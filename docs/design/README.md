@@ -43,5 +43,5 @@ The first calculation issue implements the initial vertical path through this de
 - **Applicable Tax Rule Set**: The Tax Rule Set with the latest effective date that is not after the calculation date.
 - **Tax Time Band**: A period of City Local Time with one positive Tax Amount. Its start is included and its end is excluded.
 - **Tax Amount**: A non-negative Congestion Tax value in one currency.
-- **Charge Window**: A period that starts with its first Passage and contains applicable Passages no later than the configured duration after that first Passage.
+- **Charge Window**: A period that starts with its first Passage and contains each Passage no later than the configured duration after that first Passage.
 - **Daily Tax**: The Congestion Tax for one vehicle on one City Local Time date after the applicable Tax Rules are applied.

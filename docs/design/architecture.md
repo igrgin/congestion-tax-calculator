@@ -16,7 +16,7 @@ flowchart LR
     RULE_REPO --> DB[("PostgreSQL")]
 ```
 
-- The HTTP controller validates transport data, parses City Local Time, and creates the HTTP response.
+- The HTTP controller validates transport data and the supported Passage year, parses City Local Time, and creates the HTTP response.
 - `CalculationService` defines the operation that coordinates one complete Congestion Tax Calculation.
 - `CalculationServiceImpl` derives Passage instants with the stored City time zone and calls the Tax Rule Service, pure calculator, and metrics component.
 - `TaxRuleService` confirms that the City exists, validates its stored IANA time zone, and loads the Vehicle Type and Applicable Tax Rule Sets.
