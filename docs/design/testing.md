@@ -216,6 +216,10 @@ The test also verifies:
 - an unknown City returns HTTP `404`;
 - an unknown Vehicle Type returns HTTP `400`.
 
+The test classpath includes a test-only Flyway migration for the `london-test` City. This content uses `Europe/London`, GBP, two different Tax Time Bands, a Monday Tax Exemption, and a Daily Maximum of 10.00 GBP. It does not store a Charge Window or a Public Holiday Preceding-Date Option.
+
+The London calculation verifies that stored content can change City behavior without a Java application change. A Monday Passage is tax-free. Two Tuesday Passages use both Tax Time Bands. The application adds their Tax Amounts because the Charge Window is absent. It then applies the Daily Maximum and returns a total Tax Amount of 10.00 GBP.
+
 ## Tax Rule Service integration test
 
 `TaxRuleServiceITest` starts the application with a temporary PostgreSQL database and calls the real Tax Rule Service. It uses synthetic rows to verify:
