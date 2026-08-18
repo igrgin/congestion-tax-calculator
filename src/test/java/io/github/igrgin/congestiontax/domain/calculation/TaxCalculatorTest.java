@@ -95,6 +95,38 @@ class TaxCalculatorTest {
     }
 
     @Test
+    void keepsChargeWindowsInsideEachCityLocalTimeDate() {
+        var laterDate = DATE.plusDays(1);
+        var laterTaxAmount = new TaxAmount(new BigDecimal("13.00"), SEK);
+        var taxRuleSet = new TaxRuleSet(
+                "gothenburg",
+                LocalDate.of(2013, Month.JANUARY, 1),
+                SEK,
+                List.of(
+                        new TaxTimeBand(LocalTime.of(0, 0), LocalTime.of(1, 0), laterTaxAmount),
+                        new TaxTimeBand(LocalTime.of(23, 0), LocalTime.MAX, TAX_AMOUNT)),
+                new TaxRuleOptions(List.of(new ChargeWindow(Duration.ofMinutes(60)))));
+        var earlierPassage = new Passage(
+                Instant.parse("2013-02-08T22:59:50Z"),
+                LocalDateTime.of(2013, Month.FEBRUARY, 8, 23, 59, 50));
+        var laterPassage = new Passage(
+                Instant.parse("2013-02-08T23:00:10Z"), LocalDateTime.of(2013, Month.FEBRUARY, 9, 0, 0, 10));
+
+        var result = calculator.calculate(
+                VEHICLE_TYPE,
+                List.of(earlierPassage, laterPassage),
+                Map.of(DATE, taxRuleSet, laterDate, taxRuleSet));
+
+        var totalAmount = new TaxAmount(new BigDecimal("21.00"), SEK);
+
+        assertThat(result)
+                .isEqualTo(new CalculationResult(
+                        VEHICLE_TYPE,
+                        List.of(new DailyTax(DATE, TAX_AMOUNT), new DailyTax(laterDate, laterTaxAmount)),
+                        totalAmount));
+    }
+
+    @Test
     void usesHighestChargeInChargeWindowAfterInstantOrdering() {
         var higherTaxAmount = new TaxAmount(new BigDecimal("13.00"), SEK);
         var taxRuleSet = new TaxRuleSet(

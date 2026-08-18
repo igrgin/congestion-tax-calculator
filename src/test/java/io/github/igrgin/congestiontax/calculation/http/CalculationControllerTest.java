@@ -2,8 +2,10 @@ package io.github.igrgin.congestiontax.calculation.http;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.github.igrgin.congestiontax.calculation.CalculationService;
@@ -176,6 +178,83 @@ class CalculationControllerTest {
                           ]
                         }
                         """));
+    }
+
+    @ParameterizedTest
+    @MethodSource("supportedYearBoundaries")
+    void acceptsPassageAtSupportedYearBoundary(String timestamp, LocalDateTime cityDateTime) throws Exception {
+        var cityCode = "gothenburg";
+        var vehicleType = new VehicleType("OTHER", "Other vehicle");
+        var currency = Currency.getInstance("SEK");
+        var taxAmount = TaxAmount.zero(currency);
+        var calculationResult = new CalculationResult(
+                vehicleType, List.of(new DailyTax(cityDateTime.toLocalDate(), taxAmount)), taxAmount);
+
+        given(calculationService.calculate(new CalculationCommand(cityCode, vehicleType.code(), List.of(cityDateTime))))
+                .willReturn(new CalculatedTax(cityCode, calculationResult));
+
+        mockMvc.perform(post("/api/v1/cities/{cityCode}" + "/congestion-tax/calculations", cityCode)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "vehicleType": "OTHER",
+                                  "passages": [
+                                    "%s"
+                                  ]
+                                }
+                                """.formatted(timestamp)))
+                .andExpect(status().isOk());
+    }
+
+    private static Stream<Arguments> supportedYearBoundaries() {
+        return Stream.of(
+                Arguments.of("2013-01-01 00:00:00", LocalDateTime.of(2013, Month.JANUARY, 1, 0, 0, 0)),
+                Arguments.of("2013-12-31 23:59:59", LocalDateTime.of(2013, Month.DECEMBER, 31, 23, 59, 59)));
+    }
+
+    @Test
+    void rejectsEveryPassageOutsideSupportedYear() throws Exception {
+        var cityCode = "gothenburg";
+        var vehicleType = new VehicleType("OTHER", "Other vehicle");
+        var currency = Currency.getInstance("SEK");
+        var taxAmount = TaxAmount.zero(currency);
+        var calculationResult = new CalculationResult(
+                vehicleType, List.of(new DailyTax(LocalDate.of(2012, Month.DECEMBER, 31), taxAmount)), taxAmount);
+
+        given(calculationService.calculate(any(CalculationCommand.class)))
+                .willReturn(new CalculatedTax(cityCode, calculationResult));
+
+        mockMvc.perform(post("/api/v1/cities/{cityCode}" + "/congestion-tax/calculations", cityCode)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "vehicleType": "OTHER",
+                                  "passages": [
+                                    "2012-12-31 23:59:59",
+                                    "2013-06-15 12:00:00",
+                                    "2014-01-01 00:00:00",
+                                    "2020-02-29 18:30:00"
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.title").value("Invalid calculation request"))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.detail").value("The request contains invalid Passages."))
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.errors.length()").value(3))
+                .andExpect(jsonPath("$.errors[0].field").value("passages[0]"))
+                .andExpect(jsonPath("$.errors[0].code").value("UNSUPPORTED_PASSAGE_YEAR"))
+                .andExpect(jsonPath("$.errors[0].message").value("A Passage City Local Time date must be in 2013."))
+                .andExpect(jsonPath("$.errors[1].field").value("passages[2]"))
+                .andExpect(jsonPath("$.errors[1].code").value("UNSUPPORTED_PASSAGE_YEAR"))
+                .andExpect(jsonPath("$.errors[1].message").value("A Passage City Local Time date must be in 2013."))
+                .andExpect(jsonPath("$.errors[2].field").value("passages[3]"))
+                .andExpect(jsonPath("$.errors[2].code").value("UNSUPPORTED_PASSAGE_YEAR"))
+                .andExpect(jsonPath("$.errors[2].message").value("A Passage City Local Time date must be in 2013."));
+
+        verifyNoInteractions(calculationService);
     }
 
     @ParameterizedTest
