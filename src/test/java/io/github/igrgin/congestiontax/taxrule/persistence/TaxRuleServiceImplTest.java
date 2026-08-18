@@ -7,8 +7,10 @@ import static org.mockito.Mockito.spy;
 
 import io.github.igrgin.congestiontax.domain.TaxAmount;
 import io.github.igrgin.congestiontax.domain.VehicleType;
+import io.github.igrgin.congestiontax.domain.rule.TaxExemptions;
 import io.github.igrgin.congestiontax.domain.rule.TaxRuleSet;
 import io.github.igrgin.congestiontax.domain.rule.TaxTimeBand;
+import io.github.igrgin.congestiontax.domain.rule.WeekdayTaxExemption;
 import io.github.igrgin.congestiontax.taxrule.TaxRuleService;
 import io.github.igrgin.congestiontax.taxrule.TaxRuleServiceImpl;
 import io.github.igrgin.congestiontax.taxrule.exception.InvalidCityTimeZoneException;
@@ -20,6 +22,7 @@ import io.github.igrgin.congestiontax.taxrule.exception.UnknownCityException;
 import io.github.igrgin.congestiontax.taxrule.exception.UnknownVehicleTypeException;
 import io.github.igrgin.congestiontax.taxrule.model.ApplicableTaxRuleSets;
 import java.math.BigDecimal;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.Month;
@@ -58,6 +61,9 @@ class TaxRuleServiceImplTest {
     @Mock
     private TaxRuleOptionRepository taxRuleOptionRepository;
 
+    @Mock
+    private TaxExemptionRepository taxExemptionRepository;
+
     private TaxRuleService taxRuleService;
 
     @BeforeEach
@@ -67,7 +73,8 @@ class TaxRuleServiceImplTest {
                 vehicleTypeRepository,
                 taxRuleSetRepository,
                 taxTimeBandRepository,
-                taxRuleOptionRepository);
+                taxRuleOptionRepository,
+                taxExemptionRepository);
     }
 
     @Test
@@ -130,6 +137,27 @@ class TaxRuleServiceImplTest {
         assertThat(result)
                 .isEqualTo(new ApplicableTaxRuleSets(
                         ZoneId.of("Europe/Stockholm"), Map.of(calculationDate, expectedTaxRuleSet)));
+    }
+
+    @Test
+    void loadsStoredWeekdayTaxExemption() {
+        var taxRuleSet = storedTaxRuleSet(RULE_SET_ID, EFFECTIVE_FROM, "SEK");
+        var taxTimeBand =
+                new TaxTimeBandEntity(RULE_SET_ID, LocalTime.of(6, 0), LocalTime.of(6, 30), new BigDecimal("8.00"));
+        var taxExemption =
+                new TaxExemptionEntity(RULE_SET_ID, TaxExemptionType.WEEKDAY, (short) 6, null, null, null);
+
+        given(cityRepository.findByCode(CITY_CODE))
+                .willReturn(Optional.of(new CityEntity(CITY_CODE, "Gothenburg", "Europe/Stockholm")));
+        given(taxRuleSetRepository.findApplicableCandidates(CITY_CODE, CALCULATION_DATE))
+                .willReturn(List.of(taxRuleSet));
+        given(taxTimeBandRepository.findByRuleSetIdIn(Set.of(RULE_SET_ID))).willReturn(List.of(taxTimeBand));
+        given(taxExemptionRepository.findByRuleSetIdIn(Set.of(RULE_SET_ID))).willReturn(List.of(taxExemption));
+
+        var result = taxRuleService.getApplicableTaxRuleSets(CITY_CODE, Set.of(CALCULATION_DATE));
+
+        assertThat(result.taxRuleSetsByCalculationDate().get(CALCULATION_DATE).taxExemptions())
+                .isEqualTo(new TaxExemptions(List.of(new WeekdayTaxExemption(DayOfWeek.SATURDAY))));
     }
 
     @Test
