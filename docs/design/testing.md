@@ -72,7 +72,7 @@ Application logging remains active when a test uses a Spring profile. Test code 
 - present and absent Public Holiday Preceding-Date Option behavior;
 - all matching Tax Exemption Reasons;
 - zero Daily Tax and total Tax Amount for an exempt date or Vehicle Type;
-- Tax Exemption evaluation for a Passage outside the Tax Time Bands;
+- Tax Exemption evaluation before Tax Time Band selection, including an exempt Passage outside all Tax Time Bands;
 - addition of all Passage Tax Amounts when the Charge Window is absent;
 - date grouping and ascending Daily Tax order;
 - one Charge Window across a City Local Time midnight;
@@ -81,10 +81,10 @@ Application logging remains active when a test uses a Spring profile. Test code 
 - Passage instant ordering and highest Tax Amount selection in a Charge Window;
 - the inclusive configured Charge Window boundary;
 - non-sliding Charge Window behavior;
-- participation of zero-amount, exempt, and repeated Passages in Charge Windows;
+- participation of Passages in explicit zero-amount Tax Time Bands, exempt Passages, and repeated Passages in Charge Windows;
 - Daily Maximum application after Charge Window calculation;
 - Tax Time Band selection at second precision, including adjacent boundaries;
-- zero Tax outside the Tax Time Bands;
+- rejection of a non-exempt Passage before the first Tax Time Band and at an exclusive Tax Time Band end when no adjacent band contains it;
 - rejection of an empty Passage list;
 - rejection of null calculation inputs.
 
@@ -125,7 +125,7 @@ This test stays in the `taxrule.persistence` test package because it uses packag
 - derivation of winter and summer instants with the stored City time zone;
 - translation of unknown City and Vehicle Type failures into calculation-owned exceptions while preserving their causes;
 - translation of an invalid stored Tax Rule Option into a calculation-owned failure with its safe type code;
-- translation of `MissingTaxTimeBandsException` to `MissingStoredTaxTimeBandsException`;
+- translation of `MissingTaxTimeBandsException` and `NoMatchingTaxTimeBandException` to `MissingStoredTaxTimeBandsException`, with the original cause preserved;
 - translation of `InvalidCityTimeZoneException` to `InvalidStoredCityTimeZoneException`;
 - translation of `OverlappingTaxTimeBandsException` to `InvalidStoredTaxTimeBandsException`;
 - translation of invalid stored Tax Exemption content into a calculation-owned failure with its safe type code.
@@ -228,7 +228,7 @@ This test proves that HTTP parsing, stored City time-zone handling, Flyway data,
 The test also verifies:
 
 - several Passages are calculated from stored Tax Rules;
-- a Passage outside the stored Tax Time Bands returns zero Tax;
+- a non-exempt Passage outside the stored Tax Time Bands returns a safe HTTP `500` Problem Details response with `CALCULATION_FAILED`;
 - invalid request bodies return HTTP `400`;
 - an unknown City returns HTTP `404`;
 - an unknown Vehicle Type returns HTTP `400`.

@@ -37,7 +37,7 @@ The Tax Calculator:
 2. orders all Passages by instant;
 3. applies stored Tax Exemptions to each Passage;
 4. finds the Tax Time Band amount for each non-exempt Passage;
-5. uses a zero Tax Amount in the Tax Rule Set currency when no band matches;
+5. throws `NoMatchingTaxTimeBandException` when no Tax Time Band contains a non-exempt Passage City Local Time;
 6. applies the optional Charge Window across the ordered Passage list;
 7. assigns each window charge to one City Local Time date;
 8. adds the assigned charges for each input date;
@@ -47,6 +47,8 @@ The Tax Calculator:
 
 The Tax Rule Service requires the City's Tax Rule Set to contain at least one Tax Time Band. It throws `MissingTaxTimeBandsException` when stored Tax Rules do not meet this requirement.
 
+`MissingTaxTimeBandsException` and `NoMatchingTaxTimeBandException` identify different failures. The Tax Rule Service throws `MissingTaxTimeBandsException` when the Tax Rule Set contains no Tax Time Bands. The calculator throws `NoMatchingTaxTimeBandException` when Tax Time Bands exist but none contains a non-exempt Passage City Local Time.
+
 A Tax Time Band includes its start and excludes its end. For a band from `06:00` to `06:30`:
 
 - `06:00:00` is included;
@@ -55,7 +57,9 @@ A Tax Time Band includes its start and excludes its end. For a band from `06:00`
 
 An end time after the start time defines a same-date band. An end time before the start time defines one band that crosses midnight. For a cross-midnight band, the local time matches when it is on or after the start or before the end. Equal start and end times define a full-day band, and every local time matches it.
 
-Tax Time Bands can have positive or zero Tax Amounts. Gaps are valid and produce a zero Tax Amount in the Tax Rule Set currency. Tax Time Bands must not overlap when the service compares them around the complete 24-hour clock. This rule rejects nested bands, such as `06:00–09:00` with `07:00–08:00`. It also means that a full-day band must be the only band in its Tax Rule Set and cannot coexist with another full-day band.
+Tax Time Bands can have positive or zero Tax Amounts. The stored collection can contain gaps, but a gap does not define an implicit zero Tax Amount. A non-exempt Passage in a gap causes `NoMatchingTaxTimeBandException`. Stored content must use an explicit zero-amount Tax Time Band when the Passage time is valid and has no charge.
+
+Tax Time Bands must not overlap when the service compares them around the complete 24-hour clock. This rule rejects nested bands, such as `06:00–09:00` with `07:00–08:00`. It also means that a full-day band must be the only band in its Tax Rule Set and cannot coexist with another full-day band.
 
 The Tax Rule Service stops at the first conflicting pair and throws `OverlappingTaxTimeBandsException`. Same-date, cross-midnight, nested, and full-day conflicts use this one exception because they violate the same overlap rule.
 
@@ -71,7 +75,7 @@ PUBLIC_HOLIDAY
 DATE_BEFORE_PUBLIC_HOLIDAY
 ```
 
-Before Tax Time Band selection, the calculator gets all matching reasons from the City's Tax Rule Set for the selected Vehicle Type and each Passage City Local Time date. An exempt Passage has a zero Tax Amount and still participates in its Charge Window. Each Daily Tax reports all reasons that apply to its date and Vehicle Type. The HTTP response can explain why the Daily Tax is zero without one Boolean field for each Tax Exemption.
+Before Tax Time Band selection, the calculator gets all matching reasons from the City's Tax Rule Set for the selected Vehicle Type and each Passage City Local Time date. An exempt Passage has a zero Tax Amount and does not require a matching Tax Time Band. It still participates in its Charge Window. Each Daily Tax reports all reasons that apply to its date and Vehicle Type. The HTTP response can explain why the Daily Tax is zero without one Boolean field for each Tax Exemption.
 
 ## Charge Window and Daily Maximum
 
@@ -87,7 +91,7 @@ When a Charge Window is present:
 6. the charge belongs to the winning Passage's City Local Time date;
 7. the first Passage after the boundary starts the next window.
 
-Zero Tax Amount Passages, exempt Passages, and repeated Passages participate. A Charge Window uses actual elapsed time between instants and can cross a City Local Time date boundary. Midnight does not end or restart the window.
+Passages in explicit zero-amount Tax Time Bands, exempt Passages, and repeated Passages participate. A Charge Window uses actual elapsed time between instants and can cross a City Local Time date boundary. Midnight does not end or restart the window.
 
 Each distinct input date produces one Daily Tax. A date can have a zero amount because its Passage lost a cross-date Charge Window. That result has no Tax Exemption Reason unless a Tax Exemption also applies to the date.
 

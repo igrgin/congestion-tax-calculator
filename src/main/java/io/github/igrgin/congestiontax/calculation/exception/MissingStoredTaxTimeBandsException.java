@@ -5,7 +5,7 @@ public final class MissingStoredTaxTimeBandsException extends IllegalStateExcept
     private final String cityCode;
 
     public MissingStoredTaxTimeBandsException(String cityCode, Throwable cause) {
-        super("Stored Tax Time Bands do not exist for City " + cityCode + ".", cause);
+        super("Stored Tax Time Bands do not cover the calculation for City " + cityCode + ".", cause);
         this.cityCode = cityCode;
     }
 

@@ -155,11 +155,12 @@ A Tax Time Band follows these rules:
 Validation of the complete collection is split across these boundaries:
 
 - `TaxRuleServiceImpl` requires at least one Tax Time Band;
-- PostgreSQL prevents overlaps, and `TaxRuleServiceImpl` repeats that check when it loads a Tax Rule Set.
+- PostgreSQL prevents overlaps, and `TaxRuleServiceImpl` repeats that check when it loads a Tax Rule Set;
+- `TaxCalculator` requires each non-exempt Passage to match one Tax Time Band.
 
 Adjacent bands are valid. For example, `06:00–06:30` and `06:30–07:00` do not overlap.
 
-Gaps are valid. If no Tax Time Band contains a Passage local time, the calculator returns a zero Tax Amount in the Tax Rule Set currency.
+The schema permits gaps between Tax Time Bands. A gap does not define an implicit zero Tax Amount. If no Tax Time Band contains a non-exempt Passage City Local Time, the calculator throws `NoMatchingTaxTimeBandException`. Stored content must use an explicit zero-amount Tax Time Band when the Passage time is valid and has no charge.
 
 Flyway installs PostgreSQL's supplied `btree_gist` extension. A GiST exclusion constraint compares the Tax Rule Set identifier for equality and each Tax Time Band multirange for overlap. The constraint represents a same-date band as one range, a cross-midnight band as two ranges, and a full-day band as the complete clock. It rejects conflicting inserts and updates, including concurrent writes.
 

@@ -16,11 +16,17 @@ The assignment does not answer the questions below. Because answers were not ava
 
 **Result:** Passages before and after midnight can belong to one Charge Window. The window contributes its highest Tax Amount to the City Local Time date of the earliest Passage that has that amount. If several Passages have the same highest amount, the earliest Passage wins. Each distinct input date remains in the response.
 
-### Does a passage outside the hours with a positive amount take part in the single-charge rule?
+### Does a Passage with a zero Tax Amount take part in the single-charge rule?
 
-**Assumption used:** Yes. Every passage at a tolling station takes part, even when its time has an amount of zero.
+**Assumption used:** Yes. A Passage that matches an explicit zero-amount Tax Time Band takes part in its Charge Window. An exempt Passage also takes part with a zero Tax Amount.
 
-**Result:** A zero-amount Passage can start a Charge Window and can affect which later Passages belong to that window.
+**Result:** A zero-amount or exempt Passage can start a Charge Window and can affect which later Passages belong to that window.
+
+### What happens when no Tax Time Band contains a non-exempt Passage?
+
+**Assumption used:** Each non-exempt Passage must match one stored Tax Time Band. A gap does not define an implicit zero Tax Amount.
+
+**Result:** The calculator throws `NoMatchingTaxTimeBandException`. The Calculation Service translates it to `MissingStoredTaxTimeBandsException`. The API rejects the complete calculation with an HTTP `500` Problem Details response and the public code `CALCULATION_FAILED`.
 
 ### How do seconds fit into time ranges that are written only with hours and minutes?
 

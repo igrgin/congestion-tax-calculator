@@ -3,6 +3,7 @@ package io.github.igrgin.congestiontax.domain.calculation;
 import io.github.igrgin.congestiontax.domain.TaxAmount;
 import io.github.igrgin.congestiontax.domain.VehicleType;
 import io.github.igrgin.congestiontax.domain.calculation.exception.InvalidCalculationInputException;
+import io.github.igrgin.congestiontax.domain.calculation.exception.NoMatchingTaxTimeBandException;
 import io.github.igrgin.congestiontax.domain.rule.TaxRuleSet;
 import io.github.igrgin.congestiontax.domain.rule.TaxTimeBand;
 import java.time.Duration;
@@ -112,11 +113,12 @@ public final class TaxCalculator {
         }
 
         var date = passageCharge.passage().cityDateTime().toLocalDate();
-        assignedAmounts.compute(date, (key, amount) -> amount.add(passageCharge.amount()));
+        assignedAmounts.merge(date, passageCharge.amount(), TaxAmount::add);
     }
 
     private static TaxAmount calculatePassageAmount(
             Passage passage, TaxRuleSet taxRuleSet, Map<LocalDate, Set<TaxExemptionReason>> taxExemptionReasons) {
+
         if (!taxExemptionReasons.get(passage.cityDateTime().toLocalDate()).isEmpty()) {
             return TaxAmount.zero(taxRuleSet.currency());
         }
@@ -126,7 +128,7 @@ public final class TaxCalculator {
                         taxTimeBand.includes(passage.cityDateTime().toLocalTime()))
                 .findFirst()
                 .map(TaxTimeBand::amount)
-                .orElseGet(() -> TaxAmount.zero(taxRuleSet.currency()));
+                .orElseThrow(NoMatchingTaxTimeBandException::new);
     }
 
     private static void validatePassages(List<Passage> passages) {

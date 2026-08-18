@@ -22,6 +22,7 @@ import io.github.igrgin.congestiontax.domain.calculation.CalculationResult;
 import io.github.igrgin.congestiontax.domain.calculation.DailyTax;
 import io.github.igrgin.congestiontax.domain.calculation.Passage;
 import io.github.igrgin.congestiontax.domain.calculation.TaxCalculator;
+import io.github.igrgin.congestiontax.domain.calculation.exception.NoMatchingTaxTimeBandException;
 import io.github.igrgin.congestiontax.domain.rule.TaxRuleSet;
 import io.github.igrgin.congestiontax.domain.rule.TaxTimeBand;
 import io.github.igrgin.congestiontax.metrics.CalculationMetrics;
@@ -264,6 +265,34 @@ class CalculationServiceImplTest {
                         exception -> assertThat(exception.passageIndexes()).containsExactly(0, 2, 3));
 
         verifyNoInteractions(taxRuleService, taxCalculator);
+    }
+
+    @Test
+    void translatesNoMatchingTaxTimeBandForNonExemptPassage() {
+        var cityCode = "gothenburg";
+        var vehicleTypeCode = "OTHER";
+        var cityDateTime = LocalDateTime.of(2013, Month.FEBRUARY, 8, 6, 40, 27);
+        var command = new CalculationCommand(cityCode, vehicleTypeCode, List.of(cityDateTime));
+
+        var cityTimeZone = ZoneId.of("Europe/Stockholm");
+        var currency = Currency.getInstance("SEK");
+        var taxAmount = new TaxAmount(new BigDecimal("8.00"), currency);
+        var taxRuleSet = new TaxRuleSet(
+                cityCode, currency, List.of(new TaxTimeBand(LocalTime.of(6, 0), LocalTime.of(6, 30), taxAmount)));
+        var vehicleType = new VehicleType(vehicleTypeCode, "Other vehicle");
+        var passage = new Passage(cityDateTime.atZone(cityTimeZone).toInstant(), cityDateTime);
+        var cause = new NoMatchingTaxTimeBandException();
+
+        given(taxRuleService.getCityTaxRuleSet(cityCode)).willReturn(new CityTaxRuleSet(cityTimeZone, taxRuleSet));
+        given(taxRuleService.getVehicleType(vehicleTypeCode)).willReturn(vehicleType);
+        given(taxCalculator.calculate(vehicleType, List.of(passage), taxRuleSet))
+                .willThrow(cause);
+
+        assertThatThrownBy(() -> calculationService.calculate(command))
+                .isInstanceOfSatisfying(MissingStoredTaxTimeBandsException.class, exception -> {
+                    assertThat(exception.cityCode()).isEqualTo(cityCode);
+                    assertThat(exception).hasCause(cause);
+                });
     }
 
     private static Stream<Arguments> cityTimes() {

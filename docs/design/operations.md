@@ -73,7 +73,7 @@ Other unreadable request bodies use the `invalid-request` category at `WARN` wit
 
 Missing stored Tax Rules use the `missing-tax-rule-set` category at `ERROR` with the cause. The event contains no Passage timestamp or Tax Amount.
 
-Missing stored Tax Time Bands use the `missing-tax-time-bands` category at `ERROR` with the cause. The event contains the City code but no Passage timestamp or Tax Amount.
+An empty stored Tax Time Band collection or a non-exempt Passage with no matching Tax Time Band uses the `missing-tax-time-bands` category at `ERROR` with the cause. The event contains the City code but no Passage timestamp or Tax Amount.
 
 An invalid stored City time zone uses the `invalid-city-time-zone` category at `ERROR` with the cause. The event contains the City code but not the invalid stored value.
 

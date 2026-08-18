@@ -81,13 +81,13 @@ The domain does not:
 7. Write one `DEBUG` event for each exempt Daily Tax.
 8. Return the calculated City and calculation result.
 
-`CalculationServiceImpl` translates expected collaborator lookup and stored-content failures into calculation-owned exceptions after metrics records the outcome. This includes a missing Tax Rule Set, missing Tax Time Bands, an invalid City time zone, invalid Tax Rule Options, invalid Tax Exemptions, and overlapping Tax Time Bands. Invalid Tax Rule Option and Tax Exemption failures contain only their safe type codes. The service preserves each lower exception as the cause. This keeps the Calculation module interface independent of its collaborator implementations.
+`CalculationServiceImpl` translates expected collaborator, Domain calculation, lookup, and stored-content failures into calculation-owned exceptions after metrics records the outcome. This includes a missing Tax Rule Set, an empty Tax Time Band collection, no matching Tax Time Band for a non-exempt Passage, an invalid City time zone, invalid Tax Rule Options, invalid Tax Exemptions, and overlapping Tax Time Bands. Invalid Tax Rule Option and Tax Exemption failures contain only their safe type codes. The service preserves each lower exception as the cause. This keeps the Calculation module interface independent of its collaborator implementations.
 
 `TaxRuleService` owns City existence, stored City time-zone validation, Vehicle Type, and Tax Rule loading. It returns one immutable result that contains the validated City time zone and the City's Tax Rule Set. Its interface and implementation are in `taxrule`. Its entities and repositories are in `taxrule.persistence`. One business responsibility can use one repository or several repositories. The service seam follows the business responsibility, not the number of tables.
 
 `TaxRuleService` is the external interface of the Tax Rule module. Persistence classes and repository interfaces can be public because `TaxRuleServiceImpl` uses them across the package split. That Java access does not make them part of the module interface. No caller outside the Tax Rule implementation uses them.
 
-Database constraints protect stored validity and relationships. This includes a PostgreSQL exclusion constraint that prevents overlapping Tax Time Bands. Repository-facing services repeat important stored-content checks when they assemble calculation values. The pure calculator checks only the inputs that it needs to calculate safely.
+Database constraints protect stored validity and relationships. This includes a PostgreSQL exclusion constraint that prevents overlapping Tax Time Bands. Repository-facing services repeat important stored-content checks when they assemble calculation values. The pure calculator rejects a non-exempt Passage when no Tax Time Band contains its City Local Time. It does not repeat database collection and overlap validation.
 
 ## Dependency directions
 

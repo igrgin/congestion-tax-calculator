@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import io.github.igrgin.congestiontax.domain.TaxAmount;
 import io.github.igrgin.congestiontax.domain.VehicleType;
 import io.github.igrgin.congestiontax.domain.calculation.exception.InvalidCalculationInputException;
+import io.github.igrgin.congestiontax.domain.calculation.exception.NoMatchingTaxTimeBandException;
 import io.github.igrgin.congestiontax.domain.rule.ChargeWindow;
 import io.github.igrgin.congestiontax.domain.rule.DailyMaximum;
 import io.github.igrgin.congestiontax.domain.rule.MonthTaxExemption;
@@ -35,6 +36,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class TaxCalculatorTest {
 
@@ -161,6 +163,7 @@ class TaxCalculatorTest {
         var result = calculator.calculate(VEHICLE_TYPE, List.of(passage), taxRuleSet);
 
         var zero = TaxAmount.zero(SEK);
+
         assertThat(result)
                 .isEqualTo(new CalculationResult(
                         VEHICLE_TYPE, List.of(new DailyTax(DATE, Set.of(TaxExemptionReason.WEEKDAY), zero)), zero));
@@ -170,10 +173,13 @@ class TaxCalculatorTest {
     @MethodSource("optionalDailyRuleScenarios")
     void appliesOptionalDailyRules(
             String scenario, TaxRuleOptions taxRuleOptions, List<Passage> passages, String expectedAmount) {
+
         var taxRuleSet = new TaxRuleSet(
                 "gothenburg",
                 SEK,
-                List.of(new TaxTimeBand(LocalTime.of(6, 0), LocalTime.of(8, 0), TAX_AMOUNT)),
+                List.of(
+                        new TaxTimeBand(LocalTime.of(5, 0), LocalTime.of(6, 0), TaxAmount.zero(SEK)),
+                        new TaxTimeBand(LocalTime.of(6, 0), LocalTime.of(8, 0), TAX_AMOUNT)),
                 taxRuleOptions);
 
         var result = calculator.calculate(VEHICLE_TYPE, passages, taxRuleSet);
@@ -359,22 +365,9 @@ class TaxCalculatorTest {
     }
 
     @ParameterizedTest
-    @CsvSource({
-        "05:59:59, 0.00",
-        "06:00:00, 8.00",
-        "06:29:59, 8.00",
-        "06:30:00, 13.00",
-        "06:59:59, 13.00",
-        "07:00:00, 0.00"
-    })
+    @CsvSource({"06:00:00, 8.00", "06:29:59, 8.00", "06:30:00, 13.00", "06:59:59, 13.00"})
     void selectsTaxTimeBandAtSecondPrecision(String localTime, String expectedAmount) {
-        var higherTaxAmount = new TaxAmount(new BigDecimal("13.00"), SEK);
-        var taxRuleSet = new TaxRuleSet(
-                "gothenburg",
-                SEK,
-                List.of(
-                        new TaxTimeBand(LocalTime.of(6, 0), LocalTime.of(6, 30), TAX_AMOUNT),
-                        new TaxTimeBand(LocalTime.of(6, 30), LocalTime.of(7, 0), higherTaxAmount)));
+        var taxRuleSet = taxRuleSetWithAdjacentTaxTimeBands();
         var cityDateTime = LocalDateTime.of(DATE, LocalTime.parse(localTime));
         var passage = new Passage(cityDateTime.toInstant(ZoneOffset.ofHours(1)), cityDateTime);
 
@@ -485,16 +478,27 @@ class TaxCalculatorTest {
         return new Passage(Instant.parse(instant), LocalDateTime.of(2013, Month.FEBRUARY, 8, hour, minute));
     }
 
-    @Test
-    void calculatesZeroOutsideTaxTimeBands() {
-        var passage =
-                new Passage(Instant.parse("2013-02-08T04:59:00Z"), LocalDateTime.of(2013, Month.FEBRUARY, 8, 5, 59));
+    private static TaxRuleSet taxRuleSetWithAdjacentTaxTimeBands() {
+        var higherTaxAmount = new TaxAmount(new BigDecimal("13.00"), SEK);
 
-        var result = calculator.calculate(VEHICLE_TYPE, List.of(passage), TAX_RULE_SET);
+        return new TaxRuleSet(
+                "gothenburg",
+                SEK,
+                List.of(
+                        new TaxTimeBand(LocalTime.of(6, 0), LocalTime.of(6, 30), TAX_AMOUNT),
+                        new TaxTimeBand(LocalTime.of(6, 30), LocalTime.of(7, 0), higherTaxAmount)));
+    }
 
-        var zero = TaxAmount.zero(SEK);
+    @ParameterizedTest
+    @ValueSource(strings = {"05:59:59", "07:00:00"})
+    void rejectsNonExemptPassageOutsideTaxTimeBands(String localTime) {
+        var taxRuleSet = taxRuleSetWithAdjacentTaxTimeBands();
+        var cityDateTime = LocalDateTime.of(DATE, LocalTime.parse(localTime));
+        var passage = new Passage(cityDateTime.toInstant(ZoneOffset.ofHours(1)), cityDateTime);
 
-        assertThat(result).isEqualTo(new CalculationResult(VEHICLE_TYPE, List.of(new DailyTax(DATE, zero)), zero));
+        assertThatThrownBy(() -> calculator.calculate(VEHICLE_TYPE, List.of(passage), taxRuleSet))
+                .isInstanceOf(NoMatchingTaxTimeBandException.class)
+                .hasMessage("No Tax Time Band contains a non-exempt Passage City Local Time.");
     }
 
     @Test

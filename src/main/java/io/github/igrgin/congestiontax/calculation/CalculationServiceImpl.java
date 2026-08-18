@@ -13,6 +13,7 @@ import io.github.igrgin.congestiontax.calculation.model.CalculatedTax;
 import io.github.igrgin.congestiontax.calculation.model.CalculationCommand;
 import io.github.igrgin.congestiontax.domain.calculation.Passage;
 import io.github.igrgin.congestiontax.domain.calculation.TaxCalculator;
+import io.github.igrgin.congestiontax.domain.calculation.exception.NoMatchingTaxTimeBandException;
 import io.github.igrgin.congestiontax.metrics.CalculationMetrics;
 import io.github.igrgin.congestiontax.taxrule.TaxRuleService;
 import io.github.igrgin.congestiontax.taxrule.exception.InvalidCityTimeZoneException;
@@ -72,7 +73,7 @@ public class CalculationServiceImpl implements CalculationService {
             throw new InvalidStoredTaxExemptionException(exception.taxExemptionTypeCode(), exception);
         } catch (MissingTaxRuleSetException exception) {
             throw new MissingStoredTaxRuleSetException(command.cityCode(), exception);
-        } catch (MissingTaxTimeBandsException exception) {
+        } catch (NoMatchingTaxTimeBandException | MissingTaxTimeBandsException exception) {
             throw new MissingStoredTaxTimeBandsException(command.cityCode(), exception);
         } catch (InvalidCityTimeZoneException exception) {
             throw new InvalidStoredCityTimeZoneException(command.cityCode(), exception);
