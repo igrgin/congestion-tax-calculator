@@ -8,10 +8,17 @@ import io.github.igrgin.congestiontax.domain.VehicleType;
 import io.github.igrgin.congestiontax.domain.calculation.exception.InvalidCalculationInputException;
 import io.github.igrgin.congestiontax.domain.rule.ChargeWindow;
 import io.github.igrgin.congestiontax.domain.rule.DailyMaximum;
+import io.github.igrgin.congestiontax.domain.rule.MonthTaxExemption;
+import io.github.igrgin.congestiontax.domain.rule.PublicHolidayPrecedingDateOption;
+import io.github.igrgin.congestiontax.domain.rule.PublicHolidayTaxExemption;
+import io.github.igrgin.congestiontax.domain.rule.TaxExemptions;
 import io.github.igrgin.congestiontax.domain.rule.TaxRuleOptions;
 import io.github.igrgin.congestiontax.domain.rule.TaxRuleSet;
 import io.github.igrgin.congestiontax.domain.rule.TaxTimeBand;
+import io.github.igrgin.congestiontax.domain.rule.VehicleTypeTaxExemption;
+import io.github.igrgin.congestiontax.domain.rule.WeekdayTaxExemption;
 import java.math.BigDecimal;
+import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -22,6 +29,7 @@ import java.time.ZoneOffset;
 import java.util.Currency;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -52,6 +60,114 @@ class TaxCalculatorTest {
 
         assertThat(result)
                 .isEqualTo(new CalculationResult(VEHICLE_TYPE, List.of(new DailyTax(DATE, TAX_AMOUNT)), TAX_AMOUNT));
+    }
+
+    @ParameterizedTest
+    @CsvSource({"EMERGENCY", "BUS", "DIPLOMAT", "MOTORCYCLE", "MILITARY", "FOREIGN"})
+    void appliesEachInitialVehicleTypeTaxExemption(String vehicleTypeCode) {
+        var vehicleType = new VehicleType(vehicleTypeCode, "Exempt vehicle");
+        var taxRuleSet = taxRuleSet(
+                new TaxExemptions(List.of(new VehicleTypeTaxExemption(vehicleTypeCode))), TaxRuleOptions.empty());
+        var passage = passage("2013-02-08T05:20:00Z", 6, 20);
+
+        var result = calculator.calculate(vehicleType, List.of(passage), Map.of(DATE, taxRuleSet));
+
+        var zero = TaxAmount.zero(SEK);
+        assertThat(result)
+                .isEqualTo(new CalculationResult(
+                        vehicleType, List.of(new DailyTax(DATE, Set.of(TaxExemptionReason.VEHICLE_TYPE), zero)), zero));
+    }
+
+    @Test
+    void keepsKnownOtherVehicleTypeTaxableWithoutMatchingExemption() {
+        var taxRuleSet =
+                taxRuleSet(new TaxExemptions(List.of(new VehicleTypeTaxExemption("BUS"))), TaxRuleOptions.empty());
+        var passage = passage("2013-02-08T05:20:00Z", 6, 20);
+
+        var result = calculator.calculate(VEHICLE_TYPE, List.of(passage), Map.of(DATE, taxRuleSet));
+
+        assertThat(result)
+                .isEqualTo(new CalculationResult(VEHICLE_TYPE, List.of(new DailyTax(DATE, TAX_AMOUNT)), TAX_AMOUNT));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("calendarTaxExemptionScenarios")
+    void appliesEachCalendarTaxExemption(
+            String scenario,
+            TaxExemptions taxExemptions,
+            TaxRuleOptions taxRuleOptions,
+            TaxExemptionReason expectedReason) {
+        var taxRuleSet = taxRuleSet(taxExemptions, taxRuleOptions);
+        var passage = passage("2013-02-08T05:20:00Z", 6, 20);
+
+        var result = calculator.calculate(VEHICLE_TYPE, List.of(passage), Map.of(DATE, taxRuleSet));
+
+        var zero = TaxAmount.zero(SEK);
+        assertThat(result)
+                .isEqualTo(new CalculationResult(
+                        VEHICLE_TYPE, List.of(new DailyTax(DATE, Set.of(expectedReason), zero)), zero));
+    }
+
+    @ParameterizedTest(name = "Public Holiday Preceding-Date Option {0}")
+    @MethodSource("publicHolidayPrecedingDateOptionScenarios")
+    void appliesPublicHolidayPrecedingDateOptionOnlyWhenPresent(
+            String scenario,
+            TaxRuleOptions taxRuleOptions,
+            Set<TaxExemptionReason> expectedReasons,
+            TaxAmount expectedAmount) {
+        var taxRuleSet =
+                taxRuleSet(new TaxExemptions(List.of(new PublicHolidayTaxExemption(DATE.plusDays(1)))), taxRuleOptions);
+        var passage = passage("2013-02-08T05:20:00Z", 6, 20);
+
+        var result = calculator.calculate(VEHICLE_TYPE, List.of(passage), Map.of(DATE, taxRuleSet));
+
+        assertThat(result)
+                .isEqualTo(new CalculationResult(
+                        VEHICLE_TYPE, List.of(new DailyTax(DATE, expectedReasons, expectedAmount)), expectedAmount));
+    }
+
+    @Test
+    void returnsAllMatchingTaxExemptionReasons() {
+        var taxExemptions = new TaxExemptions(List.of(
+                new PublicHolidayTaxExemption(DATE.plusDays(1)),
+                new MonthTaxExemption(Month.FEBRUARY),
+                new VehicleTypeTaxExemption("OTHER"),
+                new PublicHolidayTaxExemption(DATE),
+                new WeekdayTaxExemption(DayOfWeek.FRIDAY)));
+        var taxRuleOptions = new TaxRuleOptions(List.of(new PublicHolidayPrecedingDateOption(1)));
+        var taxRuleSet = taxRuleSet(taxExemptions, taxRuleOptions);
+        var passage = passage("2013-02-08T05:20:00Z", 6, 20);
+
+        var result = calculator.calculate(VEHICLE_TYPE, List.of(passage), Map.of(DATE, taxRuleSet));
+
+        var zero = TaxAmount.zero(SEK);
+        assertThat(result)
+                .isEqualTo(new CalculationResult(
+                        VEHICLE_TYPE,
+                        List.of(new DailyTax(
+                                DATE,
+                                Set.of(
+                                        TaxExemptionReason.VEHICLE_TYPE,
+                                        TaxExemptionReason.WEEKDAY,
+                                        TaxExemptionReason.MONTH,
+                                        TaxExemptionReason.PUBLIC_HOLIDAY,
+                                        TaxExemptionReason.DATE_BEFORE_PUBLIC_HOLIDAY),
+                                zero)),
+                        zero));
+    }
+
+    @Test
+    void appliesTaxExemptionToPassageOutsideTaxTimeBands() {
+        var taxRuleSet = taxRuleSet(
+                new TaxExemptions(List.of(new WeekdayTaxExemption(DayOfWeek.FRIDAY))), TaxRuleOptions.empty());
+        var passage = passage("2013-02-08T04:59:00Z", 5, 59);
+
+        var result = calculator.calculate(VEHICLE_TYPE, List.of(passage), Map.of(DATE, taxRuleSet));
+
+        var zero = TaxAmount.zero(SEK);
+        assertThat(result)
+                .isEqualTo(new CalculationResult(
+                        VEHICLE_TYPE, List.of(new DailyTax(DATE, Set.of(TaxExemptionReason.WEEKDAY), zero)), zero));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -234,6 +350,50 @@ class TaxCalculatorTest {
                                 passage("2013-02-08T05:20:00Z", 6, 20),
                                 passage("2013-02-08T06:20:00Z", 7, 20)),
                         "15.00"));
+    }
+
+    private static Stream<Arguments> calendarTaxExemptionScenarios() {
+        return Stream.of(
+                Arguments.of(
+                        "weekday",
+                        new TaxExemptions(List.of(new WeekdayTaxExemption(DayOfWeek.FRIDAY))),
+                        TaxRuleOptions.empty(),
+                        TaxExemptionReason.WEEKDAY),
+                Arguments.of(
+                        "month",
+                        new TaxExemptions(List.of(new MonthTaxExemption(Month.FEBRUARY))),
+                        TaxRuleOptions.empty(),
+                        TaxExemptionReason.MONTH),
+                Arguments.of(
+                        "public holiday",
+                        new TaxExemptions(List.of(new PublicHolidayTaxExemption(DATE))),
+                        TaxRuleOptions.empty(),
+                        TaxExemptionReason.PUBLIC_HOLIDAY),
+                Arguments.of(
+                        "date before public holiday",
+                        new TaxExemptions(List.of(new PublicHolidayTaxExemption(DATE.plusDays(1)))),
+                        new TaxRuleOptions(List.of(new PublicHolidayPrecedingDateOption(1))),
+                        TaxExemptionReason.DATE_BEFORE_PUBLIC_HOLIDAY));
+    }
+
+    private static Stream<Arguments> publicHolidayPrecedingDateOptionScenarios() {
+        return Stream.of(
+                Arguments.of(
+                        "present",
+                        new TaxRuleOptions(List.of(new PublicHolidayPrecedingDateOption(1))),
+                        Set.of(TaxExemptionReason.DATE_BEFORE_PUBLIC_HOLIDAY),
+                        TaxAmount.zero(SEK)),
+                Arguments.of("absent", TaxRuleOptions.empty(), Set.of(), TAX_AMOUNT));
+    }
+
+    private static TaxRuleSet taxRuleSet(TaxExemptions taxExemptions, TaxRuleOptions taxRuleOptions) {
+        return new TaxRuleSet(
+                "gothenburg",
+                LocalDate.of(2013, Month.JANUARY, 1),
+                SEK,
+                List.of(new TaxTimeBand(LocalTime.of(6, 0), LocalTime.of(6, 30), TAX_AMOUNT)),
+                taxExemptions,
+                taxRuleOptions);
     }
 
     private static Passage passage(String instant, int hour, int minute) {
