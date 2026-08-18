@@ -108,9 +108,9 @@ This test stays in the `taxrule.persistence` test package because it uses packag
 - strict deserialization of exact `uuuu-MM-dd HH:mm:ss` Passage string tokens before the controller method runs;
 - rejection of values with leading or trailing whitespace and other Jackson `LocalDateTime` shapes;
 - rejection of an invalid second Passage before the Calculation Service runs;
-- mapping of the first timestamp deserialization failure to one HTTP `400` Problem Details error with its zero-based Passage index;
+- mapping of a timestamp deserialization failure to an HTTP `400` Problem Details response for the first invalid Passage;
 - rejection of unknown JSON properties, including the removed `timeZone` property;
-- mapping of malformed JSON to an HTTP `400` Problem Details response with no field errors;
+- mapping of malformed JSON to an HTTP `400` Problem Details response with an empty `errors` list;
 - forwarding of `List<LocalDateTime>` to `CalculationCommand`;
 - mapping of an unsupported-year service exception to one HTTP `400` Problem Details response that reports all affected zero-based Passage indexes in request order;
 - the top-level `INVALID_REQUEST` code and the `UNSUPPORTED_PASSAGE_YEAR` code for each affected Passage;
@@ -237,7 +237,7 @@ Later calculation issues will add focused tests for:
 
 - weekday, month, public-holiday, and preceding-date Tax Exemptions;
 - Vehicle Type Tax Exemptions;
-- complete transport validation and Problem Details;
+- remaining transport validation and Problem Details;
 - a second City with different stored Tax Rules.
 
 Issue 5 will add mixed-currency coverage and an HTTP-to-PostgreSQL case for successive complete Tax Rule Set snapshots, stable historical results, and future-snapshot exclusion.

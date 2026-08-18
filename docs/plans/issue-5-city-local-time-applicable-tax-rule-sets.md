@@ -18,7 +18,7 @@ This issue implements or proves:
 - Passage instant derivation with the selected City's stored IANA time zone;
 - rejection of each Passage whose City Local Time date is outside 2013;
 - one complete request rejection that reports all unsupported-year Passage indexes;
-- one narrow Problem Details response for unsupported-year input;
+- Problem Details responses for an invalid Passage timestamp, malformed JSON, and unsupported-year input;
 - Daily Tax grouping by City Local Time date;
 - a Charge Window that cannot cross a City Local Time date boundary;
 - selection of the latest Tax Rule Set whose effective date is not after each calculation date;
@@ -32,7 +32,7 @@ This issue implements or proves:
 
 Issue 6 owns calendar and Vehicle Type Tax Exemptions. The supported Passage year does not limit stored supporting dates. Stored content can include the public holiday on `2014-01-01` so that issue 6 can evaluate the `DATE_BEFORE_PUBLIC_HOLIDAY` Tax Exemption for `2013-12-31`.
 
-Issue 7 owns complete validation, the remaining Problem Details responses, and OpenAPI. This issue does not change issue 7 or aggregate different validation failure types.
+Issue 7 owns the remaining validation and Problem Details responses, and OpenAPI. This issue does not aggregate different validation failure types.
 
 ## Project language
 
@@ -78,13 +78,47 @@ After successful timestamp deserialization, `CalculationServiceImpl`:
 3. keeps the indexes in request order;
 4. rejects the complete request when the collection is not empty.
 
-This issue does not combine malformed-timestamp errors with unsupported-year errors. The HTTP exception handler maps timestamp deserialization failures and Calculation Service supported-year exceptions to the agreed HTTP errors. A timestamp deserialization failure keeps the existing safe HTTP `400` response and the `invalid-passage-timestamp` `WARN` category.
+This issue does not combine malformed-timestamp errors with unsupported-year errors. The HTTP exception handler maps timestamp deserialization failures, malformed JSON, and Calculation Service supported-year exceptions to the agreed HTTP errors. A timestamp deserialization failure returns the first invalid Passage in a Problem Details response and uses the `invalid-passage-timestamp` `WARN` category. Malformed JSON returns a Problem Details response with an empty `errors` list and uses the `invalid-json` `WARN` category.
 
 Timestamp deserialization failures occur before the controller method runs. Unsupported-year requests stop before Tax Rule Service access, PostgreSQL access, calculation logs, and the Calculation Service metrics recorder.
 
-## Unsupported-year response
+## Invalid request responses
 
-The calculation HTTP operation returns HTTP `400` with `application/problem+json`:
+An invalid Passage timestamp returns HTTP `400` with `application/problem+json`:
+
+```json
+{
+  "title": "Invalid calculation request",
+  "status": 400,
+  "detail": "The request contains invalid Passages.",
+  "code": "INVALID_REQUEST",
+  "errors": [
+    {
+      "field": "passages[1]",
+      "code": "INVALID_PASSAGE_TIMESTAMP",
+      "message": "A Passage must use the City Local Time format uuuu-MM-dd HH:mm:ss."
+    }
+  ]
+}
+```
+
+Deserialization stops at the first invalid Passage. The response reports its zero-based index.
+
+Malformed JSON returns HTTP `400` with `application/problem+json`:
+
+```json
+{
+  "title": "Invalid JSON",
+  "status": 400,
+  "detail": "The request body is not valid JSON.",
+  "code": "INVALID_JSON",
+  "errors": []
+}
+```
+
+The response has no field error because Jackson cannot reliably identify a request field.
+
+An unsupported Passage year returns HTTP `400` with `application/problem+json`:
 
 ```json
 {
@@ -165,7 +199,8 @@ The existing calculation events keep their owners and levels. A metrics failure 
 Use these public boundaries:
 
 - the calculation HTTP operation for supported-year validation and its Problem Details response;
-- the calculation HTTP operation for strict timestamp deserialization and safe malformed-timestamp rejection;
+- the calculation HTTP operation for strict timestamp deserialization and its Problem Details response;
+- the calculation HTTP operation for malformed JSON and its Problem Details response;
 - `CalculationService.calculate` for complete unsupported-year index collection and the pre-Tax-Rule validation boundary;
 - `TaxCalculator.calculate` for local-midnight Charge Window behavior and mixed currencies;
 - `CalculationService.calculate` for calculation-owned stored-content failure translation;
@@ -185,9 +220,9 @@ This group adds:
 - typed City Local Time transfer through `CalculationCommand`;
 - supported-year validation in `CalculationServiceImpl` before Tax Rule Service, calculation logs, and metrics access;
 - complete supported-year index collection;
-- the narrow Problem Details response;
+- the Problem Details responses for an invalid Passage timestamp, malformed JSON, and unsupported-year input;
 - top-level and per-error response codes;
-- the supported-year `WARN` failure category;
+- the invalid timestamp, invalid JSON, and unsupported-year `WARN` failure categories;
 - supported-year boundary tests;
 - one explicit local-midnight Charge Window test;
 - applicable API, calculation, testing, operations, and question updates.

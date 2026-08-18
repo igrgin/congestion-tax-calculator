@@ -78,9 +78,41 @@ An invalid stored City time zone is invalid server content and returns HTTP `500
 
 The HTTP exception boundary logs each handled `4xx` response at `WARN` with a stable failure category, safe context, and no stack trace. It logs each handled `5xx` response once at `ERROR` with an internal stack trace. Invalid stored Charge Window or Daily Maximum content uses the `invalid-tax-rule-option` category and includes only the safe option type code. This rule applies to the calculation API exception handler, not to unrelated framework or servlet responses. The response does not contain internal failure data. The first calculation slice returns an empty HTTP `500` response for an unexpected failure. The later API validation issue replaces that body with the final safe Problem Details response.
 
-A timestamp deserialization failure returns one Problem Details error for the first invalid Passage. It uses the `invalid-passage-timestamp` category at `WARN` without a stack trace. Malformed JSON returns a Problem Details response with no field errors. It uses the `invalid-json` category at `WARN` without a stack trace. These responses do not contain parser details.
+A timestamp deserialization failure returns Problem Details JSON and uses the `invalid-passage-timestamp` category at `WARN` without a stack trace. The response reports the first invalid Passage because deserialization stops at the first invalid value.
 
-These invalid request responses use Problem Details JSON with a stable top-level `code` and an `errors` list. Each field error has a field, a stable code, and a human-readable message. The response omits `type`. It does not expose exception class names, SQL, credentials, or stack traces.
+Malformed JSON returns Problem Details JSON and uses the `invalid-json` category at `WARN` without a stack trace. The response has an empty `errors` list because Jackson cannot reliably identify a request field.
+
+These responses use `application/problem+json`, a stable top-level `code`, and an `errors` list. Each field error has a field, a stable code, and a human-readable message. The responses omit `type`. They do not expose exception class names, parser details, SQL, credentials, or stack traces.
+
+The invalid Passage timestamp error shape is:
+
+```json
+{
+  "title": "Invalid calculation request",
+  "status": 400,
+  "detail": "The request contains invalid Passages.",
+  "code": "INVALID_REQUEST",
+  "errors": [
+    {
+      "field": "passages[1]",
+      "code": "INVALID_PASSAGE_TIMESTAMP",
+      "message": "A Passage must use the City Local Time format uuuu-MM-dd HH:mm:ss."
+    }
+  ]
+}
+```
+
+The malformed JSON error shape is:
+
+```json
+{
+  "title": "Invalid JSON",
+  "status": 400,
+  "detail": "The request body is not valid JSON.",
+  "code": "INVALID_JSON",
+  "errors": []
+}
+```
 
 The supported-year error shape is:
 
@@ -110,37 +142,7 @@ The supported-year error shape is:
 }
 ```
 
-This response uses the top-level code `INVALID_REQUEST`. Each field error uses the code `UNSUPPORTED_PASSAGE_YEAR`. Several unsupported Passages produce one error entry for each affected zero-based index, in request order. The supported-year response does not combine unsupported-year errors with other validation failure types. Complete aggregation for other validation types and the remaining Problem Details responses belong to the later API issue.
-
-The invalid Passage timestamp response uses the same top-level invalid calculation request values. It contains only the first invalid Passage because Jackson stops deserialization at that value:
-
-```json
-{
-  "title": "Invalid calculation request",
-  "status": 400,
-  "detail": "The request contains invalid Passages.",
-  "code": "INVALID_REQUEST",
-  "errors": [
-    {
-      "field": "passages[1]",
-      "code": "INVALID_PASSAGE_TIMESTAMP",
-      "message": "A Passage must use the City Local Time format uuuu-MM-dd HH:mm:ss."
-    }
-  ]
-}
-```
-
-Malformed JSON has no reliable field path. Its response is:
-
-```json
-{
-  "title": "Invalid JSON",
-  "status": 400,
-  "detail": "The request body is not valid JSON.",
-  "code": "INVALID_JSON",
-  "errors": []
-}
-```
+The supported-year response uses the top-level code `INVALID_REQUEST`. Each field error uses the code `UNSUPPORTED_PASSAGE_YEAR`. Several unsupported Passages produce one error entry for each affected zero-based index, in request order. The supported-year response does not combine unsupported-year errors with other validation failure types. Complete aggregation and Problem Details for the other validation types belong to the later API issue.
 
 | Condition | HTTP status |
 |---|---:|
