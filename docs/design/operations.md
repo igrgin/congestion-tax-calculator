@@ -61,6 +61,8 @@ The application uses plain parameterized SLF4J messages. It does not add structu
 
 Each feature issue owns the events required by that feature. One boundary logs each event or exception. `CONTRIBUTING.md` defines the safe context and prohibited data.
 
+Successful Tax Rule Set loading uses `DEBUG`. The Tax Rule Service owns this event. It contains the City code and flags that show if the Charge Window and Daily Maximum are enabled. It contains no Passage timestamp or Tax Amount.
+
 Supported-year rejection uses the `unsupported-passage-year` category at `WARN` without a stack trace. This event contains no Passage timestamp.
 
 Timestamp deserialization failure uses the `invalid-passage-timestamp` category at `WARN` without a stack trace. The HTTP exception handler owns this event.

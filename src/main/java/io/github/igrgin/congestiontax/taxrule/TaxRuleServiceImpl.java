@@ -33,11 +33,13 @@ import java.util.Currency;
 import java.util.HashSet;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class TaxRuleServiceImpl implements TaxRuleService {
 
     private final CityRepository cityRepository;
@@ -70,6 +72,12 @@ public class TaxRuleServiceImpl implements TaxRuleService {
         var taxTimeBands = taxTimeBandRepository.findByRuleSetId(taxRuleSetEntity.getId());
         var taxRuleOptions = taxRuleOptionRepository.findByRuleSetId(taxRuleSetEntity.getId());
         var taxRuleSet = mapCompleteTaxRuleSet(cityCode, taxRuleSetEntity, taxTimeBands, taxRuleOptions);
+
+        log.debug(
+                "Loaded City Tax Rule Set. cityCode={} chargeWindowEnabled={} dailyMaximumEnabled={}",
+                cityCode,
+                taxRuleSet.taxRuleOptions().chargeWindow().isPresent(),
+                taxRuleSet.taxRuleOptions().dailyMaximum().isPresent());
 
         return new CityTaxRuleSet(cityTimeZone, taxRuleSet);
     }
