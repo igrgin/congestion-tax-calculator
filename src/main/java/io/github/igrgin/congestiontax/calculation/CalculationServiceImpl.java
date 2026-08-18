@@ -2,6 +2,7 @@ package io.github.igrgin.congestiontax.calculation;
 
 import io.github.igrgin.congestiontax.calculation.exception.CityNotFoundException;
 import io.github.igrgin.congestiontax.calculation.exception.InvalidStoredTaxRuleOptionException;
+import io.github.igrgin.congestiontax.calculation.exception.InvalidStoredTaxTimeBandsException;
 import io.github.igrgin.congestiontax.calculation.exception.MissingStoredTaxRuleSetException;
 import io.github.igrgin.congestiontax.calculation.exception.UnsupportedPassageYearException;
 import io.github.igrgin.congestiontax.calculation.exception.VehicleTypeNotFoundException;
@@ -13,6 +14,7 @@ import io.github.igrgin.congestiontax.metrics.CalculationMetrics;
 import io.github.igrgin.congestiontax.taxrule.TaxRuleService;
 import io.github.igrgin.congestiontax.taxrule.exception.InvalidTaxRuleOptionException;
 import io.github.igrgin.congestiontax.taxrule.exception.MissingTaxRuleSetException;
+import io.github.igrgin.congestiontax.taxrule.exception.OverlappingTaxTimeBandsException;
 import io.github.igrgin.congestiontax.taxrule.exception.UnknownCityException;
 import io.github.igrgin.congestiontax.taxrule.exception.UnknownVehicleTypeException;
 import java.time.LocalDateTime;
@@ -62,6 +64,8 @@ public class CalculationServiceImpl implements CalculationService {
             throw new InvalidStoredTaxRuleOptionException(exception.optionTypeCode(), exception);
         } catch (MissingTaxRuleSetException exception) {
             throw new MissingStoredTaxRuleSetException(command.cityCode(), exception);
+        } catch (OverlappingTaxTimeBandsException exception) {
+            throw new InvalidStoredTaxTimeBandsException(command.cityCode(), exception);
         }
     }
 
