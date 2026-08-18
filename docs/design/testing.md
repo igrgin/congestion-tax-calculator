@@ -92,7 +92,7 @@ This test stays in the `taxrule.persistence` test package because it uses packag
 `CalculationServiceImplTest` proves:
 
 - coordination of Passages, stored Tax Rules, and the pure calculator;
-- acceptance of City Local Times `2013-01-01T00:00:00` and `2013-12-31T23:59:59` as the supported-year boundaries;
+- acceptance of City Local Times `2013-01-01 00:00:00` and `2013-12-31 23:59:59` as the supported-year boundaries;
 - collection of every unsupported-year Passage index before Tax Rule lookup, calculation logs, and custom metrics;
 - derivation of winter and summer instants with the stored City time zone;
 - translation of unknown City and Vehicle Type failures into calculation-owned exceptions while preserving their causes;
