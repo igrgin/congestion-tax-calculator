@@ -74,13 +74,13 @@ The current implementation returns:
 
 An invalid stored City time zone is invalid server content and returns HTTP `500`.
 
-`CalculationServiceImpl` owns supported-year input failures. It also translates lower lookup failures into calculation-owned exceptions and preserves their causes. `CalculationExceptionHandler` maps supported-year service exceptions and timestamp deserialization failures to their HTTP responses. Spring handles other request-body and Bean Validation failures. The domain and Tax Rule areas do not depend on Spring Web.
+`CalculationServiceImpl` owns supported-year input failures. It also translates lower lookup failures into calculation-owned exceptions and preserves their causes. `CalculationExceptionHandler` maps supported-year service exceptions, timestamp deserialization failures, and malformed JSON to their HTTP responses. Spring handles other request-body and Bean Validation failures. The domain and Tax Rule areas do not depend on Spring Web.
 
 The HTTP exception boundary logs each handled `4xx` response at `WARN` with a stable failure category, safe context, and no stack trace. It logs each handled `5xx` response once at `ERROR` with an internal stack trace. Invalid stored Charge Window or Daily Maximum content uses the `invalid-tax-rule-option` category and includes only the safe option type code. This rule applies to the calculation API exception handler, not to unrelated framework or servlet responses. The response does not contain internal failure data. The first calculation slice returns an empty HTTP `500` response for an unexpected failure. The later API validation issue replaces that body with the final safe Problem Details response.
 
-A timestamp deserialization failure keeps the existing safe HTTP `400` response and uses the `invalid-passage-timestamp` category at `WARN` without a stack trace.
+A timestamp deserialization failure returns one Problem Details error for the first invalid Passage. It uses the `invalid-passage-timestamp` category at `WARN` without a stack trace. Malformed JSON returns a Problem Details response with no field errors. It uses the `invalid-json` category at `WARN` without a stack trace. These responses do not contain parser details.
 
-The supported-year response uses Problem Details JSON with a stable top-level `code` and an `errors` list. Each error has a field, a stable code, and a human-readable message. The response omits `type`. It does not expose exception class names, SQL, credentials, or stack traces.
+These invalid request responses use Problem Details JSON with a stable top-level `code` and an `errors` list. Each field error has a field, a stable code, and a human-readable message. The response omits `type`. It does not expose exception class names, SQL, credentials, or stack traces.
 
 The supported-year error shape is:
 
@@ -111,6 +111,36 @@ The supported-year error shape is:
 ```
 
 This response uses the top-level code `INVALID_REQUEST`. Each field error uses the code `UNSUPPORTED_PASSAGE_YEAR`. Several unsupported Passages produce one error entry for each affected zero-based index, in request order. The supported-year response does not combine unsupported-year errors with other validation failure types. Complete aggregation for other validation types and the remaining Problem Details responses belong to the later API issue.
+
+The invalid Passage timestamp response uses the same top-level invalid calculation request values. It contains only the first invalid Passage because Jackson stops deserialization at that value:
+
+```json
+{
+  "title": "Invalid calculation request",
+  "status": 400,
+  "detail": "The request contains invalid Passages.",
+  "code": "INVALID_REQUEST",
+  "errors": [
+    {
+      "field": "passages[1]",
+      "code": "INVALID_PASSAGE_TIMESTAMP",
+      "message": "A Passage must use the City Local Time format uuuu-MM-dd HH:mm:ss."
+    }
+  ]
+}
+```
+
+Malformed JSON has no reliable field path. Its response is:
+
+```json
+{
+  "title": "Invalid JSON",
+  "status": 400,
+  "detail": "The request body is not valid JSON.",
+  "code": "INVALID_JSON",
+  "errors": []
+}
+```
 
 | Condition | HTTP status |
 |---|---:|

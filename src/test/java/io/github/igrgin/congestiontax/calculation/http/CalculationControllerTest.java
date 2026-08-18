@@ -287,8 +287,36 @@ class CalculationControllerTest {
                 Arguments.of("trailing space", "[\"2013-02-08 06:20:27 \"]"),
                 Arguments.of("number", "[20130208062027]"),
                 Arguments.of("Boolean", "[true]"),
-                Arguments.of("array form", "[[2013, 2, 8, 6, 20, 27]]"),
-                Arguments.of("invalid second Passage", "[\"2013-02-08 06:20:27\", \"invalid\"]"));
+                Arguments.of("array form", "[[2013, 2, 8, 6, 20, 27]]"));
+    }
+
+    @Test
+    void reportsFirstInvalidPassageTimestamp() throws Exception {
+        mockMvc.perform(post("/api/v1/cities/{cityCode}" + "/congestion-tax/calculations", "gothenburg")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "vehicleType": "OTHER",
+                                  "passages": [
+                                    "2013-02-08 06:20:27",
+                                    "invalid",
+                                    "also invalid"
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.title").value("Invalid calculation request"))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.detail").value("The request contains invalid Passages."))
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.errors.length()").value(1))
+                .andExpect(jsonPath("$.errors[0].field").value("passages[1]"))
+                .andExpect(jsonPath("$.errors[0].code").value("INVALID_PASSAGE_TIMESTAMP"))
+                .andExpect(jsonPath("$.errors[0].message")
+                        .value("A Passage must use the City Local Time format uuuu-MM-dd HH:mm:ss."));
+
+        verifyNoInteractions(calculationService);
     }
 
     @Test
@@ -312,7 +340,15 @@ class CalculationControllerTest {
         mockMvc.perform(post("/api/v1/cities/{cityCode}" + "/congestion-tax/calculations", "gothenburg")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.title").value("Invalid JSON"))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.detail").value("The request body is not valid JSON."))
+                .andExpect(jsonPath("$.code").value("INVALID_JSON"))
+                .andExpect(jsonPath("$.errors").isEmpty());
+
+        verifyNoInteractions(calculationService);
     }
 
     @Test

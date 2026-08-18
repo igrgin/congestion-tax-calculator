@@ -4,7 +4,7 @@ import io.github.igrgin.congestiontax.calculation.exception.CityNotFoundExceptio
 import io.github.igrgin.congestiontax.calculation.exception.InvalidStoredTaxRuleOptionException;
 import io.github.igrgin.congestiontax.calculation.exception.UnsupportedPassageYearException;
 import io.github.igrgin.congestiontax.calculation.exception.VehicleTypeNotFoundException;
-import io.github.igrgin.congestiontax.calculation.http.dto.UnsupportedPassageYearResponse;
+import io.github.igrgin.congestiontax.calculation.http.dto.InvalidRequestResponse;
 import java.time.LocalDateTime;
 import java.util.OptionalInt;
 import lombok.extern.slf4j.Slf4j;
@@ -42,7 +42,7 @@ public class CalculationExceptionHandler {
     }
 
     @ExceptionHandler(UnsupportedPassageYearException.class)
-    public ResponseEntity<UnsupportedPassageYearResponse> handleUnsupportedPassageYear(
+    public ResponseEntity<InvalidRequestResponse> handleUnsupportedPassageYear(
             UnsupportedPassageYearException exception) {
         log.warn(
                 "Rejected Congestion Tax Calculation request. reason={} passageIndexes={}",
@@ -51,7 +51,7 @@ public class CalculationExceptionHandler {
 
         return ResponseEntity.badRequest()
                 .contentType(MediaType.APPLICATION_PROBLEM_JSON)
-                .body(UnsupportedPassageYearResponse.from(exception.passageIndexes()));
+                .body(InvalidRequestResponse.forUnsupportedPassageYears(exception.passageIndexes()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -61,18 +61,22 @@ public class CalculationExceptionHandler {
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public void handleInvalidJson(HttpMessageNotReadableException exception) {
+    public ResponseEntity<InvalidRequestResponse> handleUnreadableRequest(HttpMessageNotReadableException exception) {
         var invalidPassageIndex = invalidPassageIndex(exception);
         if (invalidPassageIndex.isPresent()) {
             log.warn(
                     "Rejected Congestion Tax Calculation request. reason={} passageIndex={}",
                     "invalid-passage-timestamp",
                     invalidPassageIndex.getAsInt());
-            return;
+            return ResponseEntity.badRequest()
+                    .contentType(MediaType.APPLICATION_PROBLEM_JSON)
+                    .body(InvalidRequestResponse.forInvalidPassageTimestamp(invalidPassageIndex.getAsInt()));
         }
 
         log.warn("Rejected Congestion Tax Calculation request. reason={}", "invalid-json");
+        return ResponseEntity.badRequest()
+                .contentType(MediaType.APPLICATION_PROBLEM_JSON)
+                .body(InvalidRequestResponse.forInvalidJson());
     }
 
     @ExceptionHandler(InvalidStoredTaxRuleOptionException.class)

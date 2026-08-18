@@ -65,6 +65,8 @@ Supported-year rejection uses the `unsupported-passage-year` category at `WARN` 
 
 Timestamp deserialization failure uses the `invalid-passage-timestamp` category at `WARN` without a stack trace. The HTTP exception handler owns this event.
 
+Malformed JSON uses the `invalid-json` category at `WARN` without a stack trace. The HTTP exception handler owns this event.
+
 Issue 5 will use `missing-applicable-tax-rule-set` and `mixed-tax-rule-set-currencies` at `ERROR` with their causes. These events will contain no Passage timestamp or Tax Amount.
 
 ## Metrics
