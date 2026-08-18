@@ -80,7 +80,7 @@ The assignment does not answer the questions below. Because answers were not ava
 
 ### Is the 2013 scope only a documented limit, or must the API enforce it?
 
-**Assumption used:** The API reads each Passage timestamp as City Local Time and enforces the limit before it calls the Calculation Service. If one or more Passages are outside 2013, it rejects the complete request and reports all affected Passage indexes.
+**Assumption used:** The API reads each Passage timestamp as City Local Time. At the start of the Calculation Service operation, the service enforces the limit before it accesses the Tax Rule Service, writes calculation log entries, or records custom metrics. If one or more Passages are outside 2013, the service rejects the complete request and reports all affected Passage indexes.
 
 **Result:** The API does not return a partial calculation that could be mistaken for the complete tax. The limit applies to Passage dates. Stored supporting dates can be outside 2013, including the public holiday on 1 January 2014 that supports the 31 December 2013 preceding-date Tax Exemption.
 
