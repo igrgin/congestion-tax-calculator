@@ -219,7 +219,7 @@ The root agent controls integration and pushes to the issue branch. This prevent
 
 ## Checkpoint flow
 
-The draft pull request is the review location. Each checkpoint gets a brief summary and a pushed commit. Do not show complete files in chat unless the user asks.
+The draft pull request is the review location. Each checkpoint gets a brief summary and a pushed commit. Each checkpoint is an approval gate. Do not show complete files in chat unless the user asks.
 
 ### Red
 
@@ -229,8 +229,9 @@ The draft pull request is the review location. Each checkpoint gets a brief summ
 4. Commit the red checkpoint with issue number `#5`.
 5. Push the checkpoint to the draft pull request.
 6. Give the user a brief summary and commit identifier.
+7. Stop for user approval.
 
-Continue to green without a user approval stop.
+Do not start green work before the user approves the red checkpoint.
 
 ### Green
 
@@ -241,8 +242,9 @@ Continue to green without a user approval stop.
 5. Commit the green checkpoint with issue number `#5`.
 6. Push the checkpoint to the draft pull request.
 7. Give the user a brief summary and commit identifier.
+8. Stop for user approval.
 
-Continue to code review without a user approval stop.
+Do not start code review before the user approves the green checkpoint.
 
 ### Code review
 
