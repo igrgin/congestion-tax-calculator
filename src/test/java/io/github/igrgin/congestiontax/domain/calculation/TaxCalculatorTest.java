@@ -94,8 +94,10 @@ class TaxCalculatorTest {
                         totalAmount));
     }
 
-    @Test
-    void keepsChargeWindowsInsideEachCityLocalTimeDate() {
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("crossDateDailyMaximumScenarios")
+    void assignsCrossDateChargeWindowToWinnerDateBeforeOptionalDailyMaximum(
+            String scenario, TaxRuleOptions taxRuleOptions, String expectedAmount) {
         var laterDate = DATE.plusDays(1);
         var laterTaxAmount = new TaxAmount(new BigDecimal("13.00"), SEK);
         var taxRuleSet = new TaxRuleSet(
@@ -104,23 +106,53 @@ class TaxCalculatorTest {
                 SEK,
                 List.of(
                         new TaxTimeBand(LocalTime.of(0, 0), LocalTime.of(1, 0), laterTaxAmount),
+                        new TaxTimeBand(LocalTime.of(2, 0), LocalTime.of(3, 0), laterTaxAmount),
                         new TaxTimeBand(LocalTime.of(23, 0), LocalTime.MAX, TAX_AMOUNT)),
-                new TaxRuleOptions(List.of(new ChargeWindow(Duration.ofMinutes(60)))));
-        var earlierPassage = new Passage(
-                Instant.parse("2013-02-08T22:59:50Z"), LocalDateTime.of(2013, Month.FEBRUARY, 8, 23, 59, 50));
-        var laterPassage =
-                new Passage(Instant.parse("2013-02-08T23:00:10Z"), LocalDateTime.of(2013, Month.FEBRUARY, 9, 0, 0, 10));
+                taxRuleOptions);
+        var earlierPassage =
+                new Passage(Instant.parse("2013-02-08T22:50:00Z"), LocalDateTime.of(2013, Month.FEBRUARY, 8, 23, 50));
+        var winningPassage =
+                new Passage(Instant.parse("2013-02-08T23:10:00Z"), LocalDateTime.of(2013, Month.FEBRUARY, 9, 0, 10));
+        var secondWindowPassage =
+                new Passage(Instant.parse("2013-02-09T01:00:00Z"), LocalDateTime.of(2013, Month.FEBRUARY, 9, 2, 0));
 
         var result = calculator.calculate(
-                VEHICLE_TYPE, List.of(earlierPassage, laterPassage), Map.of(DATE, taxRuleSet, laterDate, taxRuleSet));
-
-        var totalAmount = new TaxAmount(new BigDecimal("21.00"), SEK);
+                VEHICLE_TYPE,
+                List.of(secondWindowPassage, winningPassage, earlierPassage),
+                Map.of(DATE, taxRuleSet, laterDate, taxRuleSet));
+        var expectedDailyAmount = new TaxAmount(new BigDecimal(expectedAmount), SEK);
 
         assertThat(result)
                 .isEqualTo(new CalculationResult(
                         VEHICLE_TYPE,
-                        List.of(new DailyTax(DATE, TAX_AMOUNT), new DailyTax(laterDate, laterTaxAmount)),
-                        totalAmount));
+                        List.of(new DailyTax(DATE, TaxAmount.zero(SEK)), new DailyTax(laterDate, expectedDailyAmount)),
+                        expectedDailyAmount));
+    }
+
+    @Test
+    void assignsEqualHighestCrossDateChargeToEarliestPassageDate() {
+        var laterDate = DATE.plusDays(1);
+        var taxRuleSet = new TaxRuleSet(
+                "gothenburg",
+                LocalDate.of(2013, Month.JANUARY, 1),
+                SEK,
+                List.of(
+                        new TaxTimeBand(LocalTime.of(0, 0), LocalTime.of(1, 0), TAX_AMOUNT),
+                        new TaxTimeBand(LocalTime.of(23, 0), LocalTime.MAX, TAX_AMOUNT)),
+                new TaxRuleOptions(List.of(new ChargeWindow(Duration.ofMinutes(60)))));
+        var earliestPassage =
+                new Passage(Instant.parse("2013-02-08T22:50:00Z"), LocalDateTime.of(2013, Month.FEBRUARY, 8, 23, 50));
+        var laterPassage =
+                new Passage(Instant.parse("2013-02-08T23:10:00Z"), LocalDateTime.of(2013, Month.FEBRUARY, 9, 0, 10));
+
+        var result = calculator.calculate(
+                VEHICLE_TYPE, List.of(laterPassage, earliestPassage), Map.of(DATE, taxRuleSet, laterDate, taxRuleSet));
+
+        assertThat(result)
+                .isEqualTo(new CalculationResult(
+                        VEHICLE_TYPE,
+                        List.of(new DailyTax(DATE, TAX_AMOUNT), new DailyTax(laterDate, TaxAmount.zero(SEK))),
+                        TAX_AMOUNT));
     }
 
     @Test
@@ -262,6 +294,18 @@ class TaxCalculatorTest {
                                 passage("2013-02-08T05:10:00Z", 6, 10),
                                 passage("2013-02-08T05:20:00Z", 6, 20),
                                 passage("2013-02-08T06:20:00Z", 7, 20)),
+                        "15.00"));
+    }
+
+    private static Stream<Arguments> crossDateDailyMaximumScenarios() {
+        var chargeWindow = new ChargeWindow(Duration.ofMinutes(60));
+
+        return Stream.of(
+                Arguments.of("Daily Maximum absent", new TaxRuleOptions(List.of(chargeWindow)), "26.00"),
+                Arguments.of(
+                        "Daily Maximum applied after charge assignment",
+                        new TaxRuleOptions(
+                                List.of(chargeWindow, new DailyMaximum(new TaxAmount(new BigDecimal("15.00"), SEK)))),
                         "15.00"));
     }
 
