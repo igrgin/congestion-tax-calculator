@@ -1,13 +1,11 @@
 package io.github.igrgin.congestiontax.domain.rule;
 
-import java.time.LocalDate;
 import java.util.Currency;
 import java.util.List;
 import lombok.NonNull;
 
 public record TaxRuleSet(
         @NonNull String cityCode,
-        @NonNull LocalDate effectiveFrom,
         @NonNull Currency currency,
         @NonNull List<TaxTimeBand> taxTimeBands,
         @NonNull TaxRuleOptions taxRuleOptions) {
@@ -18,7 +16,7 @@ public record TaxRuleSet(
         }
     }
 
-    public TaxRuleSet(String cityCode, LocalDate effectiveFrom, Currency currency, List<TaxTimeBand> taxTimeBands) {
-        this(cityCode, effectiveFrom, currency, taxTimeBands, TaxRuleOptions.empty());
+    public TaxRuleSet(String cityCode, Currency currency, List<TaxTimeBand> taxTimeBands) {
+        this(cityCode, currency, taxTimeBands, TaxRuleOptions.empty());
     }
 }

@@ -5,9 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.boot.test.context.SpringBootTest.WebEnvironment.NONE;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalTime;
-import java.time.Month;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtensionContext;
@@ -55,7 +53,7 @@ class TaxRuleSchemaITest {
         long cityId = insertCity("schema-city");
         insertVehicleType("SCHEMA_VEHICLE");
 
-        long ruleSetId = insertTaxRuleSet(cityId, LocalDate.of(2020, Month.JANUARY, 1));
+        long ruleSetId = insertTaxRuleSet(cityId);
 
         insertTaxTimeBand(ruleSetId, LocalTime.of(6, 0), LocalTime.of(6, 30), new BigDecimal("8.00"));
 
@@ -80,20 +78,16 @@ class TaxRuleSchemaITest {
 
     @Test
     void rejectsTaxRuleSetForUnknownCity() {
-        LocalDate effectiveFrom = LocalDate.of(2020, Month.JANUARY, 1);
-
-        assertThatThrownBy(() -> insertTaxRuleSet(Long.MAX_VALUE, effectiveFrom))
-                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> insertTaxRuleSet(Long.MAX_VALUE)).isInstanceOf(DataIntegrityViolationException.class);
     }
 
     @Test
     void rejectsSecondTaxRuleSetForSameCity() {
         long cityId = insertCity("duplicate-city-rule-set");
 
-        insertTaxRuleSet(cityId, LocalDate.of(2020, Month.JANUARY, 1));
+        insertTaxRuleSet(cityId);
 
-        assertThatThrownBy(() -> insertTaxRuleSet(cityId, LocalDate.of(2021, Month.JANUARY, 1)))
-                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> insertTaxRuleSet(cityId)).isInstanceOf(DataIntegrityViolationException.class);
     }
 
     @Test
@@ -109,7 +103,7 @@ class TaxRuleSchemaITest {
     @Test
     void rejectsNegativeTaxTimeBandAmount() {
         long cityId = insertCity("negative-band-amount");
-        long ruleSetId = insertTaxRuleSet(cityId, LocalDate.of(2020, Month.JANUARY, 1));
+        long ruleSetId = insertTaxRuleSet(cityId);
         LocalTime startTime = LocalTime.of(6, 0);
         LocalTime endTime = LocalTime.of(6, 30);
 
@@ -120,7 +114,7 @@ class TaxRuleSchemaITest {
     @Test
     void acceptsZeroTaxTimeBandAmount() {
         long cityId = insertCity("zero-band-amount");
-        long ruleSetId = insertTaxRuleSet(cityId, LocalDate.of(2020, Month.JANUARY, 1));
+        long ruleSetId = insertTaxRuleSet(cityId);
 
         insertTaxTimeBand(ruleSetId, LocalTime.of(6, 0), LocalTime.of(6, 30), BigDecimal.ZERO);
 
@@ -133,7 +127,7 @@ class TaxRuleSchemaITest {
     @Test
     void rejectsTaxTimeBandWithEqualBoundaries() {
         long cityId = insertCity("equal-band-boundaries");
-        long ruleSetId = insertTaxRuleSet(cityId, LocalDate.of(2020, Month.JANUARY, 1));
+        long ruleSetId = insertTaxRuleSet(cityId);
         LocalTime boundary = LocalTime.of(6, 0);
 
         assertThatThrownBy(() -> insertTaxTimeBand(ruleSetId, boundary, boundary, new BigDecimal("8.00")))
@@ -143,7 +137,7 @@ class TaxRuleSchemaITest {
     @Test
     void acceptsCrossMidnightTaxTimeBand() {
         long cityId = insertCity("cross-midnight-band");
-        long ruleSetId = insertTaxRuleSet(cityId, LocalDate.of(2020, Month.JANUARY, 1));
+        long ruleSetId = insertTaxRuleSet(cityId);
 
         insertTaxTimeBand(ruleSetId, LocalTime.of(18, 30), LocalTime.of(6, 0), new BigDecimal("8.00"));
 
@@ -156,7 +150,7 @@ class TaxRuleSchemaITest {
     @Test
     void rejectsDuplicateTaxTimeBandForOneTaxRuleSet() {
         long cityId = insertCity("duplicate-time-band");
-        long ruleSetId = insertTaxRuleSet(cityId, LocalDate.of(2020, Month.JANUARY, 1));
+        long ruleSetId = insertTaxRuleSet(cityId);
         LocalTime startTime = LocalTime.of(6, 0);
         LocalTime endTime = LocalTime.of(6, 30);
         BigDecimal duplicateAmount = new BigDecimal("13.00");
@@ -178,7 +172,7 @@ class TaxRuleSchemaITest {
     @Test
     void rejectsDuplicateTaxRuleOptionTypeForOneTaxRuleSet() {
         long cityId = insertCity("duplicate-option");
-        long ruleSetId = insertTaxRuleSet(cityId, LocalDate.of(2020, Month.JANUARY, 1));
+        long ruleSetId = insertTaxRuleSet(cityId);
         BigDecimal duplicateAmount = new BigDecimal("70.00");
 
         insertTaxRuleOption(ruleSetId, "DAILY_MAXIMUM", new BigDecimal("60.00"), null, null);
@@ -192,7 +186,7 @@ class TaxRuleSchemaITest {
     void rejectsInvalidTaxRuleOptionValue(
             String scenario, String typeCode, BigDecimal amount, Integer durationMinutes, Short precedingDays) {
         long cityId = insertCity("invalid-option-" + scenario);
-        long ruleSetId = insertTaxRuleSet(cityId, LocalDate.of(2020, Month.JANUARY, 1));
+        long ruleSetId = insertTaxRuleSet(cityId);
 
         assertThatThrownBy(() -> insertTaxRuleOption(ruleSetId, typeCode, amount, durationMinutes, precedingDays))
                 .isInstanceOf(DataIntegrityViolationException.class);
@@ -225,12 +219,12 @@ class TaxRuleSchemaITest {
                 """, code, "Schema test Vehicle Type");
     }
 
-    private long insertTaxRuleSet(long cityId, LocalDate effectiveFrom) {
+    private long insertTaxRuleSet(long cityId) {
         return jdbcTemplate.queryForObject("""
-                INSERT INTO tax_rule_set (city_id, effective_from, currency_code)
-                VALUES (?, ?, ?)
+                INSERT INTO tax_rule_set (city_id, currency_code)
+                VALUES (?, ?)
                 RETURNING id
-                """, Long.class, cityId, effectiveFrom, "EUR");
+                """, Long.class, cityId, "EUR");
     }
 
     private void insertTaxTimeBand(long ruleSetId, LocalTime startTime, LocalTime endTime, BigDecimal amount) {

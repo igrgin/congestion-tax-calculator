@@ -7,6 +7,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 import io.github.igrgin.congestiontax.calculation.exception.CityNotFoundException;
 import io.github.igrgin.congestiontax.calculation.exception.InvalidStoredTaxRuleOptionException;
+import io.github.igrgin.congestiontax.calculation.exception.MissingStoredTaxRuleSetException;
 import io.github.igrgin.congestiontax.calculation.exception.UnsupportedPassageYearException;
 import io.github.igrgin.congestiontax.calculation.exception.VehicleTypeNotFoundException;
 import io.github.igrgin.congestiontax.calculation.model.CalculatedTax;
@@ -22,22 +23,19 @@ import io.github.igrgin.congestiontax.domain.rule.TaxTimeBand;
 import io.github.igrgin.congestiontax.metrics.CalculationMetrics;
 import io.github.igrgin.congestiontax.taxrule.TaxRuleService;
 import io.github.igrgin.congestiontax.taxrule.exception.InvalidTaxRuleOptionException;
-import io.github.igrgin.congestiontax.taxrule.exception.MissingApplicableTaxRuleSetException;
+import io.github.igrgin.congestiontax.taxrule.exception.MissingTaxRuleSetException;
 import io.github.igrgin.congestiontax.taxrule.exception.UnknownCityException;
 import io.github.igrgin.congestiontax.taxrule.exception.UnknownVehicleTypeException;
-import io.github.igrgin.congestiontax.taxrule.model.ApplicableTaxRuleSets;
+import io.github.igrgin.congestiontax.taxrule.model.CityTaxRuleSet;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.Month;
 import java.time.ZoneId;
 import java.util.Currency;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -76,22 +74,16 @@ class CalculationServiceImplTest {
         var taxAmount = new TaxAmount(new BigDecimal("8.00"), currency);
         var passage = new Passage(passageInstant, cityDateTime);
         var passages = List.of(passage);
-        var calculationDates = Set.of(calculationDate);
         var vehicleType = new VehicleType(vehicleTypeCode, "Other vehicle");
         var taxRuleSet = new TaxRuleSet(
-                cityCode,
-                LocalDate.of(2013, Month.JANUARY, 1),
-                currency,
-                List.of(new TaxTimeBand(LocalTime.of(6, 0), LocalTime.of(6, 30), taxAmount)));
-        var applicableTaxRuleSets = Map.of(calculationDate, taxRuleSet);
+                cityCode, currency, List.of(new TaxTimeBand(LocalTime.of(6, 0), LocalTime.of(6, 30), taxAmount)));
         var calculationResult =
                 new CalculationResult(vehicleType, List.of(new DailyTax(calculationDate, taxAmount)), taxAmount);
 
-        given(taxRuleService.getApplicableTaxRuleSets(cityCode, calculationDates))
-                .willReturn(new ApplicableTaxRuleSets(ZoneId.of("Europe/Stockholm"), applicableTaxRuleSets));
+        given(taxRuleService.getCityTaxRuleSet(cityCode))
+                .willReturn(new CityTaxRuleSet(ZoneId.of("Europe/Stockholm"), taxRuleSet));
         given(taxRuleService.getVehicleType(vehicleTypeCode)).willReturn(vehicleType);
-        given(taxCalculator.calculate(vehicleType, passages, applicableTaxRuleSets))
-                .willReturn(calculationResult);
+        given(taxCalculator.calculate(vehicleType, passages, taxRuleSet)).willReturn(calculationResult);
 
         var result =
                 calculationService.calculate(new CalculationCommand(cityCode, vehicleTypeCode, List.of(cityDateTime)));
@@ -104,11 +96,9 @@ class CalculationServiceImplTest {
         var cityCode = "unknown";
         var cityDateTime = LocalDateTime.of(2013, Month.FEBRUARY, 8, 6, 20, 27);
         var command = new CalculationCommand(cityCode, "OTHER", List.of(cityDateTime));
-        var calculationDates = Set.of(cityDateTime.toLocalDate());
         var cause = new UnknownCityException(cityCode);
 
-        given(taxRuleService.getApplicableTaxRuleSets(cityCode, calculationDates))
-                .willThrow(cause);
+        given(taxRuleService.getCityTaxRuleSet(cityCode)).willThrow(cause);
 
         assertThatThrownBy(() -> calculationService.calculate(command))
                 .isInstanceOf(CityNotFoundException.class)
@@ -122,12 +112,16 @@ class CalculationServiceImplTest {
         var vehicleTypeCode = "UNKNOWN";
         var cityDateTime = LocalDateTime.of(2013, Month.FEBRUARY, 8, 6, 20, 27);
         var command = new CalculationCommand(cityCode, vehicleTypeCode, List.of(cityDateTime));
-        var calculationDate = LocalDate.of(2013, Month.FEBRUARY, 8);
-        var applicableTaxRuleSets = Map.<LocalDate, TaxRuleSet>of();
+        var currency = Currency.getInstance("SEK");
+        var taxRuleSet = new TaxRuleSet(
+                cityCode,
+                currency,
+                List.of(new TaxTimeBand(
+                        LocalTime.of(6, 0), LocalTime.of(6, 30), new TaxAmount(new BigDecimal("8.00"), currency))));
         var cause = new UnknownVehicleTypeException(vehicleTypeCode);
 
-        given(taxRuleService.getApplicableTaxRuleSets(cityCode, Set.of(calculationDate)))
-                .willReturn(new ApplicableTaxRuleSets(ZoneId.of("Europe/Stockholm"), applicableTaxRuleSets));
+        given(taxRuleService.getCityTaxRuleSet(cityCode))
+                .willReturn(new CityTaxRuleSet(ZoneId.of("Europe/Stockholm"), taxRuleSet));
         given(taxRuleService.getVehicleType(vehicleTypeCode)).willThrow(cause);
 
         assertThatThrownBy(() -> calculationService.calculate(command))
@@ -141,11 +135,9 @@ class CalculationServiceImplTest {
         var cityCode = "gothenburg";
         var cityDateTime = LocalDateTime.of(2013, Month.FEBRUARY, 8, 6, 20, 27);
         var command = new CalculationCommand(cityCode, "OTHER", List.of(cityDateTime));
-        var calculationDates = Set.of(cityDateTime.toLocalDate());
         var exception = new IllegalStateException("Unexpected failure.");
 
-        given(taxRuleService.getApplicableTaxRuleSets(cityCode, calculationDates))
-                .willThrow(exception);
+        given(taxRuleService.getCityTaxRuleSet(cityCode)).willThrow(exception);
 
         assertThatThrownBy(() -> calculationService.calculate(command)).isSameAs(exception);
     }
@@ -155,11 +147,9 @@ class CalculationServiceImplTest {
         var cityCode = "gothenburg";
         var cityDateTime = LocalDateTime.of(2013, Month.FEBRUARY, 8, 6, 20, 27);
         var command = new CalculationCommand(cityCode, "OTHER", List.of(cityDateTime));
-        var calculationDates = Set.of(cityDateTime.toLocalDate());
         var cause = new InvalidTaxRuleOptionException("CHARGE_WINDOW");
 
-        given(taxRuleService.getApplicableTaxRuleSets(cityCode, calculationDates))
-                .willThrow(cause);
+        given(taxRuleService.getCityTaxRuleSet(cityCode)).willThrow(cause);
 
         assertThatThrownBy(() -> calculationService.calculate(command))
                 .isInstanceOfSatisfying(InvalidStoredTaxRuleOptionException.class, exception -> {
@@ -173,18 +163,15 @@ class CalculationServiceImplTest {
         var cityCode = "gothenburg";
         var cityDateTime = LocalDateTime.of(2013, Month.FEBRUARY, 8, 6, 20, 27);
         var command = new CalculationCommand(cityCode, "OTHER", List.of(cityDateTime));
-        var calculationDate = cityDateTime.toLocalDate();
-        var cause = new MissingApplicableTaxRuleSetException(cityCode, calculationDate);
+        var cause = new MissingTaxRuleSetException(cityCode);
 
-        given(taxRuleService.getApplicableTaxRuleSets(cityCode, Set.of(calculationDate)))
-                .willThrow(cause);
+        given(taxRuleService.getCityTaxRuleSet(cityCode)).willThrow(cause);
 
         assertThatThrownBy(() -> calculationService.calculate(command))
-                .isInstanceOf(IllegalStateException.class)
-                .isNotSameAs(cause)
-                .hasCause(cause)
-                .satisfies(exception -> assertThat(exception.getClass().getPackageName())
-                        .isEqualTo("io.github.igrgin.congestiontax.calculation.exception"));
+                .isInstanceOfSatisfying(MissingStoredTaxRuleSetException.class, exception -> {
+                    assertThat(exception.cityCode()).isEqualTo(cityCode);
+                    assertThat(exception).hasCause(cause);
+                });
     }
 
     @Test

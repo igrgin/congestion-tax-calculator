@@ -8,7 +8,6 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import java.time.LocalDate;
 import java.util.Currency;
 import java.util.List;
 import lombok.AccessLevel;
@@ -30,18 +29,13 @@ public class TaxRuleSetEntity {
     @Column(name = "city_id", nullable = false)
     private Long cityId;
 
-    @Getter
-    @Column(name = "effective_from", nullable = false)
-    private LocalDate effectiveFrom;
-
     @JdbcTypeCode(SqlTypes.CHAR)
     @Getter
     @Column(name = "currency_code", nullable = false, length = 3)
     private String currencyCode;
 
-    TaxRuleSetEntity(Long cityId, LocalDate effectiveFrom, String currencyCode) {
+    TaxRuleSetEntity(Long cityId, String currencyCode) {
         this.cityId = cityId;
-        this.effectiveFrom = effectiveFrom;
         this.currencyCode = currencyCode;
     }
 
@@ -53,6 +47,6 @@ public class TaxRuleSetEntity {
                 .map(entity -> entity.toTaxTimeBand(currency))
                 .toList();
 
-        return new TaxRuleSet(cityCode, effectiveFrom, currency, taxTimeBands, taxRuleOptions);
+        return new TaxRuleSet(cityCode, currency, taxTimeBands, taxRuleOptions);
     }
 }

@@ -2,6 +2,7 @@ package io.github.igrgin.congestiontax.calculation.http;
 
 import io.github.igrgin.congestiontax.calculation.exception.CityNotFoundException;
 import io.github.igrgin.congestiontax.calculation.exception.InvalidStoredTaxRuleOptionException;
+import io.github.igrgin.congestiontax.calculation.exception.MissingStoredTaxRuleSetException;
 import io.github.igrgin.congestiontax.calculation.exception.UnsupportedPassageYearException;
 import io.github.igrgin.congestiontax.calculation.exception.VehicleTypeNotFoundException;
 import io.github.igrgin.congestiontax.calculation.http.dto.InvalidRequestResponse;
@@ -92,6 +93,16 @@ public class CalculationExceptionHandler {
                 "Congestion Tax Calculation failed. reason={} optionTypeCode={}",
                 "invalid-tax-rule-option",
                 exception.optionTypeCode(),
+                exception);
+    }
+
+    @ExceptionHandler(MissingStoredTaxRuleSetException.class)
+    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+    public void handleMissingTaxRuleSet(MissingStoredTaxRuleSetException exception) {
+        log.error(
+                "Congestion Tax Calculation failed. reason={} cityCode={}",
+                "missing-tax-rule-set",
+                exception.cityCode(),
                 exception);
     }
 

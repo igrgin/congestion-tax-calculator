@@ -11,16 +11,20 @@ public record TaxTimeBand(
         @NonNull TaxAmount amount) {
 
     public TaxTimeBand {
-        if (!endTime.isAfter(startTime)) {
+        if (endTime.equals(startTime)) {
             throw new InvalidTaxTimeBandException(startTime, endTime);
         }
 
-        if (amount.amount().signum() <= 0) {
+        if (amount.amount().signum() < 0) {
             throw new InvalidTaxTimeBandException();
         }
     }
 
     public boolean includes(LocalTime localTime) {
-        return !localTime.isBefore(startTime) && localTime.isBefore(endTime);
+        if (endTime.isAfter(startTime)) {
+            return !localTime.isBefore(startTime) && localTime.isBefore(endTime);
+        }
+
+        return !localTime.isBefore(startTime) || localTime.isBefore(endTime);
     }
 }
