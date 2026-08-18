@@ -4,7 +4,7 @@
 
 Regular tests use the `Test` suffix. They cover the pure calculator, rule values, service coordination, repository mapping with mocks, and the HTTP adapter.
 
-Integration tests use the `ITest` suffix and PostgreSQL through Testcontainers. They verify the Flyway schema, stored Gothenburg rules, complete HTTP path, health endpoint, metrics, OpenAPI output, and Swagger UI. A test-only London rule set proves that stored content can change calculation behavior without a Java change.
+Integration tests use the `ITest` suffix and PostgreSQL through Testcontainers. They verify the Flyway schema, stored rules, complete HTTP path, health endpoint, metrics, OpenAPI output, and Swagger UI. London is used only in tests to show that the application supports rules for multiple cities.
 
 Run regular tests:
 

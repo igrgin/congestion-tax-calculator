@@ -13,7 +13,7 @@ flowchart LR
     calculator[Pure tax calculator]
     repositories[Spring Data repositories]
     database[(PostgreSQL)]
-    metrics[Micrometer]
+    metrics[Prometheus]
 
     caller -->|JSON request| controller
     controller --> service
@@ -53,6 +53,4 @@ Dependencies point toward the domain. Transport and persistence types do not ent
 
 ## City support
 
-The city code selects a stored tax rule set and time zone. The calculation code has no Gothenburg constants. Different time bands, currencies, exemptions, charge windows, and daily maximums can be loaded without a Java change.
-
-The normal runtime database contains Gothenburg. The integration-test database also contains a London fixture with different rules. The fixture proves the boundary but is not runtime data.
+The city code selects a stored tax rule set and time zone. The calculation code has no city-specific rule constants. Different time bands, currencies, exemptions, charge windows, and daily maximums can be loaded without a Java change.

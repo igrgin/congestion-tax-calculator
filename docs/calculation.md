@@ -23,7 +23,7 @@ flowchart TD
     dates --> maximum --> result
 ```
 
-The selected city supplies an IANA time zone. The application uses it to convert each local passage time to an instant, then sorts the passages before it calculates the tax. Input order does not change the result.
+The selected city supplies an [IANA time zone](https://en.wikipedia.org/wiki/Tz_database). Java uses these identifiers and rules through `ZoneId`. The application converts each local passage time to an instant, then sorts the passages before it calculates the tax. Input order does not change the result.
 
 ## Gothenburg rules
 
@@ -42,11 +42,11 @@ The overnight tax time band starts at `18:30:00`, ends at `06:00:00`, and has a 
 
 The calculator checks tax exemptions before it selects a tax time band. A passage is tax-free when its date or vehicle type matches a stored exemption. The response lists the reasons that apply to each date.
 
-A city can store weekday, month, public-holiday, and vehicle-type exemptions. A tax rule option can also make a configured number of dates before each public holiday tax-free. Gothenburg uses one preceding date.
+A city can store weekday, month, public-holiday, and vehicle-type exemptions. A tax rule option can also make a configured number of dates before each public holiday tax-free. The stored rule set uses one preceding date.
 
 ## Charge windows
 
-A charge window groups passages for the single charge rule. The first passage starts the window. A passage exactly 60 minutes later is in the same Gothenburg window, and later passages do not extend it. The highest amount in the window is charged.
+A charge window groups passages for the single charge rule. The first passage starts the window. A passage exactly 60 minutes later is in the same window, and later passages do not extend it. The highest amount in the window is charged.
 
 A window can cross midnight. An exempt passage or a passage with a zero amount still belongs to its window. If two passages have the same highest amount, the earlier passage wins. The calculator assigns the window amount to the local date of the winning passage.
 
@@ -58,6 +58,6 @@ The calculator adds the selected passage amounts for each local date, then appli
 
 ## Input and failure behavior
 
-Passage times must use the exact `uuuu-MM-dd HH:mm:ss` format and have a date in 2013. The request does not contain a time zone. The application does not add special validation for missing or repeated local times during a daylight-saving-time change. Java resolves them with its standard time-zone rules.
+Passage times must use the exact `uuuu-MM-dd HH:mm:ss` format and have a date in 2013. The request does not contain a time zone. During a daylight-saving-time change, Java applies the stored time-zone rules without application-specific validation.
 
 A non-exempt passage must match a tax time band. If it does not, the complete calculation fails. Missing or invalid stored rules also fail the complete calculation. The API returns one error response and never returns a partial result.

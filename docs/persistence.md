@@ -6,7 +6,7 @@ PostgreSQL stores the city and tax-rule content used at runtime. The application
 
 ```mermaid
 erDiagram
-    CITY ||--|| TAX_RULE_SET : owns
+    CITY ||--o| TAX_RULE_SET : owns
     TAX_RULE_SET ||--o{ TAX_TIME_BAND : contains
     TAX_RULE_SET ||--o{ TAX_RULE_OPTION : selects
     TAX_RULE_OPTION_TYPE ||--o{ TAX_RULE_OPTION : defines
@@ -46,7 +46,8 @@ erDiagram
         string type_code FK
         decimal amount
         int duration_minutes
-        int preceding_days
+        smallint preceding_days
+        string description
     }
     TAX_EXEMPTION_TYPE {
         string code PK
@@ -56,10 +57,11 @@ erDiagram
         bigint id PK
         bigint rule_set_id FK
         string type_code FK
-        int day_of_week
-        int month_number
+        smallint day_of_week
+        smallint month_number
         date holiday_date
         string vehicle_type_code FK
+        string description
     }
 ```
 
@@ -73,7 +75,7 @@ erDiagram
 | `tax_exemption` | Stores weekday, month, public-holiday, and vehicle-type exemptions. |
 | Type tables | Limit option and exemption rows to behavior supported by the Java application. |
 
-Each city has one tax rule set. The model does not keep effective dates or historical rule versions.
+A city can have at most one tax rule set. The database permits a rule set with no tax time bands, but the application rejects it as incomplete when it loads it. The model does not keep effective dates or historical rule versions.
 
 ## Flyway and PostgreSQL
 
@@ -81,7 +83,7 @@ Flyway creates the schema and loads the initial content. Hibernate uses `ddl-aut
 
 PostgreSQL constraints protect required values, unique codes, foreign keys, valid option shapes, and valid exemption shapes. A PostgreSQL exclusion constraint prevents overlapping tax time bands for one rule set. It also supports bands that cross midnight and a single full-day band.
 
-The migrations contain the complete Gothenburg data. This includes ten time bands, the `Europe/Stockholm` time zone, SEK, the 60-minute charge window, the `60.00 SEK` daily maximum, calendar exemptions, and vehicle-type exemptions.
+The migrations contain the complete runtime data for Gothenburg. [Calculation](calculation.md) describes the implemented rules.
 
 ## JPA loading
 
@@ -98,5 +100,3 @@ Flyway SQL handles database-specific work, including schema creation, seed conte
 ## Other cities
 
 Adding another city needs stored city and rule rows, not a change to the calculator. Different cities can use different currencies, time bands, exemptions, charge-window durations, and daily maximums. A rule option can also be absent.
-
-The `london-test` city exists only in a test migration. It uses GBP, different time bands, a Monday exemption, no charge window, and a different daily maximum.
