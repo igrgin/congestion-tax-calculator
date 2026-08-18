@@ -33,15 +33,11 @@ An optional Tax Rule with one scalar value that changes how the application calc
 _Avoid_: Parameter, setting
 
 **Tax Rule Set**:
-One immutable, complete snapshot of the Tax Rules for one city. Its effective date starts its period, and a newer Tax Rule Set ends the preceding period.
+The complete set of Tax Rules stored for one City. Each City has one Tax Rule Set.
 _Avoid_: Rule configuration, current rules
 
-**Applicable Tax Rule Set**:
-The one Tax Rule Set that controls a calculation date for a city. It has the latest effective date that is not after the calculation date.
-_Avoid_: Active rules, current rules
-
 **Tax Time Band**:
-A period of City Local Time with one positive tax amount. Its start is included and its end is excluded.
+A period of City Local Time with one tax amount. Its start is included, its end is excluded, and it can cross midnight.
 _Avoid_: Rate slot, tariff interval
 
 **Tax Amount**:
@@ -49,7 +45,7 @@ A non-negative congestion-tax value expressed in one currency. A Tax Amount cann
 _Avoid_: Money, Monetary amount
 
 **Charge Window**:
-A period that starts with its first Passage and includes each Passage no later than its configured duration after that first Passage.
+A period that starts with its first Passage and includes each Passage no later than the duration in the City's Tax Rule Set. It can cross City Local Time date boundaries.
 _Avoid_: Sliding window, chained group
 
 **Daily Maximum**:
@@ -57,7 +53,7 @@ A Tax Rule Option with a positive Tax Amount that limits the Daily Tax after the
 _Avoid_: Daily Tax limit, daily cap
 
 **Daily Tax**:
-The congestion tax for one vehicle on one local calendar date, after the Charge Window and Daily Maximum apply.
+The congestion tax for one vehicle on one local calendar date, after the Charge Window and Daily Maximum apply. A cross-date Charge Window belongs to the date of the earliest Passage with its highest Tax Amount.
 _Avoid_: Daily fee, daily charge
 
 **City Local Time**:

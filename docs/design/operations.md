@@ -69,7 +69,7 @@ Malformed JSON uses the `invalid-json` category at `WARN` without a stack trace.
 
 Other unreadable request bodies use the `invalid-request` category at `WARN` without a stack trace. The HTTP exception handler owns this event.
 
-Issue 5 will use `missing-applicable-tax-rule-set` and `mixed-tax-rule-set-currencies` at `ERROR` with their causes. These events will contain no Passage timestamp or Tax Amount.
+Missing stored Tax Rules use the `missing-tax-rule-set` category at `ERROR` with the cause. The event contains no Passage timestamp or Tax Amount.
 
 ## Metrics
 
@@ -114,7 +114,7 @@ Each feature issue owns any metric required by its behavior. It adds a custom me
 
 The current implementation has no shared cache and does not cache HTTP responses. The Tax Rule Service loads the required stored content for each calculation.
 
-Complete requests are likely to be unique and can become stale when stored content changes. Add a shared cache only after measurements show a need. Measure database time, query count, p50, p95, and p99 response time, requests per second, connection-pool wait, CPU, memory, repeated rule use, expected hit ratio, and stale-data behavior. If justified, cache immutable Tax Rule Sets by city and effective date instead of complete responses.
+Complete requests are likely to be unique and can become stale when stored content changes. Add a shared cache only after measurements show a need. Measure database time, query count, p50, p95, and p99 response time, requests per second, connection-pool wait, CPU, memory, repeated rule use, expected hit ratio, and stale-data behavior. If justified, cache the Tax Rule Set by City instead of complete responses.
 
 The first delivery does not include authentication, rate limiting, custom CORS behavior, an administration endpoint, a Prometheus server, metric dashboards, alerts, or production deployment because the assignment does not define those requirements.
 

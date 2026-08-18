@@ -20,7 +20,7 @@ flowchart LR
 - The HTTP controller has no parsing or validation logic. It forwards the City Local Time list in `CalculationCommand` and maps service results to HTTP. The HTTP exception handler maps service exceptions and timestamp deserialization failures to HTTP.
 - `CalculationService` defines the operation that coordinates one complete Congestion Tax Calculation.
 - `CalculationServiceImpl` validates the supported Passage year, derives Passage instants with the stored City time zone, and calls the Tax Rule Service, pure calculator, and metrics component.
-- `TaxRuleService` confirms that the City exists, validates its stored IANA time zone, and loads the Vehicle Type and Applicable Tax Rule Sets.
+- `TaxRuleService` confirms that the City exists, validates its stored IANA time zone, and loads the Vehicle Type and Tax Rule Set.
 - The pure calculator applies the Tax Rules without Spring, database, HTTP, logging, or metrics behavior.
 - `TaxRuleServiceImpl` loads stored rows and maps them to immutable calculation values.
 - Spring Data repositories contain explicit database read operations.
@@ -53,7 +53,7 @@ The Maven group is `io.github.igrgin`, the artifact ID and application name are 
 
 ## Domain
 
-The `domain` area owns the pure calculation language and behavior. Given a known Vehicle Type, Passages, and an Applicable Tax Rule Set for each calculation date, it returns Daily Taxes and a total Tax Amount.
+The `domain` area owns the pure calculation language and behavior. Given a known Vehicle Type, Passages, and the selected City's Tax Rule Set, it returns Daily Taxes and a total Tax Amount.
 
 Defensive collection copying is not the default. Copy a collection when the receiver retains it or when later mutation can change behavior. A synchronously consumed transient command can store the supplied collection directly.
 
@@ -74,16 +74,15 @@ The domain does not:
 
 1. Collect all unsupported-year indexes and reject the command if any exist.
 2. Record the accepted Passage count and start the calculation timer.
-3. Get the calculation dates from the City Local Times.
-4. Ask `TaxRuleService` to load the stored City time zone and Applicable Tax Rule Sets for the calculation dates.
-5. Derive complete Passages with the stored City time zone.
-6. Ask `TaxRuleService` to load the Vehicle Type.
-7. Call `TaxCalculator`.
-8. Return the calculated City and calculation result.
+3. Ask `TaxRuleService` to load the stored City time zone and Tax Rule Set.
+4. Derive complete Passages with the stored City time zone.
+5. Ask `TaxRuleService` to load the Vehicle Type.
+6. Call `TaxCalculator`.
+7. Return the calculated City and calculation result.
 
 `CalculationServiceImpl` translates expected collaborator lookup failures into calculation-owned exceptions after metrics records the outcome. It also translates invalid stored Tax Rule Option content to a calculation-owned failure with the safe option type code. It preserves the lower exception as the cause. This keeps the Calculation module interface independent of its collaborator implementations.
 
-`TaxRuleService` owns City existence, stored City time-zone validation, Vehicle Type, and Tax Rule loading. It returns one immutable result that contains the validated City time zone and the Applicable Tax Rule Set map. Its interface and implementation are in `taxrule`. Its entities and repositories are in `taxrule.persistence`. One business responsibility can use one repository or several repositories. The service seam follows the business responsibility, not the number of tables.
+`TaxRuleService` owns City existence, stored City time-zone validation, Vehicle Type, and Tax Rule loading. It returns one immutable result that contains the validated City time zone and the City's Tax Rule Set. Its interface and implementation are in `taxrule`. Its entities and repositories are in `taxrule.persistence`. One business responsibility can use one repository or several repositories. The service seam follows the business responsibility, not the number of tables.
 
 `TaxRuleService` is the external interface of the Tax Rule module. Persistence classes and repository interfaces can be public because `TaxRuleServiceImpl` uses them across the package split. That Java access does not make them part of the module interface. No caller outside the Tax Rule implementation uses them.
 

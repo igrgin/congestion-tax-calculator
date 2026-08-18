@@ -16,7 +16,7 @@ Tests call public operations. They do not test private methods.
 
 Application logging remains active when a test uses a Spring profile. Test code does not write log messages, and tests do not assert log output.
 
-## Current domain tests
+## Domain test responsibilities after issue 5
 
 `TaxAmountTest` proves:
 
@@ -35,8 +35,9 @@ Application logging remains active when a test uses a Spring profile. Test code 
 - exclusion outside the band;
 - rejection of null values;
 - rejection of an end equal to the start;
-- rejection of an end before the start;
-- rejection of a non-positive Tax Amount.
+- matching on both sides of midnight when the end is before the start;
+- acceptance of a zero Tax Amount;
+- rejection of a negative Tax Amount.
 
 `TaxRuleSetTest` proves:
 
@@ -56,8 +57,9 @@ Application logging remains active when a test uses a Spring profile. Test code 
 - one taxed Passage;
 - addition of all Passage Tax Amounts when the Charge Window is absent;
 - date grouping and ascending Daily Tax order;
-- separation of Charge Windows at a City Local Time midnight;
-- rejection of a missing Applicable Tax Rule Set for any Passage date;
+- one Charge Window across a City Local Time midnight;
+- assignment of a cross-date window charge to the winning Passage's date;
+- an earliest-Passage tie break for equal highest Tax Amounts;
 - Passage instant ordering and highest Tax Amount selection in a Charge Window;
 - the inclusive configured Charge Window boundary;
 - non-sliding Charge Window behavior;
@@ -66,11 +68,9 @@ Application logging remains active when a test uses a Spring profile. Test code 
 - Tax Time Band selection at second precision, including adjacent boundaries;
 - zero Tax outside the Tax Time Bands;
 - rejection of an empty Passage list;
-- rejection of an empty Applicable Tax Rule Set map;
-- rejection of a missing Applicable Tax Rule Set for the Passage date;
 - rejection of null calculation inputs.
 
-## Current service and controller tests
+## Service and controller test responsibilities after issue 5
 
 `TaxRuleServiceImplTest` proves:
 
@@ -79,9 +79,10 @@ Application logging remains active when a test uses a Spring profile. Test code 
 - rejection of an invalid stored City time zone;
 - Vehicle Type loading;
 - rejection of an unknown Vehicle Type;
-- Applicable Tax Rule Set selection;
+- Tax Rule Set loading for the selected City;
 - loading of adjacent Tax Time Bands;
-- rejection of a missing Applicable Tax Rule Set;
+- loading of a cross-midnight Tax Time Band;
+- rejection of a missing Tax Rule Set;
 - rejection of a Tax Rule Set without Tax Time Bands;
 - rejection of overlapping Tax Time Bands independent of repository order;
 - safe rejection of invalid stored Charge Window and Daily Maximum content;
@@ -128,10 +129,11 @@ The test proves:
 - City codes are unique;
 - a City time zone is required and must not be blank;
 - a Tax Rule Set must reference a known City;
-- a City cannot have two Tax Rule Sets with the same effective date;
+- a City cannot have two Tax Rule Sets;
 - a Tax Time Band must reference a known Tax Rule Set;
-- a Tax Time Band amount must be positive;
-- a Tax Time Band end must be after its start;
+- a Tax Time Band amount must not be negative;
+- a Tax Time Band start and end must not be equal;
+- a Tax Time Band can have an end before its start;
 - an exact Tax Time Band duplicate is rejected;
 - a Tax Rule Option must reference a known Tax Rule Set;
 - a Tax Rule Set cannot select the same option type twice;
@@ -190,7 +192,7 @@ The test also verifies:
 
 - stored City time-zone loading;
 - stored Vehicle Type lookup;
-- Applicable Tax Rule Set selection by City and calculation date;
+- Tax Rule Set loading for the selected City;
 - isolation between Cities;
 - stored Charge Window loading as a typed Domain value;
 - stored Daily Maximum loading as a typed Domain value in the Tax Rule Set currency;
@@ -240,6 +242,6 @@ Later calculation issues will add focused tests for:
 - remaining transport validation and Problem Details;
 - a second City with different stored Tax Rules.
 
-Issue 5 will add mixed-currency coverage and an HTTP-to-PostgreSQL case for successive complete Tax Rule Set snapshots, stable historical results, and future-snapshot exclusion.
+Issue 5 will replace the effective-date tests with one-Tax-Rule-Set tests. It will add focused cross-midnight Tax Time Band and Charge Window coverage.
 
 The complete assignment full-path test will be added when the related calculation behavior and seed data exist.

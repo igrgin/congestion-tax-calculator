@@ -2,7 +2,7 @@
 
 This document defines how PostgreSQL stores City and Tax Rule data and how Spring Data JPA loads it. Stored data is runtime content. The application has no in-memory fallback when PostgreSQL is unavailable.
 
-## Current database schema
+## Target database schema
 
 ```mermaid
 erDiagram
@@ -20,8 +20,7 @@ erDiagram
 
     TAX_RULE_SET {
         bigint id PK
-        bigint city_id FK
-        date effective_from
+        bigint city_id FK,UK
         char currency_code
     }
 
@@ -48,7 +47,7 @@ erDiagram
         decimal amount
     }
 
-    CITY ||--o{ TAX_RULE_SET : "has snapshots"
+    CITY ||--o| TAX_RULE_SET : "has rules"
     TAX_RULE_SET ||--o{ TAX_RULE_OPTION : "selects options"
     TAX_RULE_OPTION_TYPE ||--o{ TAX_RULE_OPTION : "classifies"
     TAX_RULE_SET ||--o{ TAX_TIME_BAND : "defines charges"
@@ -58,9 +57,9 @@ erDiagram
 
 `VEHICLE_TYPE` stores each known Vehicle Type code and description. A Vehicle Type has one meaning across all Cities.
 
-`TAX_RULE_SET` stores one immutable Tax Rule snapshot for one City. It contains the effective date and the currency for every Tax Amount in the set. A City cannot have two Tax Rule Sets with the same effective date.
+`TAX_RULE_SET` stores one complete Tax Rule Set for one City. It contains the currency for every Tax Amount in the set. A unique City foreign key enforces at most one Tax Rule Set for each City.
 
-`TAX_TIME_BAND` stores the local start time, local end time, and positive amount for one Tax Rule Set. The Tax Rule Set supplies the currency.
+`TAX_TIME_BAND` stores the local start time, local end time, and non-negative amount for one Tax Rule Set. The Tax Rule Set supplies the currency.
 
 `TAX_RULE_OPTION_TYPE` contains these code-owned values:
 
@@ -78,21 +77,17 @@ HOLIDAY_PRECEDING
 
 The Tax Rule Service loads `CHARGE_WINDOW` and `DAILY_MAXIMUM` rows. It maps them to typed, immutable Domain values. An absent row disables only the matching behavior. `HOLIDAY_PRECEDING` remains stored content for the Tax Exemption issue.
 
-All foreign keys use restrictive deletion. The schema does not use `ON DELETE CASCADE` because automatic deletion could remove historical Tax Rule content.
+All foreign keys use restrictive deletion. The schema does not use `ON DELETE CASCADE` because automatic deletion could remove Tax Rule content.
 
-## Applicable Tax Rule Sets
+## One Tax Rule Set per City
 
-The schema does not use an active or status column. For one calculation date, the Applicable Tax Rule Set is the set for the selected City with the latest `effective_from` date that is not after the calculation date.
+The schema does not use an effective date, version, active, or status column. The Tax Rule Service loads the one Tax Rule Set that references the selected City.
 
-`TaxRuleServiceImpl` loads candidates up to the latest requested calculation date. It then selects the Applicable Tax Rule Set for each calculation date.
+If the City has no Tax Rule Set, the service throws `MissingTaxRuleSetException`. It does not use rules from another City.
 
-If no Applicable Tax Rule Set exists, the service throws `MissingApplicableTaxRuleSetException`. It does not select a future Tax Rule Set or silently use rules from another City.
+The supported 2013 Passage year does not limit stored supporting dates. PostgreSQL can contain Tax Exemption dates outside 2013. The initial data includes `2014-01-01` so that the calculator can evaluate the preceding-date Tax Exemption for `2013-12-31`.
 
-A newer Tax Rule Set ends the effective period of the preceding set. It does not delete or modify the preceding set.
-
-A Tax Rule Set does not inherit child rows from a preceding set. A future publication workflow must create a complete new snapshot with all unchanged and changed Tax Rules.
-
-The supported 2013 Passage year does not limit stored content dates. PostgreSQL can contain earlier or future Tax Rule Set effective dates and supporting Tax Exemption dates outside 2013. Selection rules prevent a future Tax Rule Set from applying to an earlier calculation date.
+Multiple effective-dated Tax Rule Sets were considered as an optional feature. The assignment and its six-hour limit do not require Tax Rule history or changes during the year.
 
 ## Tax Time Bands
 
@@ -108,21 +103,22 @@ A Tax Time Band follows these rules:
 
 - the start is included;
 - the end is excluded;
-- the end must be after the start;
-- the band cannot cross midnight;
-- the amount must be positive;
+- an end after the start defines a same-date band;
+- an end before the start defines a band that crosses midnight;
+- an end equal to the start is invalid;
+- the amount must be zero or positive;
 - the same Tax Rule Set cannot contain an exact duplicate start and end pair.
 
 The database enforces rules for one row. `TaxRuleServiceImpl` enforces rules that require the complete collection:
 
-- an Applicable Tax Rule Set must contain at least one Tax Time Band;
+- a Tax Rule Set must contain at least one Tax Time Band;
 - Tax Time Bands in one set must not overlap.
 
 Adjacent bands are valid. For example, `06:00–06:30` and `06:30–07:00` do not overlap.
 
 Gaps are valid. If no Tax Time Band contains a Passage local time, the calculator returns a zero Tax Amount in the Tax Rule Set currency.
 
-The service sorts a copy of the loaded bands by start time for overlap validation. It does not depend on repository result order.
+The service validates overlap around the complete 24-hour clock. It does not depend on repository result order. This check detects overlaps on the same date and across midnight.
 
 ## JPA loading
 
@@ -144,9 +140,9 @@ taxrule.persistence.TaxTimeBandEntity
 taxrule.persistence.TaxRuleOptionEntity
 ```
 
-It loads the selected City, validates its stored time zone with the JDK IANA time-zone data, and loads the Vehicle Type, Applicable Tax Rule Sets, Tax Time Bands, and Tax Rule Options. An invalid stored City time zone is a stored-content failure.
+It loads the selected City, validates its stored time zone with the JDK IANA time-zone data, and loads the Vehicle Type, Tax Rule Set, Tax Time Bands, and Tax Rule Options. An invalid stored City time zone is a stored-content failure.
 
-The Tax Rule Set entity does not contain a JPA child collection. `TaxTimeBandEntity` and `TaxRuleOptionEntity` store their parent ID as a scalar field. The service loads the selected parent rows. It then uses one bulk read for the required Tax Time Bands and one bulk read for the required Tax Rule Options.
+The Tax Rule Set entity does not contain a JPA child collection. `TaxTimeBandEntity` and `TaxRuleOptionEntity` store their parent ID as a scalar field. The service loads the selected parent row. It then reads the required Tax Time Bands and Tax Rule Options.
 
 `TaxRuleOptions` owns an unmodifiable collection of typed Domain options. It rejects duplicate option types. Its `chargeWindow()` and `dailyMaximum()` queries return an empty result when the stored row is absent. `ChargeWindow` owns a positive `Duration`. `DailyMaximum` owns a positive `TaxAmount` in the Tax Rule Set currency.
 
@@ -154,7 +150,7 @@ This makes database reads explicit and avoids a large join that repeats parent d
 
 Each service method uses a read-only transaction. The service maps database rows to calculation values and creates unmodifiable collections before it returns. The receiving records store these collections without making another copy. Persistence types can be public for use by `TaxRuleServiceImpl`, but the service never returns them through `TaxRuleService`.
 
-Use Spring Data method-name queries for simple reads. Use JPQL when it expresses a bulk or snapshot query more clearly. Use handwritten PostgreSQL SQL only when a PostgreSQL-specific feature, a measured performance need, or an entity-ownership boundary makes JPQL unsuitable. Cover native queries with PostgreSQL integration tests.
+Use Spring Data method-name queries for simple reads. Use JPQL when it expresses a bulk query more clearly. Use handwritten PostgreSQL SQL only when a PostgreSQL-specific feature, a measured performance need, or an entity-ownership boundary makes JPQL unsuitable. Cover native queries with PostgreSQL integration tests.
 
 ## Database and service validation
 
@@ -164,10 +160,10 @@ PostgreSQL constraints protect:
 - required columns;
 - unique City codes;
 - non-blank City time zones;
-- unique City and effective-date pairs;
+- one Tax Rule Set for each City;
 - three-letter upper-case currency codes;
-- positive Tax Amounts;
-- Tax Time Band order;
+- non-negative Tax Time Band amounts;
+- unequal Tax Time Band boundaries;
 - exact duplicate Tax Time Bands;
 - valid Tax Rule Option value shapes;
 - one Tax Rule Option of each type in a Tax Rule Set.
@@ -176,7 +172,7 @@ Repository-facing services protect cross-row completeness when they assemble cal
 
 - invalid stored City time zones;
 - invalid or duplicate stored Tax Rule Options;
-- missing Applicable Tax Rule Sets;
+- missing Tax Rule Sets;
 - missing Tax Time Bands;
 - overlapping Tax Time Bands;
 - unknown Cities;
@@ -184,7 +180,7 @@ Repository-facing services protect cross-row completeness when they assemble cal
 
 These failures are stored-content or lookup failures. The pure calculator does not repeat database validation.
 
-## Current seed data
+## Target initial seed after issue 5
 
 Flyway inserts the minimum stored content for the initial calculation path:
 
@@ -193,7 +189,6 @@ City code: gothenburg
 City name: Gothenburg
 City time zone: Europe/Stockholm
 Vehicle Type: OTHER
-Tax Rule Set effective from: 2013-01-01
 Currency: SEK
 Tax Time Band: 06:00–06:30
 Tax Amount: 8.00 SEK
@@ -209,4 +204,4 @@ Passage: 2013-02-08 06:20:27
 
 The current seed does not contain Tax Rule Options. Tests use synthetic option rows. A later migration will add the complete Gothenburg Tax Rule Options with the remaining Vehicle Types, Tax Time Bands, and Tax Exemption data.
 
-During development, later Flyway migrations can complete the initial assignment seed before the first release. After release, runtime content workflows must treat each published Tax Rule Set as immutable.
+Issue 5 can rewrite the pre-release Flyway migrations to match the one-set schema. A developer must remove the local database volume before the application applies the rewritten migrations. Later work can complete the initial assignment seed before the first release.

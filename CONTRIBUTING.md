@@ -100,7 +100,7 @@ Use Spotless Maven Plugin 3.9.0 with Palantir Java Format. Bind the formatting c
 - Use each level only for its operational meaning. Do not use `TRACE`.
 - Use parameterized messages for variable values.
 - Log each event or exception once at the boundary that knows its final outcome.
-- Safe context includes city code, Vehicle Type code, Passage count, City Local Time calculation date, Tax Rule Set effective date, result counts, and a stable failure category.
+- Safe context includes city code, Vehicle Type code, Passage count, City Local Time calculation date, result counts, and a stable failure category.
 - Keep complete request bodies, raw Passage timestamps, Tax Amounts, authorization values, database credentials, SQL, and expected exception messages out of logs.
 - Omit stack traces from handled `4xx` logs. Include the stack trace when an internal failure is suppressed or the exception handler returns a `5xx` response.
 - Keep stack traces and other internal failure data out of HTTP responses.

@@ -40,7 +40,7 @@ The calculator does not store registration plates, owners, Passages, or results.
 
 Daily results are ordered by date and include zero amounts. Each Daily Tax contains the Tax Exemption Reasons that caused its amount to be zero. An empty set means that no Tax Exemption applied.
 
-One response must have one currency. Issue 5 will report invalid server configuration if Applicable Tax Rule Sets have different currencies.
+One response has one currency from the selected City's Tax Rule Set.
 
 The city code in the path selects the stored rules without changing the API contract. OpenAPI JSON and Swagger UI are planned for the later API documentation work.
 
@@ -67,12 +67,12 @@ Bean Validation checks the reusable transport-shape invariants. Jackson complete
 
 ## Error responses
 
-The current implementation returns:
+The API status contract is:
 
 - HTTP `400` for an invalid request shape, unknown property, Passage timestamp, unsupported Passage year, or unknown Vehicle Type;
 - HTTP `404` for an unknown City.
 
-An invalid stored City time zone is invalid server content and returns HTTP `500`.
+An invalid stored City time zone or missing Tax Rule Set is invalid server content and returns HTTP `500`.
 
 `CalculationServiceImpl` owns supported-year input failures. It also translates lower lookup failures into calculation-owned exceptions and preserves their causes. `CalculationExceptionHandler` maps supported-year service exceptions, timestamp deserialization failures, malformed JSON, and other unreadable request bodies to their HTTP responses. Spring handles Bean Validation failures. The domain and Tax Rule areas do not depend on Spring Web.
 
