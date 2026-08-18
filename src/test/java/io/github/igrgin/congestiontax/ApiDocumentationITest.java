@@ -61,7 +61,7 @@ class ApiDocumentationITest {
         assertThat(cityCode.at("/schema/type").asString()).isEqualTo("string");
 
         var requestSchema =
-                referencedSchema(document, requiredNode(operation, "/requestBody/content/application~1json/schema"));
+                resolvedSchema(document, requiredNode(operation, "/requestBody/content/application~1json/schema"));
         assertThat(requestSchema.at("/required"))
                 .containsExactlyInAnyOrder(
                         objectMapper.valueToTree("vehicleType"), objectMapper.valueToTree("passages"));
@@ -90,7 +90,7 @@ class ApiDocumentationITest {
         assertThat(passagePattern.matcher("2014-02-08 06:20:27").matches()).isFalse();
 
         var successSchema =
-                referencedSchema(document, requiredNode(operation, "/responses/200/content/application~1json/schema"));
+                resolvedSchema(document, requiredNode(operation, "/responses/200/content/application~1json/schema"));
         assertThat(successSchema.at("/properties/cityCode/type").asString()).isEqualTo("string");
         assertThat(successSchema.at("/properties/vehicleType/type").asString()).isEqualTo("string");
         assertThat(successSchema.at("/properties/currency/type").asString()).isEqualTo("string");
@@ -99,7 +99,7 @@ class ApiDocumentationITest {
         assertThat(successSchema.at("/properties/dailyTaxes/description").asString())
                 .contains("date order");
 
-        var dailyTaxSchema = referencedSchema(document, requiredNode(successSchema, "/properties/dailyTaxes/items"));
+        var dailyTaxSchema = resolvedSchema(document, requiredNode(successSchema, "/properties/dailyTaxes/items"));
         assertThat(dailyTaxSchema.at("/properties/date/type").asString()).isEqualTo("string");
         assertThat(dailyTaxSchema.at("/properties/taxExemptionReasons/type").asString())
                 .isEqualTo("array");
@@ -140,7 +140,7 @@ class ApiDocumentationITest {
     private void assertProblemResponse(
             JsonNode document, JsonNode operation, String status, String exampleName, String expectedCode) {
         var content = requiredNode(operation, "/responses/" + status + "/content/application~1problem+json");
-        assertProblemSchema(referencedSchema(document, requiredNode(content, "/schema")));
+        assertProblemSchema(resolvedSchema(document, requiredNode(content, "/schema")));
         var example = requiredNode(content, "/examples/" + exampleName + "/value");
         assertThat(example.at("/code").asString()).isEqualTo(expectedCode);
         assertThat(example.at("/type").isMissingNode()).isTrue();
@@ -148,7 +148,7 @@ class ApiDocumentationITest {
 
     private void assertBadRequestExamples(JsonNode document, JsonNode operation) {
         var content = requiredNode(operation, "/responses/400/content/application~1problem+json");
-        assertProblemSchema(referencedSchema(document, requiredNode(content, "/schema")));
+        assertProblemSchema(resolvedSchema(document, requiredNode(content, "/schema")));
 
         var examples = requiredNode(content, "/examples");
         assertThat(examples.at("/invalidRequest/value")).isEqualTo(objectMapper.readTree("""
@@ -208,11 +208,16 @@ class ApiDocumentationITest {
         assertThat(problemSchema.at("/properties/type").isMissingNode()).isTrue();
     }
 
-    private static JsonNode referencedSchema(JsonNode document, JsonNode schemaReference) {
-        var reference = schemaReference.at("/$ref").asString();
-        assertThat(reference).startsWith("#/components/schemas/");
+    private static JsonNode resolvedSchema(JsonNode document, JsonNode schema) {
+        var reference = schema.at("/$ref");
+        if (!reference.isMissingNode()) {
+            assertThat(reference.asString()).startsWith("#/components/schemas/");
+            return requiredNode(document, reference.asString().substring(1));
+        }
 
-        return requiredNode(document, reference.substring(1));
+        assertThat(schema.isObject()).isTrue();
+        assertThat(schema.isEmpty()).isFalse();
+        return schema;
     }
 
     private static JsonNode requiredNode(JsonNode parent, String pointer) {
