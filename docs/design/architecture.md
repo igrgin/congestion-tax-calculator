@@ -16,9 +16,9 @@ flowchart LR
     RULE_REPO --> DB[("PostgreSQL")]
 ```
 
-- The HTTP controller validates transport data and the supported Passage year, parses City Local Time, and creates the HTTP response.
+- The HTTP controller validates the transport shape, passes the raw Passage timestamp strings to `CalculationCommand`, and maps service results to HTTP. The HTTP exception handler maps service exceptions to HTTP.
 - `CalculationService` defines the operation that coordinates one complete Congestion Tax Calculation.
-- `CalculationServiceImpl` derives Passage instants with the stored City time zone and calls the Tax Rule Service, pure calculator, and metrics component.
+- `CalculationServiceImpl` strictly parses Passage timestamps, validates the supported Passage year, derives Passage instants with the stored City time zone, and calls the Tax Rule Service, pure calculator, and metrics component.
 - `TaxRuleService` confirms that the City exists, validates its stored IANA time zone, and loads the Vehicle Type and Applicable Tax Rule Sets.
 - The pure calculator applies the Tax Rules without Spring, database, HTTP, logging, or metrics behavior.
 - `TaxRuleServiceImpl` loads stored rows and maps them to immutable calculation values.
@@ -54,7 +54,7 @@ The Maven group is `io.github.igrgin`, the artifact ID and application name are 
 
 The `domain` area owns the pure calculation language and behavior. Given a known Vehicle Type, Passages, and an Applicable Tax Rule Set for each calculation date, it returns Daily Taxes and a total Tax Amount.
 
-The producer owns collection immutability at each application-area seam. Before a value crosses the seam, its producer creates an unmodifiable collection and does not retain a mutable reference. The receiving record stores the supplied collection without making another copy.
+At the HTTP-to-Calculation seam, `CalculationCommand` uses `List.copyOf` to make and store an unmodifiable defensive copy of the raw Passage timestamp strings. At other application-area seams, the producer creates an unmodifiable collection and does not retain a mutable reference. The receiving record stores that supplied collection without making another copy.
 
 The domain does not:
 
@@ -71,13 +71,16 @@ The domain does not:
 
 `CalculationService` coordinates the complete use case. It performs this sequence:
 
-1. Record the accepted Passage count and start the calculation timer.
-2. Get the calculation dates from the supplied City Local Times.
-3. Ask `TaxRuleService` to load the stored City time zone and Applicable Tax Rule Sets for the calculation dates.
-4. Derive complete Passages with the stored City time zone.
-5. Ask `TaxRuleService` to load the Vehicle Type.
-6. Call `TaxCalculator`.
-7. Return the calculated City and calculation result.
+1. Strictly parse each raw Passage timestamp in request order.
+2. Stop at the first malformed timestamp.
+3. After all timestamps parse, collect all unsupported-year indexes and reject the command if any exist.
+4. Record the accepted Passage count and start the calculation timer.
+5. Get the calculation dates from the parsed City Local Times.
+6. Ask `TaxRuleService` to load the stored City time zone and Applicable Tax Rule Sets for the calculation dates.
+7. Derive complete Passages with the stored City time zone.
+8. Ask `TaxRuleService` to load the Vehicle Type.
+9. Call `TaxCalculator`.
+10. Return the calculated City and calculation result.
 
 `CalculationServiceImpl` translates expected collaborator lookup failures into calculation-owned exceptions after metrics records the outcome. It also translates invalid stored Tax Rule Option content to a calculation-owned failure with the safe option type code. It preserves the lower exception as the cause. This keeps the Calculation module interface independent of its collaborator implementations.
 
@@ -110,7 +113,7 @@ The domain can use Lombok `@NonNull` as a compile-time annotation. It has no Lom
 
 Micrometer instrumentation stays at the Calculation Service boundary. It measures application coordination without adding Micrometer, Spring, or monitoring behavior to the pure calculator.
 
-The top-level `metrics` package owns the calculation timer, the accepted Passage-count distribution, their metric-name constants, and the timer's bounded outcome values. The Calculation Service records the Passage count once at the start of every call. It records the count before City lookup, Vehicle Type lookup, stored-content loading, or calculation can fail. HTTP and database integrations use the standard meters that Spring Boot supplies.
+The top-level `metrics` package owns the calculation timer, the accepted Passage-count distribution, their metric-name constants, and the timer's bounded outcome values. The Calculation Service starts custom metric recording after timestamp parsing and supported-year validation. It records the Passage count before City lookup, Vehicle Type lookup, stored-content loading, and Tax calculation. HTTP and database integrations use the standard meters that Spring Boot supplies.
 
 A metrics failure cannot change the calculation result.
 

@@ -1,4 +1,4 @@
-package io.github.igrgin.congestiontax.calculation.http.exception;
+package io.github.igrgin.congestiontax.calculation.exception;
 
 import java.util.List;
 

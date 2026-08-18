@@ -92,6 +92,10 @@ This test stays in the `taxrule.persistence` test package because it uses packag
 `CalculationServiceImplTest` proves:
 
 - coordination of Passages, stored Tax Rules, and the pure calculator;
+- strict parsing of raw Passage timestamp strings in request order;
+- fail-fast rejection of a malformed Passage timestamp before Tax Rule lookup;
+- acceptance of `2013-01-01 00:00:00` and `2013-12-31 23:59:59` as the supported-year boundaries;
+- collection of every unsupported-year Passage index before Tax Rule lookup;
 - derivation of winter and summer instants with the stored City time zone;
 - translation of unknown City and Vehicle Type failures into calculation-owned exceptions while preserving their causes;
 - translation of an invalid stored Tax Rule Option into a calculation-owned failure with its safe type code.
@@ -103,12 +107,11 @@ This test stays in the `taxrule.persistence` test package because it uses packag
 - rejection of a null or blank Vehicle Type;
 - rejection of a null or empty Passage list;
 - rejection of a null Passage value;
-- rejection of a Passage timestamp that does not use `uuuu-MM-dd HH:mm:ss`;
+- mapping of a malformed-timestamp service exception to HTTP `400`;
 - rejection of unknown JSON properties, including the removed `timeZone` property;
 - rejection of malformed JSON;
-- acceptance of `2013-01-01 00:00:00` and `2013-12-31 23:59:59` as the supported-year boundaries;
-- rejection of a request with Passages outside 2013 before the Calculation Service runs;
-- one HTTP `400` Problem Details response that reports all affected zero-based Passage indexes in request order;
+- forwarding of raw Passage timestamp strings to `CalculationCommand`;
+- mapping of an unsupported-year service exception to one HTTP `400` Problem Details response that reports all affected zero-based Passage indexes in request order;
 - the top-level `INVALID_REQUEST` code and the `UNSUPPORTED_PASSAGE_YEAR` code for each affected Passage;
 - a safe HTTP `500` response for an unexpected failure.
 
@@ -236,6 +239,6 @@ Later calculation issues will add focused tests for:
 - complete transport validation and Problem Details;
 - a second City with different stored Tax Rules.
 
-Group 2 of issue 5 will add mixed-currency coverage and an HTTP-to-PostgreSQL case for successive complete Tax Rule Set snapshots, stable historical results, and future-snapshot exclusion.
+Issue 5 will add mixed-currency coverage and an HTTP-to-PostgreSQL case for successive complete Tax Rule Set snapshots, stable historical results, and future-snapshot exclusion.
 
 The complete assignment full-path test will be added when the related calculation behavior and seed data exist.

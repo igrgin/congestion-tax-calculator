@@ -40,7 +40,7 @@ The calculator does not store registration plates, owners, Passages, or results.
 
 Daily results are ordered by date and include zero amounts. Each Daily Tax contains the Tax Exemption Reasons that caused its amount to be zero. An empty set means that no Tax Exemption applied.
 
-One response must have one currency. Group 2 of issue 5 will report invalid server configuration if Applicable Tax Rule Sets have different currencies.
+One response must have one currency. Issue 5 will report invalid server configuration if Applicable Tax Rule Sets have different currencies.
 
 The city code in the path selects the stored rules without changing the API contract. OpenAPI JSON and Swagger UI are planned for the later API documentation work.
 
@@ -54,14 +54,15 @@ For a calculation request:
 - The Passage must use `uuuu-MM-dd HH:mm:ss` format.
 - Each Passage City Local Time date must be in 2013.
 - Unknown JSON properties are invalid. A removed `timeZone` property is not accepted or ignored.
-- The controller parses each Passage value as City Local Time.
-- After all Passage values parse, the controller collects every zero-based Passage index whose City Local Time date is outside 2013. It rejects the complete request and reports all affected indexes in request order.
+- The controller passes each raw Passage timestamp string to the Calculation Service.
+- `CalculationServiceImpl` strictly parses each Passage value as City Local Time in request order. A malformed value stops parsing at its index.
+- After all Passage values parse, `CalculationServiceImpl` collects every zero-based Passage index whose City Local Time date is outside 2013. It rejects the complete command and reports all affected indexes in request order.
 - The Calculation module derives each Passage instant with the stored City time zone.
 - Missing and repeated local times during daylight-saving changes are outside the supported input contract.
 
-Bean Validation checks the reusable request invariants. Supported-year validation belongs to the HTTP adapter and runs before the request reaches the Calculation Service. Complete validation aggregation for other request failures belongs to the later API validation work.
+Bean Validation checks the reusable transport-shape invariants. Timestamp parsing and supported-year validation belong to the Calculation Service and run before Tax Rule lookup. Complete validation aggregation for other request failures belongs to the later API validation work.
 
-`CalculationRequest` stays inside the HTTP adapter. The controller parses its Passage values and creates a new unmodifiable City Local Time list for `CalculationCommand`. `CalculationCommand` stores this list without making another copy. The mutable transport collection does not cross into the Calculation module.
+`CalculationRequest` stays inside the HTTP adapter. The controller passes its raw Passage timestamp string list directly to `CalculationCommand`. `CalculationCommand` uses `List.copyOf` to make and store an unmodifiable defensive copy. The mutable transport collection does not cross into the Calculation module.
 
 ## Error responses
 
@@ -72,7 +73,7 @@ The current implementation returns:
 
 An invalid stored City time zone is invalid server content and returns HTTP `500`.
 
-`CalculationServiceImpl` translates lower lookup failures into calculation-owned exceptions and preserves their causes. `CalculationExceptionHandler` maps `CityNotFoundException` to HTTP `404` and `VehicleTypeNotFoundException` to HTTP `400`. Spring handles request-body and Bean Validation failures. The domain and Tax Rule areas do not depend on Spring Web.
+`CalculationServiceImpl` owns timestamp and supported-year input failures. It also translates lower lookup failures into calculation-owned exceptions and preserves their causes. `CalculationExceptionHandler` maps these service exceptions to their HTTP responses. Spring handles request-body and Bean Validation failures. The domain and Tax Rule areas do not depend on Spring Web.
 
 The HTTP exception boundary logs each handled `4xx` response at `WARN` with a stable failure category, safe context, and no stack trace. It logs each handled `5xx` response once at `ERROR` with an internal stack trace. Invalid stored Charge Window or Daily Maximum content uses the `invalid-tax-rule-option` category and includes only the safe option type code. This rule applies to the calculation API exception handler, not to unrelated framework or servlet responses. The response does not contain internal failure data. The first calculation slice returns an empty HTTP `500` response for an unexpected failure. The later API validation issue replaces that body with the final safe Problem Details response.
 

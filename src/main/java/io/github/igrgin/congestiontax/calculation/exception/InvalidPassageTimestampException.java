@@ -1,4 +1,4 @@
-package io.github.igrgin.congestiontax.calculation.http.exception;
+package io.github.igrgin.congestiontax.calculation.exception;
 
 public final class InvalidPassageTimestampException extends IllegalArgumentException {
 
