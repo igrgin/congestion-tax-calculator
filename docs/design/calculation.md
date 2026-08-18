@@ -111,10 +111,11 @@ classDiagram
         +List~TaxTimeBand~ taxTimeBands
         +TaxExemptions taxExemptions
         +TaxRuleOptions taxRuleOptions
+        +taxExemptionReasonsFor(VehicleType, LocalDate) Set~TaxExemptionReason~
     }
 
     class TaxExemptions {
-        +reasonsFor(vehicleType, date, publicHolidayPrecedingDateOption) Set~TaxExemptionReason~
+        ~reasonsFor(VehicleType, LocalDate, Optional~PublicHolidayPrecedingDateOption~) Set~TaxExemptionReason~
     }
 
     class TaxExemption {
