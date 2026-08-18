@@ -28,9 +28,17 @@ _Avoid_: Parameter, setting
 A Tax Rule that makes a Passage tax-free when its City Local Time or Vehicle Type matches stored content.
 _Avoid_: Rule exception, exemption type
 
+**Tax Exemption Reason**:
+An explanation that identifies one Tax Exemption that applies to a Daily Tax. One Daily Tax can have more than one Tax Exemption Reason.
+_Avoid_: Exemption flag, zero reason
+
 **Tax Rule Option**:
 An optional Tax Rule with one scalar value that changes how the application calculates tax or extends a Tax Exemption. A Tax Rule Set can select each supported option at most once.
 _Avoid_: Parameter, setting
+
+**Public Holiday Preceding-Date Option**:
+A Tax Rule Option with a positive count of calendar dates before each stored public holiday that are tax-free.
+_Avoid_: Holiday exception, pre-holiday rule
 
 **Tax Rule Set**:
 One immutable, complete snapshot of the Tax Rules for one city. Its effective date starts its period, and a newer Tax Rule Set ends the preceding period.
