@@ -1,14 +1,7 @@
-# Domain Documents
+# Project language
 
-This repository uses one domain context.
+`CONTEXT.md` is the source for project-specific terms. Read it before project writing.
 
-Before work starts, read:
+Keep the glossary small. Add a term only when its project meaning is not clear from normal language. Define what the term is in one or two sentences. Keep implementation details in the applicable document under `docs/`.
 
-- `CONTEXT.md`
-- Applicable records in `docs/adr/`
-
-Use the terms from `CONTEXT.md` in code, tests, specifications, and tickets.
-
-If a decision conflicts with an architecture decision record, report the conflict before changing the implementation.
-
-Use `docs/adr/` for architecture decision records.
+When a term changes, update `CONTEXT.md` and every affected use in the same change. Use normal sentence case in prose. Capitalize a term when grammar, a heading, or a code name requires it.
