@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.github.igrgin.congestiontax.calculation.CalculationService;
@@ -14,11 +15,14 @@ import io.github.igrgin.congestiontax.domain.TaxAmount;
 import io.github.igrgin.congestiontax.domain.VehicleType;
 import io.github.igrgin.congestiontax.domain.calculation.CalculationResult;
 import io.github.igrgin.congestiontax.domain.calculation.DailyTax;
+import io.github.igrgin.congestiontax.domain.calculation.TaxExemptionReason;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.Month;
+import java.util.Collections;
 import java.util.Currency;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
@@ -83,6 +87,61 @@ class CalculationControllerTest {
                           ]
                         }
                         """));
+    }
+
+    @Test
+    void reportsAllTaxExemptionReasonsForExemptDailyTax() throws Exception {
+        var cityCode = "gothenburg";
+        var vehicleType = new VehicleType("OTHER", "Other vehicle");
+        var cityDateTime = LocalDateTime.of(2013, Month.FEBRUARY, 8, 6, 20, 27);
+        var calculationDate = cityDateTime.toLocalDate();
+        var zero = TaxAmount.zero(Currency.getInstance("SEK"));
+        var taxExemptionReasons = Collections.unmodifiableSet(EnumSet.allOf(TaxExemptionReason.class));
+        var calculationResult = new CalculationResult(
+                vehicleType, List.of(new DailyTax(calculationDate, taxExemptionReasons, zero)), zero);
+
+        given(calculationService.calculate(new CalculationCommand(cityCode, vehicleType.code(), List.of(cityDateTime))))
+                .willReturn(new CalculatedTax(cityCode, calculationResult));
+
+        mockMvc.perform(post("/api/v1/cities/{cityCode}" + "/congestion-tax/calculations", cityCode)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "vehicleType": "OTHER",
+                                  "passages": [
+                                    "2013-02-08 06:20:27"
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(content().json("""
+                        {
+                          "cityCode": "gothenburg",
+                          "vehicleType": "OTHER",
+                          "currency": "SEK",
+                          "totalAmount": 0.00,
+                          "dailyTaxes": [
+                            {
+                              "date": "2013-02-08",
+                              "taxExemptionReasons": [
+                                "VEHICLE_TYPE",
+                                "WEEKDAY",
+                                "MONTH",
+                                "PUBLIC_HOLIDAY",
+                                "DATE_BEFORE_PUBLIC_HOLIDAY"
+                              ],
+                              "amount": 0.00
+                            }
+                          ]
+                        }
+                        """))
+                .andExpect(
+                        jsonPath("$.dailyTaxes[0].taxExemptionReasons.length()").value(5))
+                .andExpect(jsonPath("$.dailyTaxes[0].taxExemptionReasons[0]").value("VEHICLE_TYPE"))
+                .andExpect(jsonPath("$.dailyTaxes[0].taxExemptionReasons[1]").value("WEEKDAY"))
+                .andExpect(jsonPath("$.dailyTaxes[0].taxExemptionReasons[2]").value("MONTH"))
+                .andExpect(jsonPath("$.dailyTaxes[0].taxExemptionReasons[3]").value("PUBLIC_HOLIDAY"))
+                .andExpect(jsonPath("$.dailyTaxes[0].taxExemptionReasons[4]").value("DATE_BEFORE_PUBLIC_HOLIDAY"));
     }
 
     @ParameterizedTest(name = "{0}")
