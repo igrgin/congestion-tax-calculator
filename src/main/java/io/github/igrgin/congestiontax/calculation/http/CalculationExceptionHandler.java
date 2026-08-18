@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import tools.jackson.core.JacksonException;
+import tools.jackson.core.exc.StreamReadException;
 import tools.jackson.databind.exc.MismatchedInputException;
 
 @RestControllerAdvice(assignableTypes = CalculationController.class)
@@ -73,10 +74,15 @@ public class CalculationExceptionHandler {
                     .body(InvalidRequestResponse.forInvalidPassageTimestamp(invalidPassageIndex.getAsInt()));
         }
 
-        log.warn("Rejected Congestion Tax Calculation request. reason={}", "invalid-json");
-        return ResponseEntity.badRequest()
-                .contentType(MediaType.APPLICATION_PROBLEM_JSON)
-                .body(InvalidRequestResponse.forInvalidJson());
+        if (hasCause(exception, StreamReadException.class)) {
+            log.warn("Rejected Congestion Tax Calculation request. reason={}", "invalid-json");
+            return ResponseEntity.badRequest()
+                    .contentType(MediaType.APPLICATION_PROBLEM_JSON)
+                    .body(InvalidRequestResponse.forInvalidJson());
+        }
+
+        log.warn("Rejected Congestion Tax Calculation request. reason={}", "invalid-request");
+        return ResponseEntity.badRequest().build();
     }
 
     @ExceptionHandler(InvalidStoredTaxRuleOptionException.class)
@@ -113,5 +119,14 @@ public class CalculationExceptionHandler {
         return exception.getPath().stream()
                 .map(JacksonException.Reference::getPropertyName)
                 .anyMatch("passages"::equals);
+    }
+
+    private static boolean hasCause(Throwable exception, Class<? extends Throwable> causeType) {
+        for (var cause = exception; cause != null; cause = cause.getCause()) {
+            if (causeType.isInstance(cause)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

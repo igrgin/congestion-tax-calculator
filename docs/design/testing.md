@@ -109,7 +109,7 @@ This test stays in the `taxrule.persistence` test package because it uses packag
 - rejection of values with leading or trailing whitespace and other Jackson `LocalDateTime` shapes;
 - rejection of an invalid second Passage before the Calculation Service runs;
 - mapping of a timestamp deserialization failure to an HTTP `400` Problem Details response for the first invalid Passage;
-- rejection of unknown JSON properties, including the removed `timeZone` property;
+- rejection of unknown JSON properties, including an empty HTTP `400` response for the removed `timeZone` property;
 - mapping of malformed JSON to an HTTP `400` Problem Details response with an empty `errors` list;
 - forwarding of `List<LocalDateTime>` to `CalculationCommand`;
 - mapping of an unsupported-year service exception to one HTTP `400` Problem Details response that reports all affected zero-based Passage indexes in request order;

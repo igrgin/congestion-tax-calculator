@@ -74,7 +74,7 @@ The current implementation returns:
 
 An invalid stored City time zone is invalid server content and returns HTTP `500`.
 
-`CalculationServiceImpl` owns supported-year input failures. It also translates lower lookup failures into calculation-owned exceptions and preserves their causes. `CalculationExceptionHandler` maps supported-year service exceptions, timestamp deserialization failures, and malformed JSON to their HTTP responses. Spring handles other request-body and Bean Validation failures. The domain and Tax Rule areas do not depend on Spring Web.
+`CalculationServiceImpl` owns supported-year input failures. It also translates lower lookup failures into calculation-owned exceptions and preserves their causes. `CalculationExceptionHandler` maps supported-year service exceptions, timestamp deserialization failures, malformed JSON, and other unreadable request bodies to their HTTP responses. Spring handles Bean Validation failures. The domain and Tax Rule areas do not depend on Spring Web.
 
 The HTTP exception boundary logs each handled `4xx` response at `WARN` with a stable failure category, safe context, and no stack trace. It logs each handled `5xx` response once at `ERROR` with an internal stack trace. Invalid stored Charge Window or Daily Maximum content uses the `invalid-tax-rule-option` category and includes only the safe option type code. This rule applies to the calculation API exception handler, not to unrelated framework or servlet responses. The response does not contain internal failure data. The first calculation slice returns an empty HTTP `500` response for an unexpected failure. The later API validation issue replaces that body with the final safe Problem Details response.
 
@@ -82,7 +82,9 @@ A timestamp deserialization failure returns Problem Details JSON and uses the `i
 
 Malformed JSON returns Problem Details JSON and uses the `invalid-json` category at `WARN` without a stack trace. The response has an empty `errors` list because Jackson cannot reliably identify a request field.
 
-These responses use `application/problem+json`, a stable top-level `code`, and an `errors` list. Each field error has a field, a stable code, and a human-readable message. The responses omit `type`. They do not expose exception class names, parser details, SQL, credentials, or stack traces.
+Other unreadable request bodies, such as a request with an unknown property, use the `invalid-request` category at `WARN` without a stack trace. They keep the empty HTTP `400` response. Complete Problem Details for these failures belong to the later API validation issue.
+
+The timestamp, malformed JSON, and supported-year responses use `application/problem+json`, a stable top-level `code`, and an `errors` list. Each field error has a field, a stable code, and a human-readable message. The responses omit `type`. They do not expose exception class names, parser details, SQL, credentials, or stack traces.
 
 The invalid Passage timestamp error shape is:
 
