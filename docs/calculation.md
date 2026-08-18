@@ -2,6 +2,8 @@
 
 The calculator receives passage times for one vehicle and applies the stored rules for the selected city.
 
+A tax rule set is the complete collection of tax rules for one city. A tax time band is one rule in that set. It assigns one tax amount to passages during a period of local time.
+
 ## Calculation flow
 
 ```mermaid
@@ -9,12 +11,12 @@ flowchart TD
     request[Receive passages and a vehicle type]
     rules[Load the city's time zone and tax rule set]
     order[Convert and sort the passage times]
-    amounts[Apply tax exemptions and tax time bands]
+    amounts[Apply exemptions and assign time-band amounts]
     window{Does the rule set have a charge window?}
-    highest[Keep the highest amount in each window]
+    highest[Charge the highest amount once per window]
     individual[Keep each passage amount]
-    dates[Add the amounts for each date]
-    maximum[Apply the daily maximum]
+    dates[Add the charged amounts for each date]
+    maximum[Cap each daily tax at the daily maximum]
     result[Return daily taxes and the total]
 
     request --> rules --> order --> amounts --> window
@@ -40,13 +42,15 @@ The overnight tax time band starts at `18:30:00`, ends at `06:00:00`, and has a 
 
 ## Tax exemptions
 
-The calculator checks tax exemptions before it selects a tax time band. A passage is tax-free when its date or vehicle type matches a stored exemption. The response lists the reasons that apply to each date.
+Each tax rule set has a list of tax exemptions. An exemption makes a passage tax-free when its date or vehicle type matches the exemption. The calculator checks this list before it assigns a time-band amount. The response lists the reasons that apply to each date.
 
-A city can store weekday, month, public-holiday, and vehicle-type exemptions. A tax rule option can also make a configured number of dates before each public holiday tax-free. The stored rule set uses one preceding date.
+An exemption can specify a weekday, month, public holiday, or vehicle type. The rule set can also specify how many dates before each public holiday are tax-free. The stored rules use one preceding date.
 
 ## Charge windows
 
-A charge window groups passages for the single charge rule. The first passage starts the window. A passage exactly 60 minutes later is in the same window, and later passages do not extend it. The highest amount in the window is charged.
+A charge window is a fixed period in which the calculator charges only the highest applicable amount. For Gothenburg, the first passage starts a 60-minute window. The calculator checks every passage in that window and adds the highest amount to the daily tax once. It does not add the lower amounts.
+
+A passage exactly 60 minutes after the first passage remains in the same window. The next passage after that starts a new window. Passages inside a window do not extend its end.
 
 A window can cross midnight. An exempt passage or a passage with a zero amount still belongs to its window. If two passages have the same highest amount, the earlier passage wins. The calculator assigns the window amount to the local date of the winning passage.
 
@@ -54,7 +58,9 @@ When a tax rule set has no charge-window option, the calculator charges each pas
 
 ## Daily taxes
 
-The calculator adds the selected passage amounts for each local date, then applies the stored daily maximum. It returns one daily tax for every date in the request, including dates with a zero amount, and one total in the rule set's currency.
+A daily tax is the amount that one vehicle must pay for one local date. The calculator adds the charged amounts assigned to the date. The daily maximum is a cap on this sum. If the sum exceeds the stored maximum, the daily tax equals the maximum.
+
+The response contains one daily tax for every date in the request, including dates with a zero amount. It also contains the sum of all daily taxes in the rule set's currency.
 
 ## Input and failure behavior
 
