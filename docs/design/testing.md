@@ -222,10 +222,11 @@ The London calculation verifies that stored content can change City behavior wit
 
 ## Tax Rule Service integration test
 
-`TaxRuleServiceITest` starts the application with a temporary PostgreSQL database and calls the real Tax Rule Service. It uses synthetic rows to verify:
+`TaxRuleServiceITest` starts the application with a temporary PostgreSQL database and calls the real Tax Rule Service. It uses Flyway seed rows and synthetic rows to verify:
 
 - all seeded Vehicle Types;
 - the complete seeded Gothenburg Tax Rule Set;
+- the complete seeded London test Tax Rule Set;
 - stored City time-zone loading;
 - stored Vehicle Type lookup;
 - Tax Rule Set loading for the selected City;
