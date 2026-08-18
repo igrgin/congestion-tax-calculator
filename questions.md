@@ -84,6 +84,12 @@ The assignment does not answer the questions below. Because answers were not ava
 
 **Result:** A caller can see how the daily maximum and tax-free dates affected the result without making a separate request for each date.
 
+### Should a failed calculation return partial Daily Taxes?
+
+**Assumption used:** No. A Congestion Tax Calculation must produce a complete result for the request with one valid Tax Rule Set. If invalid input or stored content prevents a complete calculation, the API returns an error instead of partial Daily Taxes.
+
+**Result:** A caller receives either one complete Calculation Result or one error response. The response does not combine a partial total or partial Daily Taxes with errors. This question remains useful when discussing alternative API contracts in an interview.
+
 ### Is the 2013 scope only a documented limit, or must the API enforce it?
 
 **Assumption used:** The API reads each Passage timestamp as City Local Time. At the start of the Calculation Service operation, the service enforces the limit before it accesses the Tax Rule Service, writes calculation log entries, or records custom metrics. If one or more Passages are outside 2013, the service rejects the complete request and reports all affected Passage indexes.

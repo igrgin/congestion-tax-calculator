@@ -109,16 +109,18 @@ A Tax Time Band follows these rules:
 - the amount must be zero or positive;
 - the same Tax Rule Set cannot contain an exact duplicate start and end pair.
 
-The database enforces rules for one row. `TaxRuleServiceImpl` enforces rules that require the complete collection:
+Validation of the complete collection is split across these boundaries:
 
-- a Tax Rule Set must contain at least one Tax Time Band;
-- Tax Time Bands in one set must not overlap.
+- `TaxRuleServiceImpl` requires at least one Tax Time Band;
+- PostgreSQL prevents overlaps, and `TaxRuleServiceImpl` repeats that check when it loads a Tax Rule Set.
 
 Adjacent bands are valid. For example, `06:00–06:30` and `06:30–07:00` do not overlap.
 
 Gaps are valid. If no Tax Time Band contains a Passage local time, the calculator returns a zero Tax Amount in the Tax Rule Set currency.
 
-The service validates overlap around the complete 24-hour clock. It does not depend on repository result order. This check detects overlaps on the same date and across midnight. It rejects nested bands and a full-day band combined with any other band, including another full-day band.
+Flyway installs PostgreSQL's supplied `btree_gist` extension. A GiST exclusion constraint compares the Tax Rule Set identifier for equality and each Tax Time Band multirange for overlap. The constraint represents a same-date band as one range, a cross-midnight band as two ranges, and a full-day band as the complete clock. It rejects conflicting inserts and updates, including concurrent writes.
+
+The Tax Rule Service retains the same overlap rule when it loads a complete Tax Rule Set. It does not depend on repository result order. It detects same-date, cross-midnight, nested, and full-day overlaps. It stops at the first conflicting pair and throws `OverlappingTaxTimeBandsException`.
 
 ## JPA loading
 
@@ -164,10 +166,11 @@ PostgreSQL constraints protect:
 - three-letter upper-case currency codes;
 - non-negative Tax Time Band amounts;
 - exact duplicate Tax Time Bands;
+- non-overlapping Tax Time Bands in one Tax Rule Set;
 - valid Tax Rule Option value shapes;
 - one Tax Rule Option of each type in a Tax Rule Set.
 
-Repository-facing services protect cross-row completeness when they assemble calculation values. The current Tax Rule Service checks for:
+Repository-facing services repeat important stored-content validation when they assemble calculation values. The current Tax Rule Service checks for:
 
 - invalid stored City time zones;
 - invalid or duplicate stored Tax Rule Options;

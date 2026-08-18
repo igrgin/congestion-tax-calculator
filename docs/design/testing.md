@@ -88,6 +88,8 @@ Application logging remains active when a test uses a Spring profile. Test code 
 - rejection of a nested Tax Time Band;
 - rejection of a full-day Tax Time Band combined with another band;
 - rejection of two full-day Tax Time Bands;
+- use of `OverlappingTaxTimeBandsException` for every overlap shape;
+- failure on the first conflicting pair;
 - safe rejection of invalid stored Charge Window and Daily Maximum content;
 - safe rejection of duplicate stored Tax Rule Option types.
 
@@ -113,12 +115,15 @@ This test stays in the `taxrule.persistence` test package because it uses packag
 - rejection of values with leading or trailing whitespace and other Jackson `LocalDateTime` shapes;
 - rejection of an invalid second Passage before the Calculation Service runs;
 - mapping of a timestamp deserialization failure to an HTTP `400` Problem Details response for the first invalid Passage;
-- rejection of unknown JSON properties, including an empty HTTP `400` response for the removed `timeZone` property;
-- mapping of malformed JSON to an HTTP `400` Problem Details response with an empty `errors` list;
+- rejection of unknown JSON properties, including a Problem Details response for the removed `timeZone` property;
+- mapping of malformed JSON to an HTTP `400` Problem Details response without `errors`;
 - forwarding of `List<LocalDateTime>` to `CalculationCommand`;
 - mapping of an unsupported-year service exception to one HTTP `400` Problem Details response that reports all affected zero-based Passage indexes in request order;
 - the top-level `INVALID_REQUEST` code and the `UNSUPPORTED_PASSAGE_YEAR` code for each affected Passage;
-- a safe HTTP `500` response for an unexpected failure.
+- inclusion of `errors` only when at least one specific error exists;
+- a Problem Details response for each handled `400`, `404`, `500`, and `503` failure;
+- the safe `CALCULATION_FAILED` response for invalid stored content and unexpected failures;
+- translation of `OverlappingTaxTimeBandsException` to `InvalidStoredTaxTimeBandsException`.
 
 The controller test uses the `test` profile. It does not connect to PostgreSQL.
 
@@ -138,11 +143,16 @@ The test proves:
 - a Tax Time Band can have equal start and end times for a full day;
 - a Tax Time Band can have an end before its start;
 - an exact Tax Time Band duplicate is rejected;
+- a same-date partial overlap is rejected;
+- a nested Tax Time Band is rejected;
+- a cross-midnight overlap is rejected;
+- a full-day Tax Time Band combined with another band is rejected;
+- two full-day Tax Time Bands are rejected;
 - a Tax Rule Option must reference a known Tax Rule Set;
 - a Tax Rule Set cannot select the same option type twice;
 - each Tax Rule Option has the correct positive value shape.
 
-Cross-row Tax Time Band overlap is a Tax Rule Service check. It is not a database constraint.
+PostgreSQL uses a GiST exclusion constraint to reject every Tax Time Band overlap shape in one Tax Rule Set. The schema test proves this constraint directly.
 
 ## Full-path integration test
 
@@ -200,7 +210,7 @@ The test also verifies:
 - stored Charge Window loading as a typed Domain value;
 - stored Daily Maximum loading as a typed Domain value in the Tax Rule Set currency;
 - rejection of a selected Tax Rule Set with no Tax Time Bands;
-- rejection of overlapping Tax Time Bands.
+- loading of valid non-overlapping Tax Time Bands.
 
 An `@AfterEach` method removes the synthetic rows. The test does not use a test transaction or mock repositories.
 
@@ -242,9 +252,9 @@ Later calculation issues will add focused tests for:
 
 - weekday, month, public-holiday, and preceding-date Tax Exemptions;
 - Vehicle Type Tax Exemptions;
-- remaining transport validation and Problem Details;
+- remaining validation-detail aggregation and API documentation;
 - a second City with different stored Tax Rules.
 
-Issue 5 will replace the effective-date tests with one-Tax-Rule-Set tests. It will add focused cross-midnight Tax Time Band and Charge Window coverage.
+Issue 5 owns the one-Tax-Rule-Set tests, Tax Time Band boundary and overlap tests, cross-date Charge Window tests, and the shared calculation Problem Details structure.
 
 The complete assignment full-path test will be added when the related calculation behavior and seed data exist.

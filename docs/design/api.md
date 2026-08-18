@@ -70,21 +70,23 @@ Bean Validation checks the reusable transport-shape invariants. Jackson complete
 The API status contract is:
 
 - HTTP `400` for an invalid request shape, unknown property, Passage timestamp, unsupported Passage year, or unknown Vehicle Type;
-- HTTP `404` for an unknown City.
+- HTTP `404` for an unknown City;
+- HTTP `500` for invalid stored content or an unexpected application failure;
+- HTTP `503` when PostgreSQL is unavailable.
 
-An invalid stored City time zone or missing Tax Rule Set is invalid server content and returns HTTP `500`.
+Every handled error from the calculation operation returns `application/problem+json`. The shared response contains `title`, `status`, `detail`, and a stable top-level `code`. It contains `errors` only when one or more specific errors exist. The JSON omits `errors` when the collection is empty. Each included error has a field, a stable code, and a human-readable message. The responses omit `type`.
 
-`CalculationServiceImpl` owns supported-year input failures. It also translates lower lookup failures into calculation-owned exceptions and preserves their causes. `CalculationExceptionHandler` maps supported-year service exceptions, timestamp deserialization failures, malformed JSON, and other unreadable request bodies to their HTTP responses. Spring handles Bean Validation failures. The domain and Tax Rule areas do not depend on Spring Web.
+`CalculationServiceImpl` owns supported-year input failures. It also translates lower lookup and stored-content failures into calculation-owned exceptions and preserves their causes. An overlap becomes `InvalidStoredTaxTimeBandsException` at this boundary. `CalculationExceptionHandler` maps calculation, deserialization, Bean Validation, unreadable-request, and unexpected exceptions to Problem Details. The domain and Tax Rule areas do not depend on Spring Web.
 
-The HTTP exception boundary logs each handled `4xx` response at `WARN` with a stable failure category, safe context, and no stack trace. It logs each handled `5xx` response once at `ERROR` with an internal stack trace. Invalid stored Charge Window or Daily Maximum content uses the `invalid-tax-rule-option` category and includes only the safe option type code. This rule applies to the calculation API exception handler, not to unrelated framework or servlet responses. The response does not contain internal failure data. The first calculation slice returns an empty HTTP `500` response for an unexpected failure. The later API validation issue replaces that body with the final safe Problem Details response.
+The HTTP exception boundary logs each handled `4xx` response at `WARN` with a stable failure category, safe context, and no stack trace. It logs each handled `5xx` response once at `ERROR` with an internal stack trace. Invalid stored Charge Window or Daily Maximum content uses the `invalid-tax-rule-option` category. Overlapping Tax Time Bands use `overlapping-tax-time-bands`. This rule applies to the calculation API exception handler, not to unrelated framework or servlet responses.
 
 A timestamp deserialization failure returns Problem Details JSON and uses the `invalid-passage-timestamp` category at `WARN` without a stack trace. The response reports the first invalid Passage because deserialization stops at the first invalid value.
 
-Malformed JSON returns Problem Details JSON and uses the `invalid-json` category at `WARN` without a stack trace. The response has an empty `errors` list because Jackson cannot reliably identify a request field.
+Malformed JSON returns Problem Details JSON and uses the `invalid-json` category at `WARN` without a stack trace. It omits `errors` because Jackson cannot reliably identify a request field.
 
-Other unreadable request bodies, such as a request with an unknown property, use the `invalid-request` category at `WARN` without a stack trace. They keep the empty HTTP `400` response. Complete Problem Details for these failures belong to the later API validation issue.
+Other unreadable request bodies, such as a request with an unknown property, use the `invalid-request` category at `WARN` without a stack trace. They return Problem Details and omit `errors` when no specific field errors are available.
 
-The timestamp, malformed JSON, and supported-year responses use `application/problem+json`, a stable top-level `code`, and an `errors` list. Each field error has a field, a stable code, and a human-readable message. The responses omit `type`. They do not expose exception class names, parser details, SQL, credentials, or stack traces.
+Missing Tax Rules, invalid stored Tax Rule Options, invalid stored Tax Time Bands, invalid stored City time zones, and unexpected failures return the public code `CALCULATION_FAILED`. The response contains no internal failure data. PostgreSQL unavailability returns `SERVICE_UNAVAILABLE`. Exception class names, stored boundaries, parser details, SQL, credentials, and stack traces stay out of every response.
 
 The invalid Passage timestamp error shape is:
 
@@ -111,8 +113,7 @@ The malformed JSON error shape is:
   "title": "Invalid JSON",
   "status": 400,
   "detail": "The request body is not valid JSON.",
-  "code": "INVALID_JSON",
-  "errors": []
+  "code": "INVALID_JSON"
 }
 ```
 
@@ -144,7 +145,18 @@ The supported-year error shape is:
 }
 ```
 
-The supported-year response uses the top-level code `INVALID_REQUEST`. Each field error uses the code `UNSUPPORTED_PASSAGE_YEAR`. Several unsupported Passages produce one error entry for each affected zero-based index, in request order. The supported-year response does not combine unsupported-year errors with other validation failure types. Complete aggregation and Problem Details for the other validation types belong to the later API issue.
+The supported-year response uses the top-level code `INVALID_REQUEST`. Each field error uses the code `UNSUPPORTED_PASSAGE_YEAR`. Several unsupported Passages produce one error entry for each affected zero-based index, in request order. The supported-year response does not combine unsupported-year errors with other validation failure types. Complete field-error aggregation for the other validation types belongs to the later API issue.
+
+An internal failure response is:
+
+```json
+{
+  "title": "Calculation failed",
+  "status": 500,
+  "detail": "The calculation could not be completed.",
+  "code": "CALCULATION_FAILED"
+}
+```
 
 | Condition | HTTP status |
 |---|---:|

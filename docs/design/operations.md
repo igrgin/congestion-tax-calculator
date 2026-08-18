@@ -71,6 +71,8 @@ Other unreadable request bodies use the `invalid-request` category at `WARN` wit
 
 Missing stored Tax Rules use the `missing-tax-rule-set` category at `ERROR` with the cause. The event contains no Passage timestamp or Tax Amount.
 
+Overlapping stored Tax Time Bands use the `overlapping-tax-time-bands` category at `ERROR` with the cause. The event contains the City code but no Passage timestamp or Tax Amount.
+
 ## Metrics
 
 Spring Boot Actuator and Micrometer supply standard JVM, process, HTTP, and database-pool metrics. The Prometheus registry publishes them at `/actuator/prometheus`. The current application does not run a Prometheus server and does not supply dashboards, alerts, or deployment configuration.

@@ -17,7 +17,7 @@ flowchart LR
 ```
 
 - Jackson and Bean Validation create and validate the typed request before the controller method runs. A property-specific Jackson content deserializer strictly converts each Passage timestamp string to `LocalDateTime`.
-- The HTTP controller has no parsing or validation logic. It forwards the City Local Time list in `CalculationCommand` and maps service results to HTTP. The HTTP exception handler maps service exceptions and timestamp deserialization failures to HTTP.
+- The HTTP controller has no parsing or validation logic. It forwards the City Local Time list in `CalculationCommand` and maps service results to HTTP. The HTTP exception handler maps every handled calculation failure to the shared Problem Details JSON structure.
 - `CalculationService` defines the operation that coordinates one complete Congestion Tax Calculation.
 - `CalculationServiceImpl` validates the supported Passage year, derives Passage instants with the stored City time zone, and calls the Tax Rule Service, pure calculator, and metrics component.
 - `TaxRuleService` confirms that the City exists, validates its stored IANA time zone, and loads the Vehicle Type and Tax Rule Set.
@@ -86,7 +86,7 @@ The domain does not:
 
 `TaxRuleService` is the external interface of the Tax Rule module. Persistence classes and repository interfaces can be public because `TaxRuleServiceImpl` uses them across the package split. That Java access does not make them part of the module interface. No caller outside the Tax Rule implementation uses them.
 
-Database constraints protect single-row validity and relationships. Repository-facing services check cross-row completeness when they assemble calculation values. The pure calculator checks only the inputs that it needs to calculate safely.
+Database constraints protect stored validity and relationships. This includes a PostgreSQL exclusion constraint that prevents overlapping Tax Time Bands. Repository-facing services repeat important stored-content checks when they assemble calculation values. The pure calculator checks only the inputs that it needs to calculate safely.
 
 ## Dependency directions
 

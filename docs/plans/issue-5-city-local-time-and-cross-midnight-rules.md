@@ -25,7 +25,9 @@ This issue changes stored Tax Rules and multi-date calculation:
 - one Tax Time Band can cross midnight;
 - a Tax Time Band can have a zero Tax Amount;
 - equal Tax Time Band start and end times define a full-day band;
-- Tax Time Band overlap validation covers the complete 24-hour clock;
+- PostgreSQL and the Tax Rule Service reject Tax Time Band overlaps around the complete 24-hour clock;
+- all calculation errors return the shared Problem Details JSON structure;
+- `errors` is present only when the response contains specific errors;
 - one Charge Window can contain Passages from different City Local Time dates;
 - the highest Passage Tax Amount in a Charge Window is charged once;
 - the earliest Passage wins when several Passages have the same highest amount;
@@ -76,7 +78,7 @@ Under this existing convention, the supplied `18:30–05:59` display range uses 
 
 For a cross-midnight band, `TaxTimeBand.includes` matches a local time when it is on or after the start or before the end.
 
-For a full-day band, `TaxTimeBand.includes` matches every local time. The Tax Rule Service rejects overlaps around the complete clock. This includes nested bands and a full-day band combined with another band. Adjacent bands and gaps remain valid. A gap produces a zero Tax Amount in the Tax Rule Set currency.
+For a full-day band, `TaxTimeBand.includes` matches every local time. PostgreSQL uses `btree_gist` and a GiST exclusion constraint to reject overlaps in one Tax Rule Set. The Tax Rule Service retains the same validation and throws `OverlappingTaxTimeBandsException` for the first conflicting pair. This includes same-date partial overlaps, nested bands, cross-midnight overlaps, and a full-day band combined with another band. Adjacent bands and gaps remain valid. A gap produces a zero Tax Amount in the Tax Rule Set currency.
 
 Issue 5 rewrites the initial Flyway migrations because the project has no release. A developer must run `docker compose down -v` before using the rewritten schema with an existing development database.
 
@@ -94,9 +96,15 @@ Remove:
 - the selected Applicable Tax Rule Set `DEBUG` event;
 - mixed-snapshot currency handling.
 
-Keep `TaxAmount` currency checks as a Domain invariant. Translate a missing City Tax Rule Set to the calculation boundary and log `missing-tax-rule-set` at `ERROR` with its cause. The HTTP response stays safe and contains no internal failure data.
+Keep `TaxAmount` currency checks as a Domain invariant. Translate a missing City Tax Rule Set to the calculation boundary and log `missing-tax-rule-set` at `ERROR` with its cause. Translate `OverlappingTaxTimeBandsException` to `InvalidStoredTaxTimeBandsException` and log `overlapping-tax-time-bands` at `ERROR` with its cause. Both failures return the safe public code `CALCULATION_FAILED` and no internal failure data.
 
 This issue adds no custom metric.
+
+## Error response
+
+Every handled calculation error returns `application/problem+json` with `title`, `status`, `detail`, and a stable top-level `code`. The optional `errors` property appears only when it contains one or more specific errors. Malformed JSON, unknown properties, lookup failures, invalid stored content, unavailable storage, and unexpected failures omit `errors` when no specific errors are available.
+
+Invalid stored content and unexpected failures use the public code `CALCULATION_FAILED`. Internal exception types, stored Tax Time Band boundaries, SQL, and stack traces stay out of the response.
 
 ## Cross-date Charge Windows
 
@@ -122,8 +130,9 @@ Use these public boundaries:
 
 - `TaxTimeBand` for same-date, cross-midnight, and full-day matching boundaries;
 - `TaxCalculator.calculate` for cross-date Charge Windows, winner-date assignment, tie behavior, ordered Daily Taxes, and Daily Maximum order;
-- `TaxRuleService` for one-set loading, missing-set handling, child loading, and circular overlap rejection;
-- PostgreSQL schema integration for one set per City, zero amounts, cross-midnight boundaries, and full-day boundaries;
+- `TaxRuleService` for one-set loading, missing-set handling, child loading, `OverlappingTaxTimeBandsException`, and first-conflict rejection;
+- PostgreSQL schema integration for one set per City, zero amounts, boundary shapes, and the exclusion constraint for every overlap shape;
+- the Calculation HTTP boundary for the shared Problem Details structure and optional `errors` property;
 - the HTTP-to-PostgreSQL operation for the selected City's one Tax Rule Set.
 
 Keep the existing Calculation Service winter and summer time-zone tests. Keep the strict timestamp and supported-year HTTP tests. Remove or replace tests that prove effective-date selection, historical snapshots, future snapshots, mixed snapshot currencies, or midnight Charge Window separation.
@@ -135,11 +144,12 @@ Do not test private methods, exact generated SQL, JPA internals, or log output.
 1. Add failing tests at the approved seams.
 2. Simplify the Tax Rule Set Domain and Tax Rule Service interfaces.
 3. Rewrite the pre-release schema and seed migrations.
-4. Add cross-midnight and full-day Tax Time Band validation and matching.
+4. Add cross-midnight and full-day Tax Time Band validation, matching, and the PostgreSQL overlap exclusion constraint.
 5. Change the calculator to create Charge Windows across all ordered Passages.
 6. Assign each window charge to the winner's date and apply the Daily Maximum.
-7. Translate the missing Tax Rule Set failure and remove obsolete logs.
-8. Update affected tests and documents.
+7. Translate stored-content failures and remove obsolete logs.
+8. Return Problem Details for every calculation error and omit empty `errors`.
+9. Update affected tests and documents.
 
 ## Verification
 
@@ -156,7 +166,8 @@ The implementation is complete when:
 - each City has at most one Tax Rule Set;
 - calculation uses the selected City's one Tax Rule Set for all Passages;
 - Tax Time Bands can cross midnight, can cover a full day, and can contain zero Tax;
-- nested bands, full-day combinations, and other circular overlaps are rejected;
+- PostgreSQL and the Tax Rule Service reject nested bands, full-day combinations, and other circular overlaps;
+- every calculation error returns Problem Details and omits `errors` when there are no specific errors;
 - Charge Windows can cross City Local Time dates;
 - the winning charge is assigned to the correct date;
 - every input date has one ordered Daily Tax;
