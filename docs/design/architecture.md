@@ -54,7 +54,7 @@ The Maven group is `io.github.igrgin`, the artifact ID and application name are 
 
 The `domain` area owns the pure calculation language and behavior. Given a known Vehicle Type, Passages, and an Applicable Tax Rule Set for each calculation date, it returns Daily Taxes and a total Tax Amount.
 
-At the HTTP-to-Calculation seam, `CalculationCommand` uses `List.copyOf` to make and store an unmodifiable defensive copy of the raw Passage timestamp strings. At other application-area seams, the producer creates an unmodifiable collection and does not retain a mutable reference. The receiving record stores that supplied collection without making another copy.
+Defensive collection copying is not the default. Copy a collection when the receiver retains it or when later mutation can change behavior. A synchronously consumed transient command can store the supplied collection directly.
 
 The domain does not:
 

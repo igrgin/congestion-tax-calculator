@@ -13,7 +13,7 @@ Read `CONTEXT.md`, `CONTRIBUTING.md`, and `docs/design/README.md` before impleme
 This issue implements or proves:
 
 - transport-shape validation in the HTTP controller;
-- raw Passage timestamp transfer through `CalculationCommand`, which uses `List.copyOf` to take an unmodifiable copy;
+- raw Passage timestamp transfer through `CalculationCommand`;
 - strict Passage parsing as City Local Time in `uuuu-MM-dd HH:mm:ss` format;
 - Passage instant derivation with the selected City's stored IANA time zone;
 - rejection of each Passage whose City Local Time date is outside 2013;
@@ -52,7 +52,7 @@ The supported year is an API validation rule. It is not a new project term or Do
 
 ## Time and date rules
 
-Each Passage timestamp is City Local Time. The HTTP controller validates the transport shape and passes `request.passages()` directly to `CalculationCommand`. `CalculationCommand` uses `List.copyOf` to take an unmodifiable copy before the command crosses into the Calculation Service. The controller does not parse the timestamps.
+Each Passage timestamp is City Local Time. The HTTP controller validates the transport shape and passes the raw Passage timestamps in `CalculationCommand`. The controller does not parse the timestamps.
 
 `CalculationServiceImpl` strictly parses each timestamp without an offset and in request order. The selected City supplies one stored IANA time zone. The Calculation module uses that time zone to derive the Passage instant.
 
@@ -182,7 +182,7 @@ Do not test private methods, exact SQL, JPA internals, or log output.
 
 This group adds:
 
-- raw Passage timestamp transfer through `CalculationCommand`, which uses `List.copyOf` to take an unmodifiable copy;
+- raw Passage timestamp transfer through `CalculationCommand`;
 - strict parsing and supported-year validation in `CalculationServiceImpl` before Tax Rule Service and metrics access;
 - complete supported-year index collection;
 - the narrow Problem Details response;

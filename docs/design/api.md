@@ -62,7 +62,7 @@ For a calculation request:
 
 Bean Validation checks the reusable transport-shape invariants. Timestamp parsing and supported-year validation belong to the Calculation Service and run before Tax Rule lookup. Complete validation aggregation for other request failures belongs to the later API validation work.
 
-`CalculationRequest` stays inside the HTTP adapter. The controller passes its raw Passage timestamp string list directly to `CalculationCommand`. `CalculationCommand` uses `List.copyOf` to make and store an unmodifiable defensive copy. The mutable transport collection does not cross into the Calculation module.
+`CalculationRequest` stays inside the HTTP adapter. The controller passes its raw Passage timestamp strings in `CalculationCommand`. `CalculationServiceImpl` parses and validates these values.
 
 ## Error responses
 
