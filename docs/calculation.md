@@ -1,6 +1,6 @@
 # Calculation
 
-The calculator receives passage times for one vehicle and applies the stored rules for the selected city.
+The calculator receives a vehicle type and passage times for one vehicle. It applies the stored rules for the selected city.
 
 A tax rule set is the complete collection of tax rules for one city. A tax time band is one rule in that set. It assigns one tax amount to passages during a period of local time.
 
@@ -48,7 +48,7 @@ An exemption can specify a weekday, month, public holiday, or vehicle type. The 
 
 ## Charge windows
 
-A charge window is a fixed period in which the calculator charges only the highest applicable amount. For Gothenburg, the first passage starts a 60-minute window. The calculator checks every passage in that window and adds the highest amount to the daily tax once. It does not add the lower amounts.
+A charge window is a fixed period in which the calculator charges only the highest applicable amount. For Gothenburg, the first passage starts a 60-minute window. The calculator checks every passage in that window and adds the highest amount to the daily tax once.
 
 A passage exactly 60 minutes after the first passage remains in the same window. The next passage after that starts a new window. Passages inside a window do not extend its end.
 
