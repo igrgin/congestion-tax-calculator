@@ -41,13 +41,23 @@ Application logging remains active when a test uses a Spring profile. Test code 
 `TaxRuleSetTest` proves:
 
 - rejection of null fields;
-- rejection of an empty Tax Time Band list.
+- rejection of an empty Tax Time Band list;
+- each stored Tax Exemption match;
+- all matching Tax Exemption Reasons in stable order;
+- an unmodifiable reason set;
+- present and absent Public Holiday Preceding-Date Option behavior;
+- the first and last preceding-date boundaries;
+- overlapping public-holiday reasons for consecutive holidays.
+
+`TaxExemptionsTest` proves rejection of null and duplicate Tax Exemption values.
+
+`HolidayPrecedingTest` proves rejection of a zero or negative calendar-date count.
 
 `ChargeWindowTest` proves rejection of a null, zero, or negative duration.
 
 `DailyMaximumTest` proves rejection of a null or zero Tax Amount.
 
-`TaxRuleOptionsTest` proves rejection of duplicate option types.
+`TaxRuleOptionsTest` proves typed Public Holiday Preceding-Date Option lookup and rejection of duplicate option types.
 
 `DailyTaxTest` proves that the convenience constructor uses an empty Tax Exemption Reason set.
 
@@ -84,7 +94,11 @@ Application logging remains active when a test uses a Spring profile. Test code 
 - rejection of a Tax Rule Set without Tax Time Bands;
 - rejection of overlapping Tax Time Bands independent of repository order;
 - safe rejection of invalid stored Charge Window and Daily Maximum content;
-- safe rejection of duplicate stored Tax Rule Option types.
+- safe rejection of invalid stored Public Holiday Preceding-Date Option content;
+- safe rejection of duplicate stored Tax Rule Option types;
+- typed mapping of each stored Tax Exemption Type;
+- safe rejection of invalid shapes, ranges, missing types, and duplicate stored Tax Exemptions;
+- rejection of a Public Holiday Preceding-Date Option without a public-holiday Tax Exemption.
 
 This test stays in the `taxrule.persistence` test package because it uses package-access entity constructors to prepare repository results. It calls the implementation through the `TaxRuleService` interface.
 
@@ -93,7 +107,8 @@ This test stays in the `taxrule.persistence` test package because it uses packag
 - coordination of Passages, stored Tax Rules, and the pure calculator;
 - derivation of winter and summer instants with the stored City time zone;
 - translation of unknown City and Vehicle Type failures into calculation-owned exceptions while preserving their causes;
-- translation of an invalid stored Tax Rule Option into a calculation-owned failure with its safe type code.
+- translation of an invalid stored Tax Rule Option into a calculation-owned failure with its safe type code;
+- translation of invalid stored Tax Exemption content into a calculation-owned failure with its safe type code.
 
 `CalculationControllerTest` proves:
 
@@ -105,7 +120,8 @@ This test stays in the `taxrule.persistence` test package because it uses packag
 - rejection of a Passage timestamp that does not use `uuuu-MM-dd HH:mm:ss`;
 - rejection of unknown JSON properties, including the removed `timeZone` property;
 - rejection of malformed JSON;
-- a safe HTTP `500` response for an unexpected failure.
+- a safe HTTP `500` response for an unexpected failure;
+- a safe HTTP `500` response for invalid stored Tax Exemption content.
 
 The controller test uses the `test` profile. It does not connect to PostgreSQL.
 
@@ -126,7 +142,12 @@ The test proves:
 - an exact Tax Time Band duplicate is rejected;
 - a Tax Rule Option must reference a known Tax Rule Set;
 - a Tax Rule Set cannot select the same option type twice;
-- each Tax Rule Option has the correct positive value shape.
+- each Tax Rule Option has the correct positive value shape;
+- the closed Tax Exemption Type vocabulary;
+- valid typed Tax Exemption rows;
+- exact Tax Exemption value shapes and weekday and month ranges;
+- Tax Exemption foreign keys;
+- duplicate rejection for each Tax Exemption Type.
 
 Cross-row Tax Time Band overlap is a Tax Rule Service check. It is not a database constraint.
 
@@ -185,6 +206,9 @@ The test also verifies:
 - isolation between Cities;
 - stored Charge Window loading as a typed Domain value;
 - stored Daily Maximum loading as a typed Domain value in the Tax Rule Set currency;
+- stored Public Holiday Preceding-Date Option loading as a typed Domain value;
+- stored weekday, month, public-holiday, and Vehicle Type Tax Exemption loading as typed Domain values;
+- an empty Tax Exemption collection when no rows exist;
 - rejection of a selected Tax Rule Set with no Tax Time Bands;
 - rejection of overlapping Tax Time Bands.
 
@@ -226,8 +250,8 @@ Tests that start Spring without PostgreSQL use the `test` profile. Full Spring B
 
 Later calculation issues will add focused tests for:
 
-- weekday, month, public-holiday, and preceding-date Tax Exemptions;
-- Vehicle Type Tax Exemptions;
+- applying stored Tax Exemptions before amount calculation;
+- zero Daily Tax and response reasons for exempt dates and Vehicle Types;
 - successive Applicable Tax Rule Sets;
 - mixed currencies in one calculation;
 - complete transport validation and Problem Details;
