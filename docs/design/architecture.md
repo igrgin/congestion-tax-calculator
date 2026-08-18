@@ -80,7 +80,7 @@ The domain does not:
 6. Call `TaxCalculator`.
 7. Return the calculated City and calculation result.
 
-`CalculationServiceImpl` translates expected collaborator lookup failures into calculation-owned exceptions after metrics records the outcome. It also translates invalid stored Tax Rule Option content to a calculation-owned failure with the safe option type code. It preserves the lower exception as the cause. This keeps the Calculation module interface independent of its collaborator implementations.
+`CalculationServiceImpl` translates expected collaborator lookup and stored-content failures into calculation-owned exceptions after metrics records the outcome. This includes a missing Tax Rule Set, missing Tax Time Bands, an invalid City time zone, invalid Tax Rule Options, and overlapping Tax Time Bands. It preserves each lower exception as the cause. This keeps the Calculation module interface independent of its collaborator implementations.
 
 `TaxRuleService` owns City existence, stored City time-zone validation, Vehicle Type, and Tax Rule loading. It returns one immutable result that contains the validated City time zone and the City's Tax Rule Set. Its interface and implementation are in `taxrule`. Its entities and repositories are in `taxrule.persistence`. One business responsibility can use one repository or several repositories. The service seam follows the business responsibility, not the number of tables.
 

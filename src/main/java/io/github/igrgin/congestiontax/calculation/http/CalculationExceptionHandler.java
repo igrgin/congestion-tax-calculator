@@ -1,9 +1,11 @@
 package io.github.igrgin.congestiontax.calculation.http;
 
 import io.github.igrgin.congestiontax.calculation.exception.CityNotFoundException;
+import io.github.igrgin.congestiontax.calculation.exception.InvalidStoredCityTimeZoneException;
 import io.github.igrgin.congestiontax.calculation.exception.InvalidStoredTaxRuleOptionException;
 import io.github.igrgin.congestiontax.calculation.exception.InvalidStoredTaxTimeBandsException;
 import io.github.igrgin.congestiontax.calculation.exception.MissingStoredTaxRuleSetException;
+import io.github.igrgin.congestiontax.calculation.exception.MissingStoredTaxTimeBandsException;
 import io.github.igrgin.congestiontax.calculation.exception.UnsupportedPassageYearException;
 import io.github.igrgin.congestiontax.calculation.exception.VehicleTypeNotFoundException;
 import io.github.igrgin.congestiontax.calculation.http.dto.CalculationProblemResponse;
@@ -15,6 +17,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.transaction.CannotCreateTransactionException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -114,6 +117,30 @@ public class CalculationExceptionHandler {
         return internalFailure();
     }
 
+    @ExceptionHandler(MissingStoredTaxTimeBandsException.class)
+    public ResponseEntity<CalculationProblemResponse> handleMissingTaxTimeBands(
+            MissingStoredTaxTimeBandsException exception) {
+        log.error(
+                "Congestion Tax Calculation failed. reason={} cityCode={}",
+                "missing-tax-time-bands",
+                exception.cityCode(),
+                exception);
+
+        return internalFailure();
+    }
+
+    @ExceptionHandler(InvalidStoredCityTimeZoneException.class)
+    public ResponseEntity<CalculationProblemResponse> handleInvalidCityTimeZone(
+            InvalidStoredCityTimeZoneException exception) {
+        log.error(
+                "Congestion Tax Calculation failed. reason={} cityCode={}",
+                "invalid-city-time-zone",
+                exception.cityCode(),
+                exception);
+
+        return internalFailure();
+    }
+
     @ExceptionHandler(InvalidStoredTaxTimeBandsException.class)
     public ResponseEntity<CalculationProblemResponse> handleInvalidTaxTimeBands(
             InvalidStoredTaxTimeBandsException exception) {
@@ -126,9 +153,8 @@ public class CalculationExceptionHandler {
         return internalFailure();
     }
 
-    @ExceptionHandler(DataAccessResourceFailureException.class)
-    public ResponseEntity<CalculationProblemResponse> handleServiceUnavailable(
-            DataAccessResourceFailureException exception) {
+    @ExceptionHandler({DataAccessResourceFailureException.class, CannotCreateTransactionException.class})
+    public ResponseEntity<CalculationProblemResponse> handleServiceUnavailable(RuntimeException exception) {
         log.error("Congestion Tax Calculation failed. reason={}", "service-unavailable", exception);
 
         return problem(HttpStatus.SERVICE_UNAVAILABLE, CalculationProblemResponse.forServiceUnavailable());

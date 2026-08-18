@@ -1,6 +1,6 @@
 # Operations Design
 
-Docker Compose runs PostgreSQL 18.4 as a separate runtime service. A named volume retains development data. `docker compose down -v` removes that data when a clean start is necessary. Environment variables configure the database URL, user, and password. Flyway creates the schema and the current initial seed data.
+Docker Compose runs PostgreSQL 18.4 as a separate runtime service. A named volume retains development data. The one-Tax-Rule-Set design rewrites the pre-release Flyway migrations. A developer who used an earlier migration version must run `docker compose down -v` before starting the application. Environment variables configure the database URL, user, and password. Flyway creates the schema and the current initial seed data.
 
 The Maven project compiles for Java 17. The Maven Wrapper uses the active compatible JDK. Spring Boot Actuator exposes only `/actuator/health` and `/actuator/prometheus` over HTTP. Health includes database status. It shows component names and statuses and hides component details. `/actuator/info` and `/actuator/metrics` are not available over HTTP.
 
@@ -72,6 +72,10 @@ Malformed JSON uses the `invalid-json` category at `WARN` without a stack trace.
 Other unreadable request bodies use the `invalid-request` category at `WARN` without a stack trace. The HTTP exception handler owns this event.
 
 Missing stored Tax Rules use the `missing-tax-rule-set` category at `ERROR` with the cause. The event contains no Passage timestamp or Tax Amount.
+
+Missing stored Tax Time Bands use the `missing-tax-time-bands` category at `ERROR` with the cause. The event contains the City code but no Passage timestamp or Tax Amount.
+
+An invalid stored City time zone uses the `invalid-city-time-zone` category at `ERROR` with the cause. The event contains the City code but not the invalid stored value.
 
 Overlapping stored Tax Time Bands use the `overlapping-tax-time-bands` category at `ERROR` with the cause. The event contains the City code but no Passage timestamp or Tax Amount.
 

@@ -102,7 +102,10 @@ This test stays in the `taxrule.persistence` test package because it uses packag
 - collection of every unsupported-year Passage index before Tax Rule lookup, calculation logs, and custom metrics;
 - derivation of winter and summer instants with the stored City time zone;
 - translation of unknown City and Vehicle Type failures into calculation-owned exceptions while preserving their causes;
-- translation of an invalid stored Tax Rule Option into a calculation-owned failure with its safe type code.
+- translation of an invalid stored Tax Rule Option into a calculation-owned failure with its safe type code;
+- translation of `MissingTaxTimeBandsException` to `MissingStoredTaxTimeBandsException`;
+- translation of `InvalidCityTimeZoneException` to `InvalidStoredCityTimeZoneException`;
+- translation of `OverlappingTaxTimeBandsException` to `InvalidStoredTaxTimeBandsException`.
 
 `CalculationControllerTest` proves:
 
@@ -122,8 +125,9 @@ This test stays in the `taxrule.persistence` test package because it uses packag
 - the top-level `INVALID_REQUEST` code and the `UNSUPPORTED_PASSAGE_YEAR` code for each affected Passage;
 - inclusion of `errors` only when at least one specific error exists;
 - a Problem Details response for each handled `400`, `404`, `500`, and `503` failure;
-- the safe `CALCULATION_FAILED` response for invalid stored content and unexpected failures;
-- translation of `OverlappingTaxTimeBandsException` to `InvalidStoredTaxTimeBandsException`.
+- the safe `CALCULATION_FAILED` response for invalid stored content and unexpected failures.
+
+The `503` cases include a data-access resource failure and a PostgreSQL transaction-start failure.
 
 The controller test uses the `test` profile. It does not connect to PostgreSQL.
 

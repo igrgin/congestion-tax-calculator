@@ -85,7 +85,7 @@ The schema does not use an effective date, version, active, or status column. Th
 
 If the City has no Tax Rule Set, the service throws `MissingTaxRuleSetException`. It does not use rules from another City.
 
-The supported 2013 Passage year does not limit stored supporting dates. PostgreSQL can contain Tax Exemption dates outside 2013. The initial data includes `2014-01-01` so that the calculator can evaluate the preceding-date Tax Exemption for `2013-12-31`.
+The supported 2013 Passage year will not limit stored supporting dates. Issue 6 will add Tax Exemption date storage and will include `2014-01-01` so that the calculator can evaluate the preceding-date Tax Exemption for `2013-12-31`.
 
 Multiple effective-dated Tax Rule Sets were considered as an optional feature. The assignment and its six-hour limit do not require Tax Rule history or changes during the year.
 

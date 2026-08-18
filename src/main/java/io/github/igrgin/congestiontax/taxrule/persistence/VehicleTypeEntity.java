@@ -22,7 +22,7 @@ public class VehicleTypeEntity {
     @Column(nullable = false, length = 128)
     private String description;
 
-    public VehicleType toVehicleType() {
-        return new VehicleType(code, description);
+    public static VehicleType toVehicleType(VehicleTypeEntity entity) {
+        return new VehicleType(entity.code, entity.description);
     }
 }

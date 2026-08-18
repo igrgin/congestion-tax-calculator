@@ -2,13 +2,15 @@ package io.github.igrgin.congestiontax.calculation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import io.github.igrgin.congestiontax.calculation.exception.CityNotFoundException;
+import io.github.igrgin.congestiontax.calculation.exception.InvalidStoredCityTimeZoneException;
 import io.github.igrgin.congestiontax.calculation.exception.InvalidStoredTaxRuleOptionException;
+import io.github.igrgin.congestiontax.calculation.exception.InvalidStoredTaxTimeBandsException;
 import io.github.igrgin.congestiontax.calculation.exception.MissingStoredTaxRuleSetException;
+import io.github.igrgin.congestiontax.calculation.exception.MissingStoredTaxTimeBandsException;
 import io.github.igrgin.congestiontax.calculation.exception.UnsupportedPassageYearException;
 import io.github.igrgin.congestiontax.calculation.exception.VehicleTypeNotFoundException;
 import io.github.igrgin.congestiontax.calculation.model.CalculatedTax;
@@ -23,8 +25,10 @@ import io.github.igrgin.congestiontax.domain.rule.TaxRuleSet;
 import io.github.igrgin.congestiontax.domain.rule.TaxTimeBand;
 import io.github.igrgin.congestiontax.metrics.CalculationMetrics;
 import io.github.igrgin.congestiontax.taxrule.TaxRuleService;
+import io.github.igrgin.congestiontax.taxrule.exception.InvalidCityTimeZoneException;
 import io.github.igrgin.congestiontax.taxrule.exception.InvalidTaxRuleOptionException;
 import io.github.igrgin.congestiontax.taxrule.exception.MissingTaxRuleSetException;
+import io.github.igrgin.congestiontax.taxrule.exception.MissingTaxTimeBandsException;
 import io.github.igrgin.congestiontax.taxrule.exception.OverlappingTaxTimeBandsException;
 import io.github.igrgin.congestiontax.taxrule.exception.UnknownCityException;
 import io.github.igrgin.congestiontax.taxrule.exception.UnknownVehicleTypeException;
@@ -177,7 +181,39 @@ class CalculationServiceImplTest {
     }
 
     @Test
-    void translatesOverlappingTaxTimeBandsWithoutReadingTheCauseMessage() throws ReflectiveOperationException {
+    void translatesMissingStoredTaxTimeBands() {
+        var cityCode = "gothenburg";
+        var command = new CalculationCommand(
+                cityCode, "OTHER", List.of(LocalDateTime.of(2013, Month.FEBRUARY, 8, 6, 20, 27)));
+        var cause = new MissingTaxTimeBandsException(cityCode);
+
+        given(taxRuleService.getCityTaxRuleSet(cityCode)).willThrow(cause);
+
+        assertThatThrownBy(() -> calculationService.calculate(command))
+                .isInstanceOfSatisfying(MissingStoredTaxTimeBandsException.class, exception -> {
+                    assertThat(exception.cityCode()).isEqualTo(cityCode);
+                    assertThat(exception).hasCause(cause);
+                });
+    }
+
+    @Test
+    void translatesInvalidStoredCityTimeZone() {
+        var cityCode = "gothenburg";
+        var command = new CalculationCommand(
+                cityCode, "OTHER", List.of(LocalDateTime.of(2013, Month.FEBRUARY, 8, 6, 20, 27)));
+        var cause = new InvalidCityTimeZoneException(cityCode);
+
+        given(taxRuleService.getCityTaxRuleSet(cityCode)).willThrow(cause);
+
+        assertThatThrownBy(() -> calculationService.calculate(command))
+                .isInstanceOfSatisfying(InvalidStoredCityTimeZoneException.class, exception -> {
+                    assertThat(exception.cityCode()).isEqualTo(cityCode);
+                    assertThat(exception).hasCause(cause);
+                });
+    }
+
+    @Test
+    void translatesOverlappingTaxTimeBandsWithoutReadingTheCauseMessage() {
         var cityCode = "gothenburg";
         var cityDateTime = LocalDateTime.of(2013, Month.FEBRUARY, 8, 6, 20, 27);
         var command = new CalculationCommand(cityCode, "OTHER", List.of(cityDateTime));
@@ -186,11 +222,11 @@ class CalculationServiceImplTest {
 
         given(taxRuleService.getCityTaxRuleSet(cityCode)).willThrow(cause);
 
-        var exception = catchThrowable(() -> calculationService.calculate(command));
-
-        assertThat(exception.getClass().getSimpleName()).isEqualTo("InvalidStoredTaxTimeBandsException");
-        assertThat(exception).hasCause(cause);
-        assertThat(exception.getClass().getMethod("cityCode").invoke(exception)).isEqualTo(cityCode);
+        assertThatThrownBy(() -> calculationService.calculate(command))
+                .isInstanceOfSatisfying(InvalidStoredTaxTimeBandsException.class, exception -> {
+                    assertThat(exception.cityCode()).isEqualTo(cityCode);
+                    assertThat(exception).hasCause(cause);
+                });
     }
 
     @Test

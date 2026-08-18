@@ -13,8 +13,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import io.github.igrgin.congestiontax.calculation.CalculationService;
 import io.github.igrgin.congestiontax.calculation.exception.CityNotFoundException;
+import io.github.igrgin.congestiontax.calculation.exception.InvalidStoredCityTimeZoneException;
 import io.github.igrgin.congestiontax.calculation.exception.InvalidStoredTaxRuleOptionException;
+import io.github.igrgin.congestiontax.calculation.exception.InvalidStoredTaxTimeBandsException;
 import io.github.igrgin.congestiontax.calculation.exception.MissingStoredTaxRuleSetException;
+import io.github.igrgin.congestiontax.calculation.exception.MissingStoredTaxTimeBandsException;
 import io.github.igrgin.congestiontax.calculation.exception.UnsupportedPassageYearException;
 import io.github.igrgin.congestiontax.calculation.exception.VehicleTypeNotFoundException;
 import io.github.igrgin.congestiontax.calculation.model.CalculatedTax;
@@ -23,11 +26,9 @@ import io.github.igrgin.congestiontax.domain.TaxAmount;
 import io.github.igrgin.congestiontax.domain.VehicleType;
 import io.github.igrgin.congestiontax.domain.calculation.CalculationResult;
 import io.github.igrgin.congestiontax.domain.calculation.DailyTax;
-import io.github.igrgin.congestiontax.taxrule.exception.OverlappingTaxTimeBandsException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.time.Month;
 import java.util.Currency;
 import java.util.List;
@@ -43,6 +44,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.CannotCreateTransactionException;
 
 @ActiveProfiles("test")
 @WebMvcTest(CalculationController.class)
@@ -418,6 +420,11 @@ class CalculationControllerTest {
                         "PostgreSQL unavailable",
                         new DataAccessResourceFailureException("PostgreSQL unavailable."),
                         503,
+                        "SERVICE_UNAVAILABLE"),
+                Arguments.of(
+                        "PostgreSQL unavailable during transaction startup",
+                        new CannotCreateTransactionException("PostgreSQL unavailable."),
+                        503,
                         "SERVICE_UNAVAILABLE"));
     }
 
@@ -454,13 +461,14 @@ class CalculationControllerTest {
                         new InvalidStoredTaxRuleOptionException("CHARGE_WINDOW", storedFailure)),
                 Arguments.of("missing Tax Rule Set", new MissingStoredTaxRuleSetException("gothenburg", storedFailure)),
                 Arguments.of(
+                        "missing stored Tax Time Bands",
+                        new MissingStoredTaxTimeBandsException("gothenburg", storedFailure)),
+                Arguments.of(
+                        "invalid stored City time zone",
+                        new InvalidStoredCityTimeZoneException("gothenburg", storedFailure)),
+                Arguments.of(
                         "overlapping stored Tax Time Bands",
-                        new OverlappingTaxTimeBandsException(
-                                "gothenburg",
-                                LocalTime.of(6, 0),
-                                LocalTime.of(9, 0),
-                                LocalTime.of(7, 0),
-                                LocalTime.of(8, 0))),
+                        new InvalidStoredTaxTimeBandsException("gothenburg", storedFailure)),
                 Arguments.of("unexpected failure", new IllegalStateException("Unexpected failure.")));
     }
 }
