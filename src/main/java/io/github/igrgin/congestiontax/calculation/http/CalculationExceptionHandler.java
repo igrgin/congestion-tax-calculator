@@ -3,9 +3,13 @@ package io.github.igrgin.congestiontax.calculation.http;
 import io.github.igrgin.congestiontax.calculation.exception.CityNotFoundException;
 import io.github.igrgin.congestiontax.calculation.exception.InvalidStoredTaxRuleOptionException;
 import io.github.igrgin.congestiontax.calculation.exception.VehicleTypeNotFoundException;
+import io.github.igrgin.congestiontax.calculation.http.dto.UnsupportedPassageYearResponse;
 import io.github.igrgin.congestiontax.calculation.http.exception.InvalidPassageTimestampException;
+import io.github.igrgin.congestiontax.calculation.http.exception.UnsupportedPassageYearException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -41,6 +45,19 @@ public class CalculationExceptionHandler {
                 "Rejected Congestion Tax Calculation request. reason={} passageIndex={}",
                 "invalid-passage-timestamp",
                 exception.passageIndex());
+    }
+
+    @ExceptionHandler(UnsupportedPassageYearException.class)
+    public ResponseEntity<UnsupportedPassageYearResponse> handleUnsupportedPassageYear(
+            UnsupportedPassageYearException exception) {
+        log.warn(
+                "Rejected Congestion Tax Calculation request. reason={} passageIndexes={}",
+                "unsupported-passage-year",
+                exception.passageIndexes());
+
+        return ResponseEntity.badRequest()
+                .contentType(MediaType.APPLICATION_PROBLEM_JSON)
+                .body(UnsupportedPassageYearResponse.from(exception.passageIndexes()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

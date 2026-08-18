@@ -40,7 +40,7 @@ The calculator does not store registration plates, owners, Passages, or results.
 
 Daily results are ordered by date and include zero amounts. Each Daily Tax contains the Tax Exemption Reasons that caused its amount to be zero. An empty set means that no Tax Exemption applied.
 
-One response has one currency. If Applicable Tax Rule Sets have different currencies, the application reports invalid server configuration.
+One response must have one currency. Group 2 of issue 5 will report invalid server configuration if Applicable Tax Rule Sets have different currencies.
 
 The city code in the path selects the stored rules without changing the API contract. OpenAPI JSON and Swagger UI are planned for the later API documentation work.
 
@@ -67,7 +67,7 @@ Bean Validation checks the reusable request invariants. Supported-year validatio
 
 The current implementation returns:
 
-- HTTP `400` for an invalid request shape, unknown property, Passage timestamp, or unknown Vehicle Type;
+- HTTP `400` for an invalid request shape, unknown property, Passage timestamp, unsupported Passage year, or unknown Vehicle Type;
 - HTTP `404` for an unknown City.
 
 An invalid stored City time zone is invalid server content and returns HTTP `500`.
@@ -76,7 +76,7 @@ An invalid stored City time zone is invalid server content and returns HTTP `500
 
 The HTTP exception boundary logs each handled `4xx` response at `WARN` with a stable failure category, safe context, and no stack trace. It logs each handled `5xx` response once at `ERROR` with an internal stack trace. Invalid stored Charge Window or Daily Maximum content uses the `invalid-tax-rule-option` category and includes only the safe option type code. This rule applies to the calculation API exception handler, not to unrelated framework or servlet responses. The response does not contain internal failure data. The first calculation slice returns an empty HTTP `500` response for an unexpected failure. The later API validation issue replaces that body with the final safe Problem Details response.
 
-The supported-year response uses Problem Details JSON with a stable top-level `code` and an `errors` list. Each error has a field, a stable code, and a human-readable message. It does not expose exception class names, SQL, credentials, or stack traces.
+The supported-year response uses Problem Details JSON with a stable top-level `code` and an `errors` list. Each error has a field, a stable code, and a human-readable message. The response omits `type`. It does not expose exception class names, SQL, credentials, or stack traces.
 
 The supported-year error shape is:
 
@@ -88,7 +88,17 @@ The supported-year error shape is:
   "code": "INVALID_REQUEST",
   "errors": [
     {
+      "field": "passages[0]",
+      "code": "UNSUPPORTED_PASSAGE_YEAR",
+      "message": "A Passage City Local Time date must be in 2013."
+    },
+    {
       "field": "passages[2]",
+      "code": "UNSUPPORTED_PASSAGE_YEAR",
+      "message": "A Passage City Local Time date must be in 2013."
+    },
+    {
+      "field": "passages[3]",
       "code": "UNSUPPORTED_PASSAGE_YEAR",
       "message": "A Passage City Local Time date must be in 2013."
     }
@@ -96,7 +106,7 @@ The supported-year error shape is:
 }
 ```
 
-This response uses the top-level code `INVALID_REQUEST`. Several unsupported Passages produce one ordered error entry for each affected index. This issue does not combine unsupported-year errors with other validation failure types.
+This response uses the top-level code `INVALID_REQUEST`. Each field error uses the code `UNSUPPORTED_PASSAGE_YEAR`. Several unsupported Passages produce one error entry for each affected zero-based index, in request order. The supported-year response does not combine unsupported-year errors with other validation failure types. Complete aggregation for other validation types and the remaining Problem Details responses belong to the later API issue.
 
 | Condition | HTTP status |
 |---|---:|

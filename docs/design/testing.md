@@ -56,6 +56,7 @@ Application logging remains active when a test uses a Spring profile. Test code 
 - one taxed Passage;
 - addition of all Passage Tax Amounts when the Charge Window is absent;
 - date grouping and ascending Daily Tax order;
+- separation of Charge Windows at a City Local Time midnight;
 - rejection of a missing Applicable Tax Rule Set for any Passage date;
 - Passage instant ordering and highest Tax Amount selection in a Charge Window;
 - the inclusive configured Charge Window boundary;
@@ -105,9 +106,11 @@ This test stays in the `taxrule.persistence` test package because it uses packag
 - rejection of a Passage timestamp that does not use `uuuu-MM-dd HH:mm:ss`;
 - rejection of unknown JSON properties, including the removed `timeZone` property;
 - rejection of malformed JSON;
+- acceptance of `2013-01-01 00:00:00` and `2013-12-31 23:59:59` as the supported-year boundaries;
+- rejection of a request with Passages outside 2013 before the Calculation Service runs;
+- one HTTP `400` Problem Details response that reports all affected zero-based Passage indexes in request order;
+- the top-level `INVALID_REQUEST` code and the `UNSUPPORTED_PASSAGE_YEAR` code for each affected Passage;
 - a safe HTTP `500` response for an unexpected failure.
-
-Issue 5 adds supported-year boundary tests and one response that reports all affected Passage indexes. The response uses one top-level request code and one rule code for each field error.
 
 The controller test uses the `test` profile. It does not connect to PostgreSQL.
 
@@ -233,6 +236,6 @@ Later calculation issues will add focused tests for:
 - complete transport validation and Problem Details;
 - a second City with different stored Tax Rules.
 
-Issue 5 adds mixed-currency coverage and an HTTP-to-PostgreSQL case for successive complete Tax Rule Set snapshots, stable historical results, and future-snapshot exclusion.
+Group 2 of issue 5 will add mixed-currency coverage and an HTTP-to-PostgreSQL case for successive complete Tax Rule Set snapshots, stable historical results, and future-snapshot exclusion.
 
 The complete assignment full-path test will be added when the related calculation behavior and seed data exist.

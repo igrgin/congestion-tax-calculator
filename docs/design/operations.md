@@ -61,7 +61,9 @@ The application uses plain parameterized SLF4J messages. It does not add structu
 
 Each feature issue owns the events required by that feature. One boundary logs each event or exception. `CONTRIBUTING.md` defines the safe context and prohibited data.
 
-Supported-year rejection uses the `unsupported-passage-year` category at `WARN` without a stack trace. Missing Applicable Tax Rule Sets and mixed Tax Rule Set currencies use `missing-applicable-tax-rule-set` and `mixed-tax-rule-set-currencies` at `ERROR` with their causes. These events contain no Passage timestamp or Tax Amount.
+Supported-year rejection uses the `unsupported-passage-year` category at `WARN` without a stack trace. This event contains no Passage timestamp.
+
+Group 2 of issue 5 will use `missing-applicable-tax-rule-set` and `mixed-tax-rule-set-currencies` at `ERROR` with their causes. These events will contain no Passage timestamp or Tax Amount.
 
 ## Metrics
 

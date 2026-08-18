@@ -107,15 +107,12 @@ class TaxCalculatorTest {
                         new TaxTimeBand(LocalTime.of(23, 0), LocalTime.MAX, TAX_AMOUNT)),
                 new TaxRuleOptions(List.of(new ChargeWindow(Duration.ofMinutes(60)))));
         var earlierPassage = new Passage(
-                Instant.parse("2013-02-08T22:59:50Z"),
-                LocalDateTime.of(2013, Month.FEBRUARY, 8, 23, 59, 50));
-        var laterPassage = new Passage(
-                Instant.parse("2013-02-08T23:00:10Z"), LocalDateTime.of(2013, Month.FEBRUARY, 9, 0, 0, 10));
+                Instant.parse("2013-02-08T22:59:50Z"), LocalDateTime.of(2013, Month.FEBRUARY, 8, 23, 59, 50));
+        var laterPassage =
+                new Passage(Instant.parse("2013-02-08T23:00:10Z"), LocalDateTime.of(2013, Month.FEBRUARY, 9, 0, 0, 10));
 
         var result = calculator.calculate(
-                VEHICLE_TYPE,
-                List.of(earlierPassage, laterPassage),
-                Map.of(DATE, taxRuleSet, laterDate, taxRuleSet));
+                VEHICLE_TYPE, List.of(earlierPassage, laterPassage), Map.of(DATE, taxRuleSet, laterDate, taxRuleSet));
 
         var totalAmount = new TaxAmount(new BigDecimal("21.00"), SEK);
 
