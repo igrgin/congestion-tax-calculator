@@ -9,6 +9,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.micrometer.metrics.test.autoconfigure.AutoConfigureMetrics;
 import org.springframework.boot.resttestclient.TestRestTemplate;
 import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -21,6 +22,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 @ActiveProfiles("itest")
+@AutoConfigureMetrics
 @AutoConfigureTestRestTemplate
 @SpringBootTest(webEnvironment = RANDOM_PORT)
 class CalculationITest {
@@ -32,7 +34,7 @@ class CalculationITest {
     private ObjectMapper objectMapper;
 
     @Test
-    void calculatesOnePassageFromStoredTaxRules() {
+    void calculatesSuppliedPassagesFromStoredGothenburgTaxRules() {
         var headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
 
@@ -40,43 +42,22 @@ class CalculationITest {
                 {
                   "vehicleType": "OTHER",
                   "passages": [
-                    "2013-02-08 06:20:27"
-                  ]
-                }
-                """, headers);
-
-        var response = restTemplate.postForEntity(
-                "/api/v1/cities/gothenburg" + "/congestion-tax/calculations", request, JsonNode.class);
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).isEqualTo(objectMapper.readTree("""
-                        {
-                          "cityCode": "gothenburg",
-                          "vehicleType": "OTHER",
-                          "currency": "SEK",
-                          "totalAmount": 8.00,
-                          "dailyTaxes": [
-                            {
-                              "date": "2013-02-08",
-                              "taxExemptionReasons": [],
-                              "amount": 8.00
-                            }
-                          ]
-                        }
-                        """));
-    }
-
-    @Test
-    void calculatesSeveralPassagesFromStoredTaxRules() {
-        var headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-
-        var request = new HttpEntity<>("""
-                {
-                  "vehicleType": "OTHER",
-                  "passages": [
-                    "2013-02-08 06:10:00",
-                    "2013-02-08 06:20:00"
+                    "2013-01-14 21:00:00",
+                    "2013-01-15 21:00:00",
+                    "2013-02-07 06:23:27",
+                    "2013-02-07 15:27:00",
+                    "2013-02-08 06:27:00",
+                    "2013-02-08 06:20:27",
+                    "2013-02-08 14:35:00",
+                    "2013-02-08 15:29:00",
+                    "2013-02-08 15:47:00",
+                    "2013-02-08 16:01:00",
+                    "2013-02-08 16:48:00",
+                    "2013-02-08 17:49:00",
+                    "2013-02-08 18:29:00",
+                    "2013-02-08 18:35:00",
+                    "2013-03-26 14:25:00",
+                    "2013-03-28 14:07:27"
                   ]
                 }
                 """, headers);
@@ -90,46 +71,107 @@ class CalculationITest {
                   "cityCode": "gothenburg",
                   "vehicleType": "OTHER",
                   "currency": "SEK",
-                  "totalAmount": 16.00,
+                  "totalAmount": 89.00,
                   "dailyTaxes": [
+                    {
+                      "date": "2013-01-14",
+                      "taxExemptionReasons": [],
+                      "amount": 0.00
+                    },
+                    {
+                      "date": "2013-01-15",
+                      "taxExemptionReasons": [],
+                      "amount": 0.00
+                    },
+                    {
+                      "date": "2013-02-07",
+                      "taxExemptionReasons": [],
+                      "amount": 21.00
+                    },
                     {
                       "date": "2013-02-08",
                       "taxExemptionReasons": [],
-                      "amount": 16.00
+                      "amount": 60.00
+                    },
+                    {
+                      "date": "2013-03-26",
+                      "taxExemptionReasons": [],
+                      "amount": 8.00
+                    },
+                    {
+                      "date": "2013-03-28",
+                      "taxExemptionReasons": [
+                        "DATE_BEFORE_PUBLIC_HOLIDAY"
+                      ],
+                      "amount": 0.00
                     }
                   ]
                 }
                 """));
+
+        var prometheusResponse = restTemplate.getForEntity("/actuator/prometheus", String.class);
+
+        assertThat(prometheusResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        var prometheusBody = prometheusResponse.getBody();
+        assertThat(prometheusBody).isNotNull();
+        assertThat(prometheusBody.lines())
+                .anyMatch(line -> line.startsWith("http_server_requests_seconds_count{")
+                        && line.contains("outcome=\"SUCCESS\"")
+                        && line.contains("status=\"200\"")
+                        && line.contains("uri=\"/api/v1/cities/{cityCode}/congestion-tax/calculations\""))
+                .anyMatch(line -> line.startsWith("hikaricp_connections{"));
+        assertThat(prometheusBody)
+                .contains("congestion_tax_calculation_seconds_count{outcome=\"success\"}")
+                .contains(
+                        "congestion_tax_calculation_passages_bucket{le=\"1.0\"}",
+                        "congestion_tax_calculation_passages_bucket{le=\"10.0\"}",
+                        "congestion_tax_calculation_passages_bucket{le=\"100.0\"}",
+                        "congestion_tax_calculation_passages_bucket{le=\"1000.0\"}",
+                        "congestion_tax_calculation_passages_bucket{le=\"10000.0\"}");
     }
 
     @Test
-    void rejectsNonExemptPassageOutsideStoredTaxTimeBands() {
-
+    void calculatesPassagesFromStoredLondonTaxRules() {
         var headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
 
         var request = new HttpEntity<>("""
-            {
-              "vehicleType": "OTHER",
-              "passages": [
-                "2013-02-08 06:40:27"
-              ]
-            }
-            """, headers);
+                {
+                  "vehicleType": "OTHER",
+                  "passages": [
+                    "2013-02-04 12:15:00",
+                    "2013-02-05 11:45:00",
+                    "2013-02-05 12:15:00"
+                  ]
+                }
+                """, headers);
 
         var response = restTemplate.postForEntity(
-                "/api/v1/cities/gothenburg" + "/congestion-tax/calculations", request, JsonNode.class);
+                "/api/v1/cities/london-test" + "/congestion-tax/calculations", request, JsonNode.class);
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
-        assertThat(response.getHeaders().getContentType()).isEqualTo(MediaType.APPLICATION_PROBLEM_JSON);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isEqualTo(objectMapper.readTree("""
+                {
+                  "cityCode": "london-test",
+                  "vehicleType": "OTHER",
+                  "currency": "GBP",
+                  "totalAmount": 10.00,
+                  "dailyTaxes": [
                     {
-                      "title": "Calculation failed",
-                      "status": 500,
-                      "detail": "The calculation could not be completed.",
-                      "code": "CALCULATION_FAILED"
+                      "date": "2013-02-04",
+                      "taxExemptionReasons": [
+                        "WEEKDAY"
+                      ],
+                      "amount": 0.00
+                    },
+                    {
+                      "date": "2013-02-05",
+                      "taxExemptionReasons": [],
+                      "amount": 10.00
                     }
-                    """));
+                  ]
+                }
+                """));
     }
 
     @Test

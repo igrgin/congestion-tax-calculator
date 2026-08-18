@@ -190,53 +190,43 @@ PostgreSQL uses a GiST exclusion constraint to reject every Tax Time Band overla
 
 ## Full-path integration test
 
-`CalculationITest` starts the complete Spring Boot application with a temporary PostgreSQL database. Flyway creates the schema and inserts the current Gothenburg seed data.
+`CalculationITest` starts the complete Spring Boot application with a temporary PostgreSQL database. Flyway creates the schema and inserts the complete Gothenburg Tax Rule Set.
 
-The test sends:
+The main calculation test sends all 16 Passages from the assignment for Vehicle Type `OTHER`. The request does not contain a time zone. The stored Gothenburg City supplies `Europe/Stockholm`.
 
-```json
-{
-  "vehicleType": "OTHER",
-  "passages": [
-    "2013-02-08 06:20:27"
-  ]
-}
+The test verifies these Daily Taxes and the total Tax Amount:
+
+```text
+2013-01-14   0.00 SEK
+2013-01-15   0.00 SEK
+2013-02-07  21.00 SEK
+2013-02-08  60.00 SEK
+2013-03-26   8.00 SEK
+2013-03-28   0.00 SEK  DATE_BEFORE_PUBLIC_HOLIDAY
+Total       89.00 SEK
 ```
 
-The Passage supplies City Local Time `2013-02-08T06:20:27`. The stored `06:00–06:30` Tax Time Band produces `8.00 SEK`. The stored City time zone `Europe/Stockholm` derives the instant `2013-02-08T05:20:27Z` for ordering and elapsed-time calculations.
+The test verifies the complete JSON response. It checks empty Tax Exemption Reason sets for zero Tax Amounts from the explicit zero Tax Time Band.
 
-The test verifies this response:
-
-```json
-{
-  "cityCode": "gothenburg",
-  "vehicleType": "OTHER",
-  "currency": "SEK",
-  "totalAmount": 8.00,
-  "dailyTaxes": [
-    {
-      "date": "2013-02-08",
-      "taxExemptionReasons": [],
-      "amount": 8.00
-    }
-  ]
-}
-```
-
-This test proves that HTTP parsing, stored City time-zone handling, Flyway data, JPA loading, Tax calculation, and JSON output work together.
+After the calculation, the test reads `/actuator/prometheus`. It checks the successful calculation HTTP request and Hikari database-pool connections as standard metric families. It checks the calculation timer with the `success` outcome and the Passage-count histogram boundaries as custom metric families. It does not check metric values, line order, pool names, JVM identifiers, or log output.
 
 The test also verifies:
 
-- several Passages are calculated from stored Tax Rules;
-- a non-exempt Passage outside the stored Tax Time Bands returns a safe HTTP `500` Problem Details response with `CALCULATION_FAILED`;
 - invalid request bodies return HTTP `400`;
 - an unknown City returns HTTP `404`;
 - an unknown Vehicle Type returns HTTP `400`.
 
+The test classpath includes a test-only Flyway migration for the `london-test` City. This content uses `Europe/London`, GBP, two different Tax Time Bands, a Monday Tax Exemption, and a Daily Maximum of 10.00 GBP. It does not store a Charge Window or a Public Holiday Preceding-Date Option.
+
+The London calculation verifies that stored content can change City behavior without a Java application change. A Monday Passage is tax-free. Two Tuesday Passages use both Tax Time Bands. The application adds their Tax Amounts because the Charge Window is absent. It then applies the Daily Maximum and returns a total Tax Amount of 10.00 GBP.
+
 ## Tax Rule Service integration test
 
-`TaxRuleServiceITest` starts the application with a temporary PostgreSQL database and calls the real Tax Rule Service. It uses synthetic rows to verify:
+`TaxRuleServiceITest` starts the application with a temporary PostgreSQL database and calls the real Tax Rule Service. It uses Flyway seed rows and synthetic rows to verify:
 
+- all seeded Vehicle Types;
+- the complete seeded Gothenburg Tax Rule Set;
+- the complete seeded London test Tax Rule Set;
 - stored City time-zone loading;
 - stored Vehicle Type lookup;
 - Tax Rule Set loading for the selected City;
@@ -297,11 +287,5 @@ Use:
 to run regular tests, integration tests, and build checks.
 
 Tests that start Spring without PostgreSQL use the `test` profile. Full Spring Boot and PostgreSQL integration tests use the `itest` profile.
-
-## Later test coverage
-
-Later calculation issues will add focused tests for:
-
-- a second City with different stored Tax Rules.
 
 Issue 5 owns the one-Tax-Rule-Set tests, Tax Time Band boundary and overlap tests, cross-date Charge Window tests, and the shared calculation Problem Details structure.

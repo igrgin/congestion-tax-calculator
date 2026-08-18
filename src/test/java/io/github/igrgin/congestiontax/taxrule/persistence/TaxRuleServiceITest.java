@@ -43,6 +43,7 @@ import org.springframework.test.context.ActiveProfiles;
 class TaxRuleServiceITest {
 
     private static final Currency SEK = Currency.getInstance("SEK");
+    private static final Currency GBP = Currency.getInstance("GBP");
 
     private final List<Long> insertedCityIds = new ArrayList<>();
 
@@ -95,8 +96,18 @@ class TaxRuleServiceITest {
     }
 
     @Test
-    void loadsStoredVehicleType() {
-        assertThat(taxRuleService.getVehicleType("OTHER")).isEqualTo(new VehicleType("OTHER", "Other vehicle"));
+    void loadsAllSeededVehicleTypes() {
+        var expectedVehicleTypes = List.of(
+                new VehicleType("OTHER", "Other vehicle"),
+                new VehicleType("EMERGENCY", "Emergency vehicle"),
+                new VehicleType("BUS", "Bus"),
+                new VehicleType("DIPLOMAT", "Diplomat vehicle"),
+                new VehicleType("MOTORCYCLE", "Motorcycle"),
+                new VehicleType("MILITARY", "Military vehicle"),
+                new VehicleType("FOREIGN", "Foreign vehicle"));
+
+        assertThat(expectedVehicleTypes.stream().map(VehicleType::code).map(taxRuleService::getVehicleType))
+                .containsExactlyElementsOf(expectedVehicleTypes);
     }
 
     @Test
@@ -179,10 +190,68 @@ class TaxRuleServiceITest {
     }
 
     @Test
-    void loadsSeededSupportingPublicHoliday() {
-        assertThat(taxRuleService.getCityTaxRuleSet("gothenburg").taxRuleSet().taxExemptions())
-                .isEqualTo(new TaxExemptions(
-                        List.of(new PublicHolidayTaxExemption(LocalDate.of(2014, Month.JANUARY, 1)))));
+    void loadsCompleteSeededGothenburgTaxRuleSet() {
+        var expectedTaxRuleSet = new TaxRuleSet(
+                "gothenburg",
+                SEK,
+                List.of(
+                        taxTimeBand(6, 0, 6, 30, "8.00"),
+                        taxTimeBand(6, 30, 7, 0, "13.00"),
+                        taxTimeBand(7, 0, 8, 0, "18.00"),
+                        taxTimeBand(8, 0, 8, 30, "13.00"),
+                        taxTimeBand(8, 30, 15, 0, "8.00"),
+                        taxTimeBand(15, 0, 15, 30, "13.00"),
+                        taxTimeBand(15, 30, 17, 0, "18.00"),
+                        taxTimeBand(17, 0, 18, 0, "13.00"),
+                        taxTimeBand(18, 0, 18, 30, "8.00"),
+                        taxTimeBand(18, 30, 6, 0, "0.00")),
+                new TaxExemptions(List.of(
+                        new PublicHolidayTaxExemption(LocalDate.of(2014, Month.JANUARY, 1)),
+                        new WeekdayTaxExemption(DayOfWeek.SATURDAY),
+                        new WeekdayTaxExemption(DayOfWeek.SUNDAY),
+                        new MonthTaxExemption(Month.JULY),
+                        new VehicleTypeTaxExemption("EMERGENCY"),
+                        new VehicleTypeTaxExemption("BUS"),
+                        new VehicleTypeTaxExemption("DIPLOMAT"),
+                        new VehicleTypeTaxExemption("MOTORCYCLE"),
+                        new VehicleTypeTaxExemption("MILITARY"),
+                        new VehicleTypeTaxExemption("FOREIGN"),
+                        publicHoliday(2013, Month.JANUARY, 1),
+                        publicHoliday(2013, Month.JANUARY, 6),
+                        publicHoliday(2013, Month.MARCH, 29),
+                        publicHoliday(2013, Month.MARCH, 31),
+                        publicHoliday(2013, Month.APRIL, 1),
+                        publicHoliday(2013, Month.MAY, 1),
+                        publicHoliday(2013, Month.MAY, 9),
+                        publicHoliday(2013, Month.MAY, 19),
+                        publicHoliday(2013, Month.JUNE, 6),
+                        publicHoliday(2013, Month.JUNE, 22),
+                        publicHoliday(2013, Month.NOVEMBER, 2),
+                        publicHoliday(2013, Month.DECEMBER, 25),
+                        publicHoliday(2013, Month.DECEMBER, 26))),
+                new TaxRuleOptions(List.of(
+                        new ChargeWindow(Duration.ofMinutes(60)),
+                        new DailyMaximum(new TaxAmount(new BigDecimal("60.00"), SEK)),
+                        new PublicHolidayPrecedingDateOption(1))));
+
+        assertThat(taxRuleService.getCityTaxRuleSet("gothenburg"))
+                .isEqualTo(new CityTaxRuleSet(ZoneId.of("Europe/Stockholm"), expectedTaxRuleSet));
+    }
+
+    @Test
+    void loadsCompleteSeededLondonTaxRuleSet() {
+        var expectedTaxRuleSet = new TaxRuleSet(
+                "london-test",
+                GBP,
+                List.of(
+                        new TaxTimeBand(LocalTime.MIDNIGHT, LocalTime.NOON, new TaxAmount(new BigDecimal("4.00"), GBP)),
+                        new TaxTimeBand(
+                                LocalTime.NOON, LocalTime.MIDNIGHT, new TaxAmount(new BigDecimal("7.00"), GBP))),
+                new TaxExemptions(List.of(new WeekdayTaxExemption(DayOfWeek.MONDAY))),
+                new TaxRuleOptions(List.of(new DailyMaximum(new TaxAmount(new BigDecimal("10.00"), GBP)))));
+
+        assertThat(taxRuleService.getCityTaxRuleSet("london-test"))
+                .isEqualTo(new CityTaxRuleSet(ZoneId.of("Europe/London"), expectedTaxRuleSet));
     }
 
     @Test
@@ -329,5 +398,16 @@ class TaxRuleServiceITest {
                 cityCode,
                 SEK,
                 List.of(new TaxTimeBand(LocalTime.of(6, 0), LocalTime.of(6, 30), new TaxAmount(amount, SEK))));
+    }
+
+    private static TaxTimeBand taxTimeBand(int startHour, int startMinute, int endHour, int endMinute, String amount) {
+        return new TaxTimeBand(
+                LocalTime.of(startHour, startMinute),
+                LocalTime.of(endHour, endMinute),
+                new TaxAmount(new BigDecimal(amount), SEK));
+    }
+
+    private static PublicHolidayTaxExemption publicHoliday(int year, Month month, int dayOfMonth) {
+        return new PublicHolidayTaxExemption(LocalDate.of(year, month, dayOfMonth));
     }
 }
