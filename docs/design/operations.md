@@ -1,6 +1,6 @@
 # Operations Design
 
-Docker Compose runs PostgreSQL 18.4 as a separate runtime service. A named volume retains development data. `docker compose down -v` removes that data when a clean start is necessary. Environment variables configure the database URL, user, and password. Flyway creates the schema and the current initial seed data.
+Docker Compose runs PostgreSQL 18.4 as a separate runtime service. A named volume retains development data. The one-Tax-Rule-Set design rewrites the pre-release Flyway migrations. A developer who used an earlier migration version must run `docker compose down -v` before starting the application. Environment variables configure the database URL, user, and password. Flyway creates the schema and the current initial seed data.
 
 The Maven project compiles for Java 17. The Maven Wrapper uses the active compatible JDK. Spring Boot Actuator exposes only `/actuator/health` and `/actuator/prometheus` over HTTP. Health includes database status. It shows component names and statuses and hides component details. `/actuator/info` and `/actuator/metrics` are not available over HTTP.
 
@@ -61,6 +61,24 @@ The application uses plain parameterized SLF4J messages. It does not add structu
 
 Each feature issue owns the events required by that feature. One boundary logs each event or exception. `CONTRIBUTING.md` defines the safe context and prohibited data.
 
+Successful Tax Rule Set loading uses `DEBUG`. The Tax Rule Service owns this event. It contains the City code and flags that show if the Charge Window and Daily Maximum are enabled. It contains no Passage timestamp or Tax Amount.
+
+Supported-year rejection uses the `unsupported-passage-year` category at `WARN` without a stack trace. This event contains no Passage timestamp.
+
+Timestamp deserialization failure uses the `invalid-passage-timestamp` category at `WARN` without a stack trace. The HTTP exception handler owns this event.
+
+Malformed JSON uses the `invalid-json` category at `WARN` without a stack trace. The HTTP exception handler owns this event.
+
+Other unreadable request bodies use the `invalid-request` category at `WARN` without a stack trace. The HTTP exception handler owns this event.
+
+Missing stored Tax Rules use the `missing-tax-rule-set` category at `ERROR` with the cause. The event contains no Passage timestamp or Tax Amount.
+
+Missing stored Tax Time Bands use the `missing-tax-time-bands` category at `ERROR` with the cause. The event contains the City code but no Passage timestamp or Tax Amount.
+
+An invalid stored City time zone uses the `invalid-city-time-zone` category at `ERROR` with the cause. The event contains the City code but not the invalid stored value.
+
+Overlapping stored Tax Time Bands use the `overlapping-tax-time-bands` category at `ERROR` with the cause. The event contains the City code but no Passage timestamp or Tax Amount.
+
 ## Metrics
 
 Spring Boot Actuator and Micrometer supply standard JVM, process, HTTP, and database-pool metrics. The Prometheus registry publishes them at `/actuator/prometheus`. The current application does not run a Prometheus server and does not supply dashboards, alerts, or deployment configuration.
@@ -74,7 +92,7 @@ congestion.tax.calculation
 congestion.tax.calculation.passages
 ```
 
-The timer surrounds the Calculation Service operation. It records these bounded `outcome` tag values:
+The timer surrounds the Calculation Service work after supported-year validation. It records these bounded `outcome` tag values:
 
 ```text
 success
@@ -86,7 +104,7 @@ The configured Prometheus histogram supports aggregate latency analysis.
 
 The timer does not use Tax Amounts, Passage timestamps, City codes, Vehicle Type codes, exception messages, or other unbounded values as tags. Standard HTTP metrics supply request count, duration, outcome, and status.
 
-The `congestion.tax.calculation.passages` distribution records the Passage count once for each request that passes HTTP validation and reaches the Calculation Service. It records the count even when later lookup, stored-content, or calculation behavior fails. It has no tags and publishes these boundaries:
+The `congestion.tax.calculation.passages` distribution records the Passage count once for each request that passes Jackson timestamp deserialization and Calculation Service supported-year validation. It records the count even when later lookup, stored-content, or calculation behavior fails. It has no tags and publishes these boundaries:
 
 ```text
 1
@@ -104,7 +122,7 @@ Each feature issue owns any metric required by its behavior. It adds a custom me
 
 The current implementation has no shared cache and does not cache HTTP responses. The Tax Rule Service loads the required stored content for each calculation.
 
-Complete requests are likely to be unique and can become stale when stored content changes. Add a shared cache only after measurements show a need. Measure database time, query count, p50, p95, and p99 response time, requests per second, connection-pool wait, CPU, memory, repeated rule use, expected hit ratio, and stale-data behavior. If justified, cache immutable Tax Rule Sets by city and effective date instead of complete responses.
+Complete requests are likely to be unique and can become stale when stored content changes. Add a shared cache only after measurements show a need. Measure database time, query count, p50, p95, and p99 response time, requests per second, connection-pool wait, CPU, memory, repeated rule use, expected hit ratio, and stale-data behavior. If justified, cache the Tax Rule Set by City instead of complete responses.
 
 The first delivery does not include authentication, rate limiting, custom CORS behavior, an administration endpoint, a Prometheus server, metric dashboards, alerts, or production deployment because the assignment does not define those requirements.
 

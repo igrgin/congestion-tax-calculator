@@ -16,10 +16,11 @@ flowchart LR
     RULE_REPO --> DB[("PostgreSQL")]
 ```
 
-- The HTTP controller validates transport data, parses City Local Time, and creates the HTTP response.
+- Jackson and Bean Validation create and validate the typed request before the controller method runs. A property-specific Jackson content deserializer strictly converts each Passage timestamp string to `LocalDateTime`.
+- The HTTP controller has no parsing or validation logic. It forwards the City Local Time list in `CalculationCommand` and maps service results to HTTP. The HTTP exception handler maps every handled calculation failure to the shared Problem Details JSON structure.
 - `CalculationService` defines the operation that coordinates one complete Congestion Tax Calculation.
-- `CalculationServiceImpl` derives Passage instants with the stored City time zone and calls the Tax Rule Service, pure calculator, and metrics component.
-- `TaxRuleService` confirms that the City exists, validates its stored IANA time zone, and loads the Vehicle Type and Applicable Tax Rule Sets.
+- `CalculationServiceImpl` validates the supported Passage year, derives Passage instants with the stored City time zone, and calls the Tax Rule Service, pure calculator, and metrics component.
+- `TaxRuleService` confirms that the City exists, validates its stored IANA time zone, and loads the Vehicle Type and Tax Rule Set.
 - The pure calculator applies the Tax Rules without Spring, database, HTTP, logging, or metrics behavior.
 - `TaxRuleServiceImpl` loads stored rows and maps them to immutable calculation values.
 - Spring Data repositories contain explicit database read operations.
@@ -52,9 +53,9 @@ The Maven group is `io.github.igrgin`, the artifact ID and application name are 
 
 ## Domain
 
-The `domain` area owns the pure calculation language and behavior. Given a known Vehicle Type, Passages, and an Applicable Tax Rule Set for each calculation date, it returns Daily Taxes and a total Tax Amount.
+The `domain` area owns the pure calculation language and behavior. Given a known Vehicle Type, Passages, and the selected City's Tax Rule Set, it returns Daily Taxes and a total Tax Amount.
 
-The producer owns collection immutability at each application-area seam. Before a value crosses the seam, its producer creates an unmodifiable collection and does not retain a mutable reference. The receiving record stores the supplied collection without making another copy.
+Defensive collection copying is not the default. Copy a collection when the receiver retains it or when later mutation can change behavior. A synchronously consumed transient command can store the supplied collection directly.
 
 The domain does not:
 
@@ -71,21 +72,21 @@ The domain does not:
 
 `CalculationService` coordinates the complete use case. It performs this sequence:
 
-1. Record the accepted Passage count and start the calculation timer.
-2. Get the calculation dates from the supplied City Local Times.
-3. Ask `TaxRuleService` to load the stored City time zone and Applicable Tax Rule Sets for the calculation dates.
+1. Collect all unsupported-year indexes and reject the command if any exist.
+2. Record the accepted Passage count and start the calculation timer.
+3. Ask `TaxRuleService` to load the stored City time zone and Tax Rule Set.
 4. Derive complete Passages with the stored City time zone.
 5. Ask `TaxRuleService` to load the Vehicle Type.
 6. Call `TaxCalculator`.
 7. Return the calculated City and calculation result.
 
-`CalculationServiceImpl` translates expected collaborator lookup failures into calculation-owned exceptions after metrics records the outcome. It also translates invalid stored Tax Rule Option content to a calculation-owned failure with the safe option type code. It preserves the lower exception as the cause. This keeps the Calculation module interface independent of its collaborator implementations.
+`CalculationServiceImpl` translates expected collaborator lookup and stored-content failures into calculation-owned exceptions after metrics records the outcome. This includes a missing Tax Rule Set, missing Tax Time Bands, an invalid City time zone, invalid Tax Rule Options, and overlapping Tax Time Bands. It preserves each lower exception as the cause. This keeps the Calculation module interface independent of its collaborator implementations.
 
-`TaxRuleService` owns City existence, stored City time-zone validation, Vehicle Type, and Tax Rule loading. It returns one immutable result that contains the validated City time zone and the Applicable Tax Rule Set map. Its interface and implementation are in `taxrule`. Its entities and repositories are in `taxrule.persistence`. One business responsibility can use one repository or several repositories. The service seam follows the business responsibility, not the number of tables.
+`TaxRuleService` owns City existence, stored City time-zone validation, Vehicle Type, and Tax Rule loading. It returns one immutable result that contains the validated City time zone and the City's Tax Rule Set. Its interface and implementation are in `taxrule`. Its entities and repositories are in `taxrule.persistence`. One business responsibility can use one repository or several repositories. The service seam follows the business responsibility, not the number of tables.
 
 `TaxRuleService` is the external interface of the Tax Rule module. Persistence classes and repository interfaces can be public because `TaxRuleServiceImpl` uses them across the package split. That Java access does not make them part of the module interface. No caller outside the Tax Rule implementation uses them.
 
-Database constraints protect single-row validity and relationships. Repository-facing services check cross-row completeness when they assemble calculation values. The pure calculator checks only the inputs that it needs to calculate safely.
+Database constraints protect stored validity and relationships. This includes a PostgreSQL exclusion constraint that prevents overlapping Tax Time Bands. Repository-facing services repeat important stored-content checks when they assemble calculation values. The pure calculator checks only the inputs that it needs to calculate safely.
 
 ## Dependency directions
 
@@ -110,13 +111,13 @@ The domain can use Lombok `@NonNull` as a compile-time annotation. It has no Lom
 
 Micrometer instrumentation stays at the Calculation Service boundary. It measures application coordination without adding Micrometer, Spring, or monitoring behavior to the pure calculator.
 
-The top-level `metrics` package owns the calculation timer, the accepted Passage-count distribution, their metric-name constants, and the timer's bounded outcome values. The Calculation Service records the Passage count once at the start of every call. It records the count before City lookup, Vehicle Type lookup, stored-content loading, or calculation can fail. HTTP and database integrations use the standard meters that Spring Boot supplies.
+The top-level `metrics` package owns the calculation timer, the accepted Passage-count distribution, their metric-name constants, and the timer's bounded outcome values. The Calculation Service starts custom metric recording after supported-year validation. It records the Passage count before City lookup, Vehicle Type lookup, stored-content loading, and Tax calculation. HTTP and database integrations use the standard meters that Spring Boot supplies.
 
 A metrics failure cannot change the calculation result.
 
 ## Logging
 
-Application logging stays at boundaries that know an event's operational outcome. `CalculationServiceImpl` owns calculation start and successful completion. The HTTP exception handler owns expected request rejection and failed HTTP operations. A component that suppresses an internal failure logs it where it catches the failure. Persistence services can log feature decisions at `DEBUG` when the related feature issue requires that detail.
+Application logging stays at boundaries that know an event's operational outcome. `CalculationServiceImpl` owns calculation start and successful completion after supported-year validation. The HTTP exception handler owns expected request rejection and failed HTTP operations. A component that suppresses an internal failure logs it where it catches the failure. Persistence services can log feature decisions at `DEBUG` when the related feature issue requires that detail.
 
 The pure calculator, Domain values, JPA entities, and repositories do not log. One exception or event has one logging owner. A feature issue adds its required context to the owning boundary instead of logging the same event in several layers. `CONTRIBUTING.md` defines the level meanings and safe-data rules.
 

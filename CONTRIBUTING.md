@@ -18,11 +18,12 @@ For specifications, issues, branches, and pull requests, follow `docs/agents/iss
 
 - Use Java 17 language features when they make the code clear.
 - Keep the calculation model independent of Spring, HTTP, JPA, logging, and metrics.
-- Use immutable values at boundaries between application areas.
+- Use immutable values at application-area boundaries when a receiver can retain them and later mutation can affect behavior.
 - Prefer Java records for immutable request, response, configuration, and calculation values.
-- Return unmodifiable collections across application-area boundaries.
-- The producer owns each collection that crosses an application-area boundary. It must make the collection unmodifiable and must not retain a mutable reference. A receiving record stores the supplied collection without making another copy.
-- Confine mutable transport collections to the HTTP adapter. Map them to unmodifiable application values before they cross into another application area. Do not retain the transport value after mapping.
+- Return unmodifiable collections across application-area boundaries when a caller can retain them and later mutation can affect behavior.
+- Defensive collection copying is not the default. Copy a collection only when the receiver retains it or when later mutation can change behavior.
+- A synchronously consumed transient command can store the supplied collection directly.
+- Confine transport DTOs to the HTTP adapter. Map their values to application commands before they cross into another application area.
 - Declare JPA entities and repositories in the persistence package. They can be public when the implementation in the owning application area needs cross-package access. Do not return them through the area's service interface. Map entities to calculation values and create unmodifiable collections before values cross that interface.
 - Inject a Spring service through its interface.
 - Declare access explicitly when it communicates an important interface or implementation limit. Interface methods can omit the redundant `public` modifier. Fields are private unless a supported interface requires wider access.
@@ -99,7 +100,7 @@ Use Spotless Maven Plugin 3.9.0 with Palantir Java Format. Bind the formatting c
 - Use each level only for its operational meaning. Do not use `TRACE`.
 - Use parameterized messages for variable values.
 - Log each event or exception once at the boundary that knows its final outcome.
-- Safe context includes city code, Vehicle Type code, Passage count, City Local Time calculation date, Tax Rule Set effective date, result counts, and a stable failure category.
+- Safe context includes city code, Vehicle Type code, Passage count, City Local Time calculation date, result counts, and a stable failure category.
 - Keep complete request bodies, raw Passage timestamps, Tax Amounts, authorization values, database credentials, SQL, and expected exception messages out of logs.
 - Omit stack traces from handled `4xx` logs. Include the stack trace when an internal failure is suppressed or the exception handler returns a `5xx` response.
 - Keep stack traces and other internal failure data out of HTTP responses.

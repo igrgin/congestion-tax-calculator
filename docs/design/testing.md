@@ -16,13 +16,14 @@ Tests call public operations. They do not test private methods.
 
 Application logging remains active when a test uses a Spring profile. Test code does not write log messages, and tests do not assert log output.
 
-## Current domain tests
+## Domain test responsibilities after issue 5
 
 `TaxAmountTest` proves:
 
 - addition;
 - minimum selection;
 - maximum selection;
+- greater-than comparison;
 - zero creation;
 - rejection of null values;
 - rejection of negative amounts;
@@ -34,9 +35,9 @@ Application logging remains active when a test uses a Spring profile. Test code 
 - exclusive end;
 - exclusion outside the band;
 - rejection of null values;
-- rejection of an end equal to the start;
-- rejection of an end before the start;
-- rejection of a non-positive Tax Amount.
+- matching every City Local Time when the start and end are equal;
+- matching on both sides of midnight when the end is before the start;
+- acceptance of a zero Tax Amount.
 
 `TaxRuleSetTest` proves:
 
@@ -56,7 +57,9 @@ Application logging remains active when a test uses a Spring profile. Test code 
 - one taxed Passage;
 - addition of all Passage Tax Amounts when the Charge Window is absent;
 - date grouping and ascending Daily Tax order;
-- rejection of a missing Applicable Tax Rule Set for any Passage date;
+- one Charge Window across a City Local Time midnight;
+- assignment of a cross-date window charge to the winning Passage's date;
+- an earliest-Passage tie break for equal highest Tax Amounts;
 - Passage instant ordering and highest Tax Amount selection in a Charge Window;
 - the inclusive configured Charge Window boundary;
 - non-sliding Charge Window behavior;
@@ -65,11 +68,9 @@ Application logging remains active when a test uses a Spring profile. Test code 
 - Tax Time Band selection at second precision, including adjacent boundaries;
 - zero Tax outside the Tax Time Bands;
 - rejection of an empty Passage list;
-- rejection of an empty Applicable Tax Rule Set map;
-- rejection of a missing Applicable Tax Rule Set for the Passage date;
 - rejection of null calculation inputs.
 
-## Current service and controller tests
+## Service and controller test responsibilities after issue 5
 
 `TaxRuleServiceImplTest` proves:
 
@@ -78,11 +79,17 @@ Application logging remains active when a test uses a Spring profile. Test code 
 - rejection of an invalid stored City time zone;
 - Vehicle Type loading;
 - rejection of an unknown Vehicle Type;
-- Applicable Tax Rule Set selection;
+- Tax Rule Set loading for the selected City;
 - loading of adjacent Tax Time Bands;
-- rejection of a missing Applicable Tax Rule Set;
+- loading of a cross-midnight Tax Time Band;
+- rejection of a missing Tax Rule Set;
 - rejection of a Tax Rule Set without Tax Time Bands;
 - rejection of overlapping Tax Time Bands independent of repository order;
+- rejection of a nested Tax Time Band;
+- rejection of a full-day Tax Time Band combined with another band;
+- rejection of two full-day Tax Time Bands;
+- use of `OverlappingTaxTimeBandsException` for every overlap shape;
+- failure on the first conflicting pair;
 - safe rejection of invalid stored Charge Window and Daily Maximum content;
 - safe rejection of duplicate stored Tax Rule Option types.
 
@@ -91,9 +98,14 @@ This test stays in the `taxrule.persistence` test package because it uses packag
 `CalculationServiceImplTest` proves:
 
 - coordination of Passages, stored Tax Rules, and the pure calculator;
+- acceptance of City Local Times `2013-01-01 00:00:00` and `2013-12-31 23:59:59` as the supported-year boundaries;
+- collection of every unsupported-year Passage index before Tax Rule lookup, calculation logs, and custom metrics;
 - derivation of winter and summer instants with the stored City time zone;
 - translation of unknown City and Vehicle Type failures into calculation-owned exceptions while preserving their causes;
-- translation of an invalid stored Tax Rule Option into a calculation-owned failure with its safe type code.
+- translation of an invalid stored Tax Rule Option into a calculation-owned failure with its safe type code;
+- translation of `MissingTaxTimeBandsException` to `MissingStoredTaxTimeBandsException`;
+- translation of `InvalidCityTimeZoneException` to `InvalidStoredCityTimeZoneException`;
+- translation of `OverlappingTaxTimeBandsException` to `InvalidStoredTaxTimeBandsException`.
 
 `CalculationControllerTest` proves:
 
@@ -102,10 +114,20 @@ This test stays in the `taxrule.persistence` test package because it uses packag
 - rejection of a null or blank Vehicle Type;
 - rejection of a null or empty Passage list;
 - rejection of a null Passage value;
-- rejection of a Passage timestamp that does not use `uuuu-MM-dd HH:mm:ss`;
-- rejection of unknown JSON properties, including the removed `timeZone` property;
-- rejection of malformed JSON;
-- a safe HTTP `500` response for an unexpected failure.
+- strict deserialization of exact `uuuu-MM-dd HH:mm:ss` Passage string tokens before the controller method runs;
+- rejection of values with leading or trailing whitespace and other Jackson `LocalDateTime` shapes;
+- rejection of an invalid second Passage before the Calculation Service runs;
+- mapping of a timestamp deserialization failure to an HTTP `400` Problem Details response for the first invalid Passage;
+- rejection of unknown JSON properties, including a Problem Details response for the removed `timeZone` property;
+- mapping of malformed JSON to an HTTP `400` Problem Details response without `errors`;
+- forwarding of `List<LocalDateTime>` to `CalculationCommand`;
+- mapping of an unsupported-year service exception to one HTTP `400` Problem Details response that reports all affected zero-based Passage indexes in request order;
+- the top-level `INVALID_REQUEST` code and the `UNSUPPORTED_PASSAGE_YEAR` code for each affected Passage;
+- inclusion of `errors` only when at least one specific error exists;
+- a Problem Details response for each handled `400`, `404`, `500`, and `503` failure;
+- the safe `CALCULATION_FAILED` response for invalid stored content and unexpected failures.
+
+The `503` cases include a data-access resource failure and a PostgreSQL transaction-start failure.
 
 The controller test uses the `test` profile. It does not connect to PostgreSQL.
 
@@ -119,16 +141,22 @@ The test proves:
 - City codes are unique;
 - a City time zone is required and must not be blank;
 - a Tax Rule Set must reference a known City;
-- a City cannot have two Tax Rule Sets with the same effective date;
+- a City cannot have two Tax Rule Sets;
 - a Tax Time Band must reference a known Tax Rule Set;
-- a Tax Time Band amount must be positive;
-- a Tax Time Band end must be after its start;
+- a Tax Time Band amount must not be negative;
+- a Tax Time Band can have equal start and end times for a full day;
+- a Tax Time Band can have an end before its start;
 - an exact Tax Time Band duplicate is rejected;
+- a same-date partial overlap is rejected;
+- a nested Tax Time Band is rejected;
+- a cross-midnight overlap is rejected;
+- a full-day Tax Time Band combined with another band is rejected;
+- two full-day Tax Time Bands are rejected;
 - a Tax Rule Option must reference a known Tax Rule Set;
 - a Tax Rule Set cannot select the same option type twice;
 - each Tax Rule Option has the correct positive value shape.
 
-Cross-row Tax Time Band overlap is a Tax Rule Service check. It is not a database constraint.
+PostgreSQL uses a GiST exclusion constraint to reject every Tax Time Band overlap shape in one Tax Rule Set. The schema test proves this constraint directly.
 
 ## Full-path integration test
 
@@ -181,12 +209,12 @@ The test also verifies:
 
 - stored City time-zone loading;
 - stored Vehicle Type lookup;
-- Applicable Tax Rule Set selection by City and calculation date;
+- Tax Rule Set loading for the selected City;
 - isolation between Cities;
 - stored Charge Window loading as a typed Domain value;
 - stored Daily Maximum loading as a typed Domain value in the Tax Rule Set currency;
 - rejection of a selected Tax Rule Set with no Tax Time Bands;
-- rejection of overlapping Tax Time Bands.
+- loading of valid non-overlapping Tax Time Bands.
 
 An `@AfterEach` method removes the synthetic rows. The test does not use a test transaction or mock repositories.
 
@@ -228,9 +256,9 @@ Later calculation issues will add focused tests for:
 
 - weekday, month, public-holiday, and preceding-date Tax Exemptions;
 - Vehicle Type Tax Exemptions;
-- successive Applicable Tax Rule Sets;
-- mixed currencies in one calculation;
-- complete transport validation and Problem Details;
+- remaining validation-detail aggregation and API documentation;
 - a second City with different stored Tax Rules.
+
+Issue 5 owns the one-Tax-Rule-Set tests, Tax Time Band boundary and overlap tests, cross-date Charge Window tests, and the shared calculation Problem Details structure.
 
 The complete assignment full-path test will be added when the related calculation behavior and seed data exist.

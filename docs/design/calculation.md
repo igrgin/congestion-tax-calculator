@@ -19,10 +19,12 @@ The Tax Rule module validates the stored City time zone as an IANA identifier wh
 
 The HTTP operation requires one or more Passages. The Passages can use one or more City Local Time dates.
 
+The JSON request contains Passage timestamp strings. A property-specific Jackson content deserializer strictly converts each string to City Local Time before the controller method runs. The controller forwards these `LocalDateTime` values in `CalculationCommand`. `CalculationServiceImpl` collects every index whose City Local Time date is outside 2013 and rejects the complete command when the collection is not empty. This validation occurs before Tax Rule lookup, calculation logs, and custom metrics. This supported Passage year does not limit stored Tax Exemption dates.
+
 The Calculation Service:
 
-1. gets the distinct calculation dates from the supplied City Local Times;
-2. asks the Tax Rule Service for the stored City time zone and the Applicable Tax Rule Sets;
+1. rejects all unsupported-year indexes in the supplied City Local Times;
+2. asks the Tax Rule Service for the stored City time zone and Tax Rule Set;
 3. creates each complete Passage with its City Local Time and derived instant;
 4. asks the Tax Rule Service for the Vehicle Type;
 5. calls the pure `TaxCalculator`;
@@ -31,18 +33,18 @@ The Calculation Service:
 The Tax Calculator:
 
 1. checks that the Passage list is not empty;
-2. checks that the Applicable Tax Rule Set map is not empty;
-3. checks that the map contains an Applicable Tax Rule Set for each Passage date;
-4. groups the Passages by City Local Time date and orders the date groups;
-5. orders the Passages in each date group by instant;
-6. finds the Tax Time Band amount for each Passage;
-7. uses a zero Tax Amount in the Tax Rule Set currency when no band matches;
-8. applies the optional Charge Window;
-9. applies the optional Daily Maximum;
-10. returns one Daily Tax for each input date;
+2. orders all Passages by instant;
+3. applies stored Tax Exemptions to each Passage;
+4. finds the Tax Time Band amount for each non-exempt Passage;
+5. uses a zero Tax Amount in the Tax Rule Set currency when no band matches;
+6. applies the optional Charge Window across the ordered Passage list;
+7. assigns each window charge to one City Local Time date;
+8. adds the assigned charges for each input date;
+9. applies the optional Daily Maximum to each date;
+10. returns one Daily Tax for each input date in date order;
 11. adds the Daily Taxes to produce the total Tax Amount.
 
-The Tax Rule Service requires each Applicable Tax Rule Set to contain at least one Tax Time Band. It throws `MissingTaxTimeBandsException` when stored Tax Rules do not meet this requirement.
+The Tax Rule Service requires the City's Tax Rule Set to contain at least one Tax Time Band. It throws `MissingTaxTimeBandsException` when stored Tax Rules do not meet this requirement.
 
 A Tax Time Band includes its start and excludes its end. For a band from `06:00` to `06:30`:
 
@@ -50,7 +52,11 @@ A Tax Time Band includes its start and excludes its end. For a band from `06:00`
 - `06:29:59` is included;
 - `06:30:00` is excluded.
 
-The end of a Tax Time Band must be after its start. One Tax Time Band cannot cross midnight.
+An end time after the start time defines a same-date band. An end time before the start time defines one band that crosses midnight. For a cross-midnight band, the local time matches when it is on or after the start or before the end. Equal start and end times define a full-day band, and every local time matches it.
+
+Tax Time Bands can have positive or zero Tax Amounts. Gaps are valid and produce a zero Tax Amount in the Tax Rule Set currency. Tax Time Bands must not overlap when the service compares them around the complete 24-hour clock. This rule rejects nested bands, such as `06:00–09:00` with `07:00–08:00`. It also means that a full-day band must be the only band in its Tax Rule Set and cannot coexist with another full-day band.
+
+The Tax Rule Service stops at the first conflicting pair and throws `OverlappingTaxTimeBandsException`. Same-date, cross-midnight, nested, and full-day conflicts use this one exception because they violate the same overlap rule.
 
 ## Tax exemptions
 
@@ -70,7 +76,7 @@ Later issues can apply the stored Tax Exemptions and add every applicable reason
 
 ## Charge Window and Daily Maximum
 
-When the Applicable Tax Rule Set has no Charge Window, each Passage contributes its Tax Amount to its Daily Tax.
+When the Tax Rule Set has no Charge Window, each Passage contributes its Tax Amount to its City Local Time date.
 
 When a Charge Window is present:
 
@@ -78,11 +84,15 @@ When a Charge Window is present:
 2. the configured duration defines an inclusive boundary from that first Passage instant;
 3. later Passages do not move the boundary;
 4. the window contributes its highest Tax Amount;
-5. the first Passage after the boundary starts the next window.
+5. when several Passages have the highest amount, the earliest one wins;
+6. the charge belongs to the winning Passage's City Local Time date;
+7. the first Passage after the boundary starts the next window.
 
-Zero Tax Amount Passages and repeated Passages participate. A Charge Window uses actual elapsed time between instants. Date grouping prevents a Charge Window from crossing a City Local Time date boundary.
+Zero Tax Amount Passages, exempt Passages, and repeated Passages participate. A Charge Window uses actual elapsed time between instants and can cross a City Local Time date boundary. Midnight does not end or restart the window.
 
-After Charge Window calculation, the optional Daily Maximum limits the Daily Tax. When the Applicable Tax Rule Set has no Daily Maximum, the calculated daily amount is unchanged.
+Each distinct input date produces one Daily Tax. A date can have a zero amount because its Passage lost a cross-date Charge Window. That result has no Tax Exemption Reason unless a Tax Exemption also applies to the date.
+
+After the calculator assigns and adds Charge Window charges by date, the optional Daily Maximum limits each Daily Tax. When the Tax Rule Set has no Daily Maximum, the calculated daily amount is unchanged.
 
 Later issues will apply Vehicle Type, weekday, month, public-holiday, and pre-holiday Tax Exemptions.
 
@@ -91,7 +101,7 @@ Later issues will apply Vehicle Type, weekday, month, public-holiday, and pre-ho
 ```mermaid
 classDiagram
     class TaxCalculator {
-        +calculate(vehicleType, passages, applicableTaxRuleSets) CalculationResult
+        +calculate(vehicleType, passages, taxRuleSet) CalculationResult
     }
 
     class Passage {
@@ -106,7 +116,6 @@ classDiagram
 
     class TaxRuleSet {
         +String cityCode
-        +LocalDate effectiveFrom
         +Currency currency
         +List~TaxTimeBand~ taxTimeBands
         +TaxRuleOptions taxRuleOptions
@@ -139,6 +148,7 @@ classDiagram
         +add(other) TaxAmount
         +min(other) TaxAmount
         +max(other) TaxAmount
+        +isGreaterThan(other) boolean
     }
 
     class TaxExemptionReason {
@@ -178,11 +188,11 @@ classDiagram
     DailyTax *-- TaxAmount
 ```
 
-`TaxAmount` contains a `BigDecimal` and a Java `Currency`. Its constructor rejects null values and negative amounts. Its `add`, `min`, and `max` operations reject Tax Amounts that use different currencies.
+`TaxAmount` contains a `BigDecimal` and a Java `Currency`. Its constructor rejects null values and negative amounts. Its arithmetic and comparison operations reject Tax Amounts that use different currencies.
 
 Collection-owning calculation values receive unmodifiable collections from their producers. They store the supplied collections without making another copy.
 
-`TaxTimeBand` rejects null values, an end time that is equal to or before its start time, and a non-positive Tax Amount.
+`TaxTimeBand` rejects null values. `TaxAmount` rejects negative amounts before they can enter a Tax Time Band. `TaxTimeBand` interprets an end before the start as a cross-midnight band and equal start and end times as a full-day band.
 
 `TaxRuleSet` rejects null fields and requires at least one Tax Time Band. Its Tax Rule Options can contain one Charge Window and one Daily Maximum.
 

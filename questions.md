@@ -6,27 +6,33 @@ The assignment does not answer the questions below. Because answers were not ava
 
 ### How is the 60-minute single-charge period measured?
 
-**Assumption used:** The period starts with the first passage in a group. It includes a passage exactly 60 minutes later. A later passage does not restart or extend the period.
+**Assumption used:** The period starts with the first Passage in a Charge Window. It includes a Passage exactly 60 minutes later. A later Passage does not restart or extend the window.
 
-**Result:** For passages at 06:00, 06:50, and 07:40, the first two passages form one group. The passage at 07:40 starts a new group.
+**Result:** For Passages at 06:00, 06:50, and 07:40, the first two Passages form one Charge Window. The Passage at 07:40 starts a new Charge Window.
 
 ### Can one single-charge period include passages from two calendar dates?
 
-**Assumption used:** No. Passages are first grouped by the local calendar date for the selected city. The single-charge rule and daily maximum are then applied independently to each date.
+**Assumption used:** Yes. The assignment limits a Charge Window by elapsed time and does not end it at midnight. The first Passage anchors the window even when later Passages have another City Local Time date.
 
-**Result:** A passage before midnight and a passage after midnight cannot belong to the same group.
+**Result:** Passages before and after midnight can belong to one Charge Window. The window contributes its highest Tax Amount to the City Local Time date of the earliest Passage that has that amount. If several Passages have the same highest amount, the earliest Passage wins. Each distinct input date remains in the response.
 
 ### Does a passage outside the hours with a positive amount take part in the single-charge rule?
 
 **Assumption used:** Yes. Every passage at a tolling station takes part, even when its time has an amount of zero.
 
-**Result:** A zero-amount passage can start a 60-minute period and can affect which later passages are grouped together.
+**Result:** A zero-amount Passage can start a Charge Window and can affect which later Passages belong to that window.
 
 ### How do seconds fit into time ranges that are written only with hours and minutes?
 
 **Assumption used:** Each time range includes its start and excludes the start of the next range.
 
 **Result:** The range written as 06:00–06:29 includes values from 06:00:00 up to, but not including, 06:30:00. A passage at 06:29:59 has an amount of 8 SEK. A passage at 06:30:00 has an amount of 13 SEK.
+
+### Can one Tax Time Band cross midnight or cover a full day?
+
+**Assumption used:** Yes. PostgreSQL keeps the existing start time, end time, and amount fields. An end time before the start time means that the band continues through midnight. Equal start and end times define a full-day band that ends at the same local time on the next date.
+
+**Result:** The supplied `18:30–05:59` period is one stored Tax Time Band. Under the existing exclusive-end convention, PostgreSQL stores `18:30:00` as its start and `06:00:00` as its end. The application permits a zero Tax Amount and matches the band on either side of midnight. A full-day Tax Time Band matches every City Local Time and cannot coexist with another Tax Time Band in the same Tax Rule Set.
 
 ### How many days before a public holiday are tax-free?
 
@@ -78,11 +84,17 @@ The assignment does not answer the questions below. Because answers were not ava
 
 **Result:** A caller can see how the daily maximum and tax-free dates affected the result without making a separate request for each date.
 
+### Should a failed calculation return partial Daily Taxes?
+
+**Assumption used:** No. A Congestion Tax Calculation must produce a complete result for the request with one valid Tax Rule Set. If invalid input or stored content prevents a complete calculation, the API returns an error instead of partial Daily Taxes.
+
+**Result:** A caller receives either one complete Calculation Result or one error response. The response does not combine a partial total or partial Daily Taxes with errors. This question remains useful when discussing alternative API contracts in an interview.
+
 ### Is the 2013 scope only a documented limit, or must the API enforce it?
 
-**Assumption used:** The API enforces the limit after it converts each passage to the selected city's local date. If one or more passages are outside 2013, it rejects the complete request and reports all affected passage indexes.
+**Assumption used:** The API reads each Passage timestamp as City Local Time. At the start of the Calculation Service operation, the service enforces the limit before it accesses the Tax Rule Service, writes calculation log entries, or records custom metrics. If one or more Passages are outside 2013, the service rejects the complete request and reports all affected Passage indexes.
 
-**Result:** The API does not return a partial calculation that could be mistaken for the complete tax.
+**Result:** The API does not return a partial calculation that could be mistaken for the complete tax. The limit applies to Passage dates. Stored supporting dates can be outside 2013, including the public holiday on 1 January 2014 that supports the 31 December 2013 preceding-date Tax Exemption.
 
 ## Stored Rules and Application Scope
 
@@ -102,34 +114,16 @@ The assignment does not answer the questions below. Because answers were not ava
 
 **Assumption used:** PostgreSQL contains the city data and congestion-tax rules used by the calculation. The application remains a stateless calculator and does not store passages, vehicles, owners, or calculation results.
 
-**Result:** The calling system keeps vehicle and passage records. The calculator reads current and historical rules from PostgreSQL at runtime.
+**Result:** The calling system keeps vehicle and passage records. The calculator reads the selected City's Tax Rule Set from PostgreSQL at runtime.
 
-### Should a later rule change alter a calculation for an earlier date?
+### Can one City have several effective-dated Tax Rule Sets?
 
-**Assumption used:** No. Each stored Tax Rule Set has an effective date and does not change after use. A rule change creates a new complete Tax Rule Set. There is no separate version number.
+**Assumption used:** No. Each City has one Tax Rule Set for the supported 2013 calculation scope. The assignment requires different Tax Rules for different cities, but it does not require Tax Rule history or changes during the year.
 
-**Result:** The application selects the Tax Rule Set with the latest effective date that is not after the calculation date. Earlier Tax Rule Sets remain available for historical calculations.
-
-### Does a newer Tax Rule Set inherit rules from the preceding set?
-
-**Assumption used:** No. Each Tax Rule Set is a complete snapshot of the Tax Rules for its effective period. The application does not merge Tax Rule Sets.
-
-**Result:** A rule that is absent from a newer Tax Rule Set does not apply during the newer period. The preceding Tax Rule Set remains available only for its historical period.
-
-### Who copies unchanged rules when a new Tax Rule Set is published?
-
-**Assumption used:** The future content publication workflow starts from a copy of the Tax Rule Set that is applicable immediately before the new effective date. It copies unchanged Tax Rule Options, Tax Time Bands, and Tax Exemptions. It then applies all additions, replacements, and removals. It validates and inserts the complete new Tax Rule Set in one transaction. The database does not copy rows with a trigger, and the calculation application does not inherit or merge content at runtime.
-
-**Result:** A content editor changes only the required values in the publication workflow, but every published Tax Rule Set is a complete snapshot. An absent child row in the new snapshot means that the rule was removed. The first delivery uses Flyway for the initial snapshot and does not implement this future write workflow.
+**Result:** The application loads one Tax Rule Set for the selected City. It has no effective-date selection, history, inheritance, or future publication logic. Multiple effective-dated Tax Rule Sets remain an optional feature that was considered and excluded because it is outside the assignment and its six-hour limit.
 
 ### How do content editors update congestion-tax rules?
 
 **Assumption used:** An administration API and editor interface are outside the assignment. Flyway installs the initial content. Later changes use a controlled database migration or an external database administration process. The calculation application only reads the stored content.
 
 **Result:** The submitted API does not include authentication or write operations for congestion-tax rules. PostgreSQL remains the external runtime source of the content.
-
-### Can a content editor backdate a Tax Rule Set?
-
-**Assumption used:** No. A normal publication workflow requires the effective date to be no earlier than the next City Local Date. Flyway and controlled administrative processes can import existing historical content.
-
-**Result:** The existing Gothenburg Tax Rule Set can start on 1 January 2013. Future editor changes cannot alter historical calculation results by inserting a backdated Tax Rule Set.

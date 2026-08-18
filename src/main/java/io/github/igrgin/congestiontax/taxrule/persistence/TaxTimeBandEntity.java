@@ -37,6 +37,7 @@ public class TaxTimeBandEntity {
     private LocalTime endTime;
 
     @Column(nullable = false, precision = 12, scale = 2)
+    @Getter
     private BigDecimal amount;
 
     TaxTimeBandEntity(Long ruleSetId, LocalTime startTime, LocalTime endTime, BigDecimal amount) {
@@ -46,7 +47,7 @@ public class TaxTimeBandEntity {
         this.amount = amount;
     }
 
-    TaxTimeBand toTaxTimeBand(Currency currency) {
-        return new TaxTimeBand(startTime, endTime, new TaxAmount(amount, currency));
+    static TaxTimeBand toTaxTimeBand(TaxTimeBandEntity entity, Currency currency) {
+        return new TaxTimeBand(entity.getStartTime(), entity.getEndTime(), new TaxAmount(entity.getAmount(), currency));
     }
 }

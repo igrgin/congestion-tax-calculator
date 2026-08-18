@@ -35,6 +35,12 @@ public record TaxAmount(@NonNull BigDecimal amount, @NonNull Currency currency) 
         return amount.compareTo(other.amount) >= 0 ? this : other;
     }
 
+    public boolean isGreaterThan(TaxAmount other) {
+        validateSameCurrency(other);
+
+        return amount.compareTo(other.amount) > 0;
+    }
+
     private void validateSameCurrency(TaxAmount other) {
         if (!currency.equals(other.currency)) {
             throw new CurrencyMismatchException(currency, other.currency);
