@@ -2,6 +2,7 @@ package io.github.igrgin.congestiontax.calculation.http;
 
 import io.github.igrgin.congestiontax.calculation.exception.CityNotFoundException;
 import io.github.igrgin.congestiontax.calculation.exception.InvalidStoredCityTimeZoneException;
+import io.github.igrgin.congestiontax.calculation.exception.InvalidStoredTaxExemptionException;
 import io.github.igrgin.congestiontax.calculation.exception.InvalidStoredTaxRuleOptionException;
 import io.github.igrgin.congestiontax.calculation.exception.InvalidStoredTaxTimeBandsException;
 import io.github.igrgin.congestiontax.calculation.exception.MissingStoredTaxRuleSetException;
@@ -84,7 +85,7 @@ public class CalculationExceptionHandler {
                     CalculationProblemResponse.forInvalidPassageTimestamp(invalidPassageIndex.getAsInt()));
         }
 
-        if (hasCause(exception, StreamReadException.class)) {
+        if (hasStreamReadExceptionCause(exception)) {
             log.warn("Rejected Congestion Tax Calculation request. reason={}", "invalid-json");
             return problem(HttpStatus.BAD_REQUEST, CalculationProblemResponse.forInvalidJson());
         }
@@ -105,6 +106,18 @@ public class CalculationExceptionHandler {
         return internalFailure();
     }
 
+    @ExceptionHandler(InvalidStoredTaxExemptionException.class)
+    public ResponseEntity<CalculationProblemResponse> handleInvalidTaxExemption(
+            InvalidStoredTaxExemptionException exception) {
+        log.error(
+                "Congestion Tax Calculation failed. reason={} taxExemptionTypeCode={}",
+                "invalid-tax-exemption",
+                exception.taxExemptionTypeCode(),
+                exception);
+
+        return internalFailure();
+    }
+
     @ExceptionHandler(MissingStoredTaxRuleSetException.class)
     public ResponseEntity<CalculationProblemResponse> handleMissingTaxRuleSet(
             MissingStoredTaxRuleSetException exception) {
@@ -114,6 +127,7 @@ public class CalculationExceptionHandler {
     @ExceptionHandler(MissingStoredTaxTimeBandsException.class)
     public ResponseEntity<CalculationProblemResponse> handleMissingTaxTimeBands(
             MissingStoredTaxTimeBandsException exception) {
+
         return storedCityFailure("missing-tax-time-bands", exception.cityCode(), exception);
     }
 
@@ -181,9 +195,9 @@ public class CalculationExceptionHandler {
                 .anyMatch("passages"::equals);
     }
 
-    private static boolean hasCause(Throwable exception, Class<? extends Throwable> causeType) {
+    private static boolean hasStreamReadExceptionCause(Throwable exception) {
         for (var cause = exception; cause != null; cause = cause.getCause()) {
-            if (causeType.isInstance(cause)) {
+            if (cause instanceof StreamReadException) {
                 return true;
             }
         }

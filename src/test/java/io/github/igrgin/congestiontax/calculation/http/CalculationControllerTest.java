@@ -14,6 +14,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import io.github.igrgin.congestiontax.calculation.CalculationService;
 import io.github.igrgin.congestiontax.calculation.exception.CityNotFoundException;
 import io.github.igrgin.congestiontax.calculation.exception.InvalidStoredCityTimeZoneException;
+import io.github.igrgin.congestiontax.calculation.exception.InvalidStoredTaxExemptionException;
 import io.github.igrgin.congestiontax.calculation.exception.InvalidStoredTaxRuleOptionException;
 import io.github.igrgin.congestiontax.calculation.exception.InvalidStoredTaxTimeBandsException;
 import io.github.igrgin.congestiontax.calculation.exception.MissingStoredTaxRuleSetException;
@@ -26,11 +27,14 @@ import io.github.igrgin.congestiontax.domain.TaxAmount;
 import io.github.igrgin.congestiontax.domain.VehicleType;
 import io.github.igrgin.congestiontax.domain.calculation.CalculationResult;
 import io.github.igrgin.congestiontax.domain.calculation.DailyTax;
+import io.github.igrgin.congestiontax.domain.calculation.TaxExemptionReason;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.Month;
+import java.util.Collections;
 import java.util.Currency;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
@@ -92,6 +96,54 @@ class CalculationControllerTest {
                               "date": "2013-02-08",
                               "taxExemptionReasons": [],
                               "amount": 8.00
+                            }
+                          ]
+                        }
+                        """));
+    }
+
+    @Test
+    void reportsAllTaxExemptionReasonsForExemptDailyTax() throws Exception {
+        var cityCode = "gothenburg";
+        var vehicleType = new VehicleType("OTHER", "Other vehicle");
+        var cityDateTime = LocalDateTime.of(2013, Month.FEBRUARY, 8, 6, 20, 27);
+        var calculationDate = cityDateTime.toLocalDate();
+        var zero = TaxAmount.zero(Currency.getInstance("SEK"));
+        var taxExemptionReasons = Collections.unmodifiableSet(EnumSet.allOf(TaxExemptionReason.class));
+        var calculationResult = new CalculationResult(
+                vehicleType, List.of(new DailyTax(calculationDate, taxExemptionReasons, zero)), zero);
+
+        given(calculationService.calculate(new CalculationCommand(cityCode, vehicleType.code(), List.of(cityDateTime))))
+                .willReturn(new CalculatedTax(cityCode, calculationResult));
+
+        mockMvc.perform(post("/api/v1/cities/{cityCode}" + "/congestion-tax/calculations", cityCode)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "vehicleType": "OTHER",
+                                  "passages": [
+                                    "2013-02-08 06:20:27"
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(content().json("""
+                        {
+                          "cityCode": "gothenburg",
+                          "vehicleType": "OTHER",
+                          "currency": "SEK",
+                          "totalAmount": 0.00,
+                          "dailyTaxes": [
+                            {
+                              "date": "2013-02-08",
+                              "taxExemptionReasons": [
+                                "VEHICLE_TYPE",
+                                "WEEKDAY",
+                                "MONTH",
+                                "PUBLIC_HOLIDAY",
+                                "DATE_BEFORE_PUBLIC_HOLIDAY"
+                              ],
+                              "amount": 0.00
                             }
                           ]
                         }
@@ -459,6 +511,9 @@ class CalculationControllerTest {
                 Arguments.of(
                         "invalid stored Tax Rule Option",
                         new InvalidStoredTaxRuleOptionException("CHARGE_WINDOW", storedFailure)),
+                Arguments.of(
+                        "invalid stored Tax Exemption",
+                        new InvalidStoredTaxExemptionException("PUBLIC_HOLIDAY", storedFailure)),
                 Arguments.of("missing Tax Rule Set", new MissingStoredTaxRuleSetException("gothenburg", storedFailure)),
                 Arguments.of(
                         "missing stored Tax Time Bands",

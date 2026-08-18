@@ -28,7 +28,8 @@ The Calculation Service:
 3. creates each complete Passage with its City Local Time and derived instant;
 4. asks the Tax Rule Service for the Vehicle Type;
 5. calls the pure `TaxCalculator`;
-6. returns the calculated City and result.
+6. writes one `DEBUG` event for each exempt Daily Tax;
+7. returns the calculated City and result.
 
 The Tax Calculator:
 
@@ -36,7 +37,7 @@ The Tax Calculator:
 2. orders all Passages by instant;
 3. applies stored Tax Exemptions to each Passage;
 4. finds the Tax Time Band amount for each non-exempt Passage;
-5. uses a zero Tax Amount in the Tax Rule Set currency when no band matches;
+5. throws `NoMatchingTaxTimeBandException` when no Tax Time Band contains a non-exempt Passage City Local Time;
 6. applies the optional Charge Window across the ordered Passage list;
 7. assigns each window charge to one City Local Time date;
 8. adds the assigned charges for each input date;
@@ -46,6 +47,8 @@ The Tax Calculator:
 
 The Tax Rule Service requires the City's Tax Rule Set to contain at least one Tax Time Band. It throws `MissingTaxTimeBandsException` when stored Tax Rules do not meet this requirement.
 
+`MissingTaxTimeBandsException` and `NoMatchingTaxTimeBandException` identify different failures. The Tax Rule Service throws `MissingTaxTimeBandsException` when the Tax Rule Set contains no Tax Time Bands. The calculator throws `NoMatchingTaxTimeBandException` when Tax Time Bands exist but none contains a non-exempt Passage City Local Time.
+
 A Tax Time Band includes its start and excludes its end. For a band from `06:00` to `06:30`:
 
 - `06:00:00` is included;
@@ -54,7 +57,9 @@ A Tax Time Band includes its start and excludes its end. For a band from `06:00`
 
 An end time after the start time defines a same-date band. An end time before the start time defines one band that crosses midnight. For a cross-midnight band, the local time matches when it is on or after the start or before the end. Equal start and end times define a full-day band, and every local time matches it.
 
-Tax Time Bands can have positive or zero Tax Amounts. Gaps are valid and produce a zero Tax Amount in the Tax Rule Set currency. Tax Time Bands must not overlap when the service compares them around the complete 24-hour clock. This rule rejects nested bands, such as `06:00–09:00` with `07:00–08:00`. It also means that a full-day band must be the only band in its Tax Rule Set and cannot coexist with another full-day band.
+Tax Time Bands can have positive or zero Tax Amounts. The stored collection can contain gaps, but a gap does not define an implicit zero Tax Amount. A non-exempt Passage in a gap causes `NoMatchingTaxTimeBandException`. Stored content must use an explicit zero-amount Tax Time Band when the Passage time is valid and has no charge.
+
+Tax Time Bands must not overlap when the service compares them around the complete 24-hour clock. This rule rejects nested bands, such as `06:00–09:00` with `07:00–08:00`. It also means that a full-day band must be the only band in its Tax Rule Set and cannot coexist with another full-day band.
 
 The Tax Rule Service stops at the first conflicting pair and throws `OverlappingTaxTimeBandsException`. Same-date, cross-midnight, nested, and full-day conflicts use this one exception because they violate the same overlap rule.
 
@@ -70,9 +75,7 @@ PUBLIC_HOLIDAY
 DATE_BEFORE_PUBLIC_HOLIDAY
 ```
 
-The current calculation does not apply these Tax Exemptions. It creates each Daily Tax with an empty reason set.
-
-Later issues can apply the stored Tax Exemptions and add every applicable reason to this set. The HTTP response can then explain why a Daily Tax is zero without adding one Boolean field for each Tax Exemption.
+Before Tax Time Band selection, the calculator gets all matching reasons from the City's Tax Rule Set for the selected Vehicle Type and each Passage City Local Time date. An exempt Passage has a zero Tax Amount and does not require a matching Tax Time Band. It still participates in its Charge Window. Each Daily Tax reports all reasons that apply to its date and Vehicle Type. The HTTP response can explain why the Daily Tax is zero without one Boolean field for each Tax Exemption.
 
 ## Charge Window and Daily Maximum
 
@@ -88,13 +91,11 @@ When a Charge Window is present:
 6. the charge belongs to the winning Passage's City Local Time date;
 7. the first Passage after the boundary starts the next window.
 
-Zero Tax Amount Passages, exempt Passages, and repeated Passages participate. A Charge Window uses actual elapsed time between instants and can cross a City Local Time date boundary. Midnight does not end or restart the window.
+Passages in explicit zero-amount Tax Time Bands, exempt Passages, and repeated Passages participate. A Charge Window uses actual elapsed time between instants and can cross a City Local Time date boundary. Midnight does not end or restart the window.
 
 Each distinct input date produces one Daily Tax. A date can have a zero amount because its Passage lost a cross-date Charge Window. That result has no Tax Exemption Reason unless a Tax Exemption also applies to the date.
 
 After the calculator assigns and adds Charge Window charges by date, the optional Daily Maximum limits each Daily Tax. When the Tax Rule Set has no Daily Maximum, the calculated daily amount is unchanged.
-
-Later issues will apply Vehicle Type, weekday, month, public-holiday, and pre-holiday Tax Exemptions.
 
 ## Java calculation model
 
@@ -118,12 +119,39 @@ classDiagram
         +String cityCode
         +Currency currency
         +List~TaxTimeBand~ taxTimeBands
+        +TaxExemptions taxExemptions
         +TaxRuleOptions taxRuleOptions
+        +taxExemptionReasonsFor(VehicleType, LocalDate) Set~TaxExemptionReason~
+    }
+
+    class TaxExemptions {
+        ~reasonsFor(VehicleType, LocalDate, Optional~PublicHolidayPrecedingDateOption~) Set~TaxExemptionReason~
+    }
+
+    class TaxExemption {
+        <<sealed interface>>
+    }
+
+    class WeekdayTaxExemption {
+        +DayOfWeek dayOfWeek
+    }
+
+    class MonthTaxExemption {
+        +Month month
+    }
+
+    class PublicHolidayTaxExemption {
+        +LocalDate date
+    }
+
+    class VehicleTypeTaxExemption {
+        +String vehicleTypeCode
     }
 
     class TaxRuleOptions {
         +chargeWindow() Optional~ChargeWindow~
         +dailyMaximum() Optional~DailyMaximum~
+        +publicHolidayPrecedingDateOption() Optional~PublicHolidayPrecedingDateOption~
     }
 
     class ChargeWindow {
@@ -132,6 +160,10 @@ classDiagram
 
     class DailyMaximum {
         +TaxAmount amount
+    }
+
+    class PublicHolidayPrecedingDateOption {
+        +int calendarDateCount
     }
 
     class TaxTimeBand {
@@ -177,9 +209,16 @@ classDiagram
     TaxCalculator --> TaxRuleSet
     TaxCalculator --> CalculationResult
     TaxRuleSet *-- TaxTimeBand
+    TaxRuleSet *-- TaxExemptions
     TaxRuleSet *-- TaxRuleOptions
+    TaxExemptions *-- TaxExemption
+    TaxExemption <|.. WeekdayTaxExemption
+    TaxExemption <|.. MonthTaxExemption
+    TaxExemption <|.. PublicHolidayTaxExemption
+    TaxExemption <|.. VehicleTypeTaxExemption
     TaxRuleOptions o-- ChargeWindow
     TaxRuleOptions o-- DailyMaximum
+    TaxRuleOptions o-- PublicHolidayPrecedingDateOption
     TaxTimeBand *-- TaxAmount
     DailyMaximum *-- TaxAmount
     CalculationResult *-- DailyTax
@@ -194,6 +233,10 @@ Collection-owning calculation values receive unmodifiable collections from their
 
 `TaxTimeBand` rejects null values. `TaxAmount` rejects negative amounts before they can enter a Tax Time Band. `TaxTimeBand` interprets an end before the start as a cross-midnight band and equal start and end times as a full-day band.
 
-`TaxRuleSet` rejects null fields and requires at least one Tax Time Band. Its Tax Rule Options can contain one Charge Window and one Daily Maximum.
+`TaxExemptions` contains the four sealed Tax Exemption values. It rejects null and duplicate values. `VehicleTypeTaxExemption` also rejects a blank Vehicle Type code. The centralized matcher returns reasons for a matching Vehicle Type, weekday, month, or public holiday. A Public Holiday Preceding-Date Option extends only stored public-holiday Tax Exemptions. It has no effect when the Tax Rule Set has no public-holiday Tax Exemption.
+
+`TaxRuleSet` rejects null fields and requires at least one Tax Time Band. Its Tax Rule Options can contain one Charge Window, one Daily Maximum, and one Public Holiday Preceding-Date Option. The Public Holiday Preceding-Date Option requires a positive calendar-date count.
+
+The calculator uses this centralized matcher for Tax Exemptions. It does not copy the matching rules into the calculation flow.
 
 The calculator has no Spring annotations, repository calls, database calls, system-clock access, logging, or metrics. The same inputs produce the same result.

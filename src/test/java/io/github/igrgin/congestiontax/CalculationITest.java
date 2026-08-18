@@ -32,7 +32,7 @@ class CalculationITest {
     private ObjectMapper objectMapper;
 
     @Test
-    void calculatesOnePassageFromStoredTaxRules() throws Exception {
+    void calculatesOnePassageFromStoredTaxRules() {
         var headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
 
@@ -67,7 +67,7 @@ class CalculationITest {
     }
 
     @Test
-    void calculatesSeveralPassagesFromStoredTaxRules() throws Exception {
+    void calculatesSeveralPassagesFromStoredTaxRules() {
         var headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
 
@@ -103,39 +103,33 @@ class CalculationITest {
     }
 
     @Test
-    void returnsZeroTaxOutsideStoredTaxTimeBands() throws Exception {
+    void rejectsNonExemptPassageOutsideStoredTaxTimeBands() {
+
         var headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
 
         var request = new HttpEntity<>("""
-                {
-                  "vehicleType": "OTHER",
-                  "passages": [
-                    "2013-02-08 06:40:27"
-                  ]
-                }
-                """, headers);
+            {
+              "vehicleType": "OTHER",
+              "passages": [
+                "2013-02-08 06:40:27"
+              ]
+            }
+            """, headers);
 
         var response = restTemplate.postForEntity(
                 "/api/v1/cities/gothenburg" + "/congestion-tax/calculations", request, JsonNode.class);
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
+        assertThat(response.getHeaders().getContentType()).isEqualTo(MediaType.APPLICATION_PROBLEM_JSON);
         assertThat(response.getBody()).isEqualTo(objectMapper.readTree("""
-                {
-                  "cityCode": "gothenburg",
-                  "vehicleType": "OTHER",
-                  "currency": "SEK",
-                  "totalAmount": 0.00,
-                  "dailyTaxes": [
                     {
-                      "date": "2013-02-08",
-                      "taxExemptionReasons": [],
-                      "amount": 0.00
+                      "title": "Calculation failed",
+                      "status": 500,
+                      "detail": "The calculation could not be completed.",
+                      "code": "CALCULATION_FAILED"
                     }
-                  ]
-                }
-                """));
+                    """));
     }
 
     @Test

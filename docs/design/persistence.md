@@ -39,6 +39,22 @@ erDiagram
         varchar description
     }
 
+    TAX_EXEMPTION_TYPE {
+        varchar code PK
+        varchar description
+    }
+
+    TAX_EXEMPTION {
+        bigint id PK
+        bigint rule_set_id FK
+        varchar type_code FK
+        smallint day_of_week
+        smallint month_number
+        date holiday_date
+        varchar vehicle_type_code FK
+        varchar description
+    }
+
     TAX_TIME_BAND {
         bigint id PK
         bigint rule_set_id FK
@@ -50,6 +66,9 @@ erDiagram
     CITY ||--o| TAX_RULE_SET : "has rules"
     TAX_RULE_SET ||--o{ TAX_RULE_OPTION : "selects options"
     TAX_RULE_OPTION_TYPE ||--o{ TAX_RULE_OPTION : "classifies"
+    TAX_RULE_SET ||--o{ TAX_EXEMPTION : "selects exemptions"
+    TAX_EXEMPTION_TYPE ||--o{ TAX_EXEMPTION : "classifies"
+    VEHICLE_TYPE ||--o{ TAX_EXEMPTION : "can be selected by"
     TAX_RULE_SET ||--o{ TAX_TIME_BAND : "defines charges"
 ```
 
@@ -75,7 +94,7 @@ HOLIDAY_PRECEDING
 - `CHARGE_WINDOW` uses `duration_minutes`;
 - `HOLIDAY_PRECEDING` uses `preceding_days`.
 
-The Tax Rule Service loads `CHARGE_WINDOW` and `DAILY_MAXIMUM` rows. It maps them to typed, immutable Domain values. An absent row disables only the matching behavior. `HOLIDAY_PRECEDING` remains stored content for the Tax Exemption issue.
+The Tax Rule Service loads all three option types. It maps them to typed, immutable Domain values. An absent row disables only the matching behavior. `HOLIDAY_PRECEDING` supplies a positive count of calendar dates before each stored public holiday.
 
 All foreign keys use restrictive deletion. The schema does not use `ON DELETE CASCADE` because automatic deletion could remove Tax Rule content.
 
@@ -85,9 +104,33 @@ The schema does not use an effective date, version, active, or status column. Th
 
 If the City has no Tax Rule Set, the service throws `MissingTaxRuleSetException`. It does not use rules from another City.
 
-The supported 2013 Passage year will not limit stored supporting dates. Issue 6 will add Tax Exemption date storage and will include `2014-01-01` so that the calculator can evaluate the preceding-date Tax Exemption for `2013-12-31`.
+The supported 2013 Passage year does not limit stored supporting dates. The Tax Exemption seed includes `2014-01-01` so that the calculator can evaluate the preceding-date Tax Exemption for `2013-12-31`.
 
 Multiple effective-dated Tax Rule Sets were considered as an optional feature. The assignment and its six-hour limit do not require Tax Rule history or changes during the year.
+
+## Tax Exemptions
+
+`TAX_EXEMPTION_TYPE` contains this code-owned vocabulary:
+
+```text
+WEEKDAY
+MONTH
+PUBLIC_HOLIDAY
+VEHICLE_TYPE
+```
+
+Each `TAX_EXEMPTION` row uses one typed value column:
+
+- `WEEKDAY` uses `day_of_week`, where Monday is 1 and Sunday is 7;
+- `MONTH` uses `month_number`, from 1 through 12;
+- `PUBLIC_HOLIDAY` uses `holiday_date`;
+- `VEHICLE_TYPE` uses `vehicle_type_code`.
+
+A database check requires exactly one value that matches the type code. The Vehicle Type value must reference a known Vehicle Type.
+
+Four partial unique indexes prevent one Tax Rule Set from storing the same typed Tax Exemption twice. Each index selects one type code and its matching value column. A normal multicolumn unique constraint is not sufficient because the other typed value columns are null.
+
+The Tax Rule Service maps these rows to `WeekdayTaxExemption`, `MonthTaxExemption`, `PublicHolidayTaxExemption`, and `VehicleTypeTaxExemption`. `TaxExemptions` owns the immutable collection. It rejects duplicate values. Tax Exemptions and Tax Rule Options are independent optional content. `TaxRuleSet.taxExemptionReasonsFor` uses the Public Holiday Preceding-Date Option only when it matches a stored public-holiday Tax Exemption. The option has no effect when the set has no public-holiday Tax Exemption.
 
 ## Tax Time Bands
 
@@ -112,11 +155,12 @@ A Tax Time Band follows these rules:
 Validation of the complete collection is split across these boundaries:
 
 - `TaxRuleServiceImpl` requires at least one Tax Time Band;
-- PostgreSQL prevents overlaps, and `TaxRuleServiceImpl` repeats that check when it loads a Tax Rule Set.
+- PostgreSQL prevents overlaps, and `TaxRuleServiceImpl` repeats that check when it loads a Tax Rule Set;
+- `TaxCalculator` requires each non-exempt Passage to match one Tax Time Band.
 
 Adjacent bands are valid. For example, `06:00–06:30` and `06:30–07:00` do not overlap.
 
-Gaps are valid. If no Tax Time Band contains a Passage local time, the calculator returns a zero Tax Amount in the Tax Rule Set currency.
+The schema permits gaps between Tax Time Bands. A gap does not define an implicit zero Tax Amount. If no Tax Time Band contains a non-exempt Passage City Local Time, the calculator throws `NoMatchingTaxTimeBandException`. Stored content must use an explicit zero-amount Tax Time Band when the Passage time is valid and has no charge.
 
 Flyway installs PostgreSQL's supplied `btree_gist` extension. A GiST exclusion constraint compares the Tax Rule Set identifier for equality and each Tax Time Band multirange for overlap. The constraint represents a same-date band as one range, a cross-midnight band as two ranges, and a full-day band as the complete clock. It rejects conflicting inserts and updates, including concurrent writes.
 
@@ -135,18 +179,20 @@ taxrule.persistence.VehicleTypeRepository
 taxrule.persistence.TaxRuleSetRepository
 taxrule.persistence.TaxTimeBandRepository
 taxrule.persistence.TaxRuleOptionRepository
+taxrule.persistence.TaxExemptionRepository
 taxrule.persistence.CityEntity
 taxrule.persistence.VehicleTypeEntity
 taxrule.persistence.TaxRuleSetEntity
 taxrule.persistence.TaxTimeBandEntity
 taxrule.persistence.TaxRuleOptionEntity
+taxrule.persistence.TaxExemptionEntity
 ```
 
-It loads the selected City, validates its stored time zone with the JDK IANA time-zone data, and loads the Vehicle Type, Tax Rule Set, Tax Time Bands, and Tax Rule Options. An invalid stored City time zone is a stored-content failure.
+It loads the selected City, validates its stored time zone with the JDK IANA time-zone data, and loads the Vehicle Type, Tax Rule Set, Tax Time Bands, Tax Rule Options, and Tax Exemptions. An invalid stored City time zone is a stored-content failure.
 
-The Tax Rule Set entity does not contain a JPA child collection. `TaxTimeBandEntity` and `TaxRuleOptionEntity` store their parent ID as a scalar field. The service loads the selected parent row. It then reads the required Tax Time Bands and Tax Rule Options.
+The Tax Rule Set entity does not contain a JPA child collection. `TaxTimeBandEntity`, `TaxRuleOptionEntity`, and `TaxExemptionEntity` store their parent ID as a scalar field. The service loads the selected parent row. It then reads the required Tax Time Bands, Tax Rule Options, and Tax Exemptions.
 
-`TaxRuleOptions` owns an unmodifiable collection of typed Domain options. It rejects duplicate option types. Its `chargeWindow()` and `dailyMaximum()` queries return an empty result when the stored row is absent. `ChargeWindow` owns a positive `Duration`. `DailyMaximum` owns a positive `TaxAmount` in the Tax Rule Set currency.
+`TaxRuleOptions` owns an unmodifiable collection of typed Domain options. It rejects duplicate option types. Its `chargeWindow()`, `dailyMaximum()`, and `publicHolidayPrecedingDateOption()` queries return an empty result when the stored row is absent. `ChargeWindow` owns a positive `Duration`. `DailyMaximum` owns a positive `TaxAmount` in the Tax Rule Set currency. `PublicHolidayPrecedingDateOption` owns a positive calendar-date count.
 
 This makes database reads explicit and avoids a large join that repeats parent data. PostgreSQL foreign keys enforce the stored relationships.
 
@@ -168,12 +214,17 @@ PostgreSQL constraints protect:
 - exact duplicate Tax Time Bands;
 - non-overlapping Tax Time Bands in one Tax Rule Set;
 - valid Tax Rule Option value shapes;
-- one Tax Rule Option of each type in a Tax Rule Set.
+- one Tax Rule Option of each type in a Tax Rule Set;
+- valid Tax Exemption value shapes and ranges;
+- one reference to a known Tax Rule Set and Tax Exemption Type for each Tax Exemption;
+- a known Vehicle Type for each Vehicle Type Tax Exemption;
+- no duplicate typed Tax Exemption in one Tax Rule Set.
 
 Repository-facing services repeat important stored-content validation when they assemble calculation values. The current Tax Rule Service checks for:
 
 - invalid stored City time zones;
 - invalid or duplicate stored Tax Rule Options;
+- invalid or duplicate stored Tax Exemptions;
 - missing Tax Rule Sets;
 - missing Tax Time Bands;
 - overlapping Tax Time Bands;
@@ -182,7 +233,9 @@ Repository-facing services repeat important stored-content validation when they 
 
 These failures are stored-content or lookup failures. The pure calculator does not repeat database validation.
 
-## Target initial seed after issue 5
+Invalid Tax Exemption content produces `InvalidTaxExemptionException`. It contains only the safe Tax Exemption Type code or `UNKNOWN`. The Calculation Service translates this failure before it reaches the HTTP exception boundary. Stored values and SQL do not cross these boundaries.
+
+## Current seed data
 
 Flyway inserts the minimum stored content for the initial calculation path:
 
@@ -194,6 +247,7 @@ Vehicle Type: OTHER
 Currency: SEK
 Tax Time Band: 06:00–06:30
 Tax Amount: 8.00 SEK
+Public holiday supporting date: 2014-01-01
 ```
 
 This data supports the issue acceptance path:
@@ -204,6 +258,6 @@ Passage: 2013-02-08 06:20:27
     -> 8.00 SEK
 ```
 
-The current seed does not contain Tax Rule Options. Tests use synthetic option rows. A later migration will add the complete Gothenburg Tax Rule Options with the remaining Vehicle Types, Tax Time Bands, and Tax Exemption data.
+The current seed does not contain Tax Rule Options. Flyway installs the closed Tax Exemption Type vocabulary and one public-holiday Tax Exemption for `2014-01-01`. Tests use synthetic option and other Tax Exemption rows. A later migration will add the complete Gothenburg Tax Rule Options with the remaining Vehicle Types, Tax Time Bands, and Tax Exemption data.
 
-Issue 5 can rewrite the pre-release Flyway migrations to match the one-set schema. A developer must remove the local database volume before the application applies the rewritten migrations. Later work can complete the initial assignment seed before the first release.
+The pre-release Flyway migrations use the one-set schema. A developer must remove the local database volume before the application applies the rewritten migrations. Later work can complete the initial assignment seed before the first release.

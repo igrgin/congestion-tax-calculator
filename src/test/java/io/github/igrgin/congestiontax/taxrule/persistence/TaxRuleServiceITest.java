@@ -8,15 +8,25 @@ import io.github.igrgin.congestiontax.domain.TaxAmount;
 import io.github.igrgin.congestiontax.domain.VehicleType;
 import io.github.igrgin.congestiontax.domain.rule.ChargeWindow;
 import io.github.igrgin.congestiontax.domain.rule.DailyMaximum;
+import io.github.igrgin.congestiontax.domain.rule.MonthTaxExemption;
+import io.github.igrgin.congestiontax.domain.rule.PublicHolidayPrecedingDateOption;
+import io.github.igrgin.congestiontax.domain.rule.PublicHolidayTaxExemption;
+import io.github.igrgin.congestiontax.domain.rule.TaxExemptions;
+import io.github.igrgin.congestiontax.domain.rule.TaxRuleOptions;
 import io.github.igrgin.congestiontax.domain.rule.TaxRuleSet;
 import io.github.igrgin.congestiontax.domain.rule.TaxTimeBand;
+import io.github.igrgin.congestiontax.domain.rule.VehicleTypeTaxExemption;
+import io.github.igrgin.congestiontax.domain.rule.WeekdayTaxExemption;
 import io.github.igrgin.congestiontax.taxrule.TaxRuleService;
 import io.github.igrgin.congestiontax.taxrule.exception.InvalidCityTimeZoneException;
 import io.github.igrgin.congestiontax.taxrule.exception.MissingTaxTimeBandsException;
 import io.github.igrgin.congestiontax.taxrule.model.CityTaxRuleSet;
 import java.math.BigDecimal;
+import java.time.DayOfWeek;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.Month;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Currency;
@@ -45,6 +55,15 @@ class TaxRuleServiceITest {
     @AfterEach
     void cleanUp() {
         for (var cityId : insertedCityIds) {
+            jdbcTemplate.update("""
+                    DELETE FROM tax_exemption
+                    WHERE rule_set_id IN (
+                        SELECT id
+                        FROM tax_rule_set
+                        WHERE city_id = ?
+                    )
+                    """, cityId);
+
             jdbcTemplate.update("""
                     DELETE FROM tax_rule_option
                     WHERE rule_set_id IN (
@@ -130,6 +149,43 @@ class TaxRuleServiceITest {
     }
 
     @Test
+    void loadsCompleteTypedTaxExemptionsAndPublicHolidayPrecedingDateOption() {
+        var cityCode = "tax-rule-service-exemptions";
+        var cityId = insertCity(cityCode, "Europe/Stockholm");
+        var publicHoliday = LocalDate.of(2013, Month.DECEMBER, 25);
+        var ruleSetId = insertTaxRuleSet(cityId);
+
+        insertTaxTimeBand(ruleSetId, new BigDecimal("8.00"));
+        insertWeekdayTaxExemption(ruleSetId, 6);
+        insertMonthTaxExemption(ruleSetId, Month.JULY.getValue());
+        insertPublicHolidayTaxExemption(ruleSetId, publicHoliday);
+        insertVehicleTypeTaxExemption(ruleSetId, "OTHER");
+        insertPublicHolidayPrecedingDateOption(ruleSetId, 1);
+
+        var result = taxRuleService.getCityTaxRuleSet(cityCode);
+        var expectedRuleSet = new TaxRuleSet(
+                cityCode,
+                SEK,
+                List.of(new TaxTimeBand(
+                        LocalTime.of(6, 0), LocalTime.of(6, 30), new TaxAmount(new BigDecimal("8.00"), SEK))),
+                new TaxExemptions(List.of(
+                        new WeekdayTaxExemption(DayOfWeek.SATURDAY),
+                        new MonthTaxExemption(Month.JULY),
+                        new PublicHolidayTaxExemption(publicHoliday),
+                        new VehicleTypeTaxExemption("OTHER"))),
+                new TaxRuleOptions(List.of(new PublicHolidayPrecedingDateOption(1))));
+
+        assertThat(result).isEqualTo(new CityTaxRuleSet(ZoneId.of("Europe/Stockholm"), expectedRuleSet));
+    }
+
+    @Test
+    void loadsSeededSupportingPublicHoliday() {
+        assertThat(taxRuleService.getCityTaxRuleSet("gothenburg").taxRuleSet().taxExemptions())
+                .isEqualTo(new TaxExemptions(
+                        List.of(new PublicHolidayTaxExemption(LocalDate.of(2014, Month.JANUARY, 1)))));
+    }
+
+    @Test
     void rejectsStoredTaxRuleSetWithoutTaxTimeBands() {
         var cityCode = "tax-rule-service-missing-bands";
         var cityId = insertCity(cityCode, "Europe/Stockholm");
@@ -211,6 +267,61 @@ class TaxRuleServiceITest {
                 )
                 VALUES (?, 'DAILY_MAXIMUM', ?)
                 """, ruleSetId, amount);
+    }
+
+    private void insertWeekdayTaxExemption(long ruleSetId, int dayOfWeek) {
+        jdbcTemplate.update("""
+                INSERT INTO tax_exemption (
+                    rule_set_id,
+                    type_code,
+                    day_of_week
+                )
+                VALUES (?, 'WEEKDAY', ?)
+                """, ruleSetId, dayOfWeek);
+    }
+
+    private void insertMonthTaxExemption(long ruleSetId, int monthNumber) {
+        jdbcTemplate.update("""
+                INSERT INTO tax_exemption (
+                    rule_set_id,
+                    type_code,
+                    month_number
+                )
+                VALUES (?, 'MONTH', ?)
+                """, ruleSetId, monthNumber);
+    }
+
+    private void insertPublicHolidayTaxExemption(long ruleSetId, LocalDate holidayDate) {
+        jdbcTemplate.update("""
+                INSERT INTO tax_exemption (
+                    rule_set_id,
+                    type_code,
+                    holiday_date
+                )
+                VALUES (?, 'PUBLIC_HOLIDAY', ?)
+                """, ruleSetId, holidayDate);
+    }
+
+    private void insertVehicleTypeTaxExemption(long ruleSetId, String vehicleTypeCode) {
+        jdbcTemplate.update("""
+                INSERT INTO tax_exemption (
+                    rule_set_id,
+                    type_code,
+                    vehicle_type_code
+                )
+                VALUES (?, 'VEHICLE_TYPE', ?)
+                """, ruleSetId, vehicleTypeCode);
+    }
+
+    private void insertPublicHolidayPrecedingDateOption(long ruleSetId, int precedingDays) {
+        jdbcTemplate.update("""
+                INSERT INTO tax_rule_option (
+                    rule_set_id,
+                    type_code,
+                    preceding_days
+                )
+                VALUES (?, 'HOLIDAY_PRECEDING', ?)
+                """, ruleSetId, precedingDays);
     }
 
     private static TaxRuleSet taxRuleSet(String cityCode, BigDecimal amount) {

@@ -2,6 +2,7 @@ package io.github.igrgin.congestiontax.taxrule.persistence;
 
 import static io.github.igrgin.congestiontax.taxrule.persistence.TaxTimeBandEntity.toTaxTimeBand;
 
+import io.github.igrgin.congestiontax.domain.rule.TaxExemptions;
 import io.github.igrgin.congestiontax.domain.rule.TaxRuleOptions;
 import io.github.igrgin.congestiontax.domain.rule.TaxRuleSet;
 import jakarta.persistence.Column;
@@ -41,14 +42,18 @@ public class TaxRuleSetEntity {
         this.currencyCode = currencyCode;
     }
 
-    public TaxRuleSet toTaxRuleSet(
-            String cityCode, List<TaxTimeBandEntity> taxTimeBandEntities, TaxRuleOptions taxRuleOptions) {
-        var currency = Currency.getInstance(currencyCode);
+    public static TaxRuleSet toTaxRuleSet(
+            TaxRuleSetEntity taxRuleSetEntity,
+            String cityCode,
+            List<TaxTimeBandEntity> taxTimeBandEntities,
+            TaxExemptions taxExemptions,
+            TaxRuleOptions taxRuleOptions) {
+        var currency = Currency.getInstance(taxRuleSetEntity.currencyCode);
 
         var taxTimeBands = taxTimeBandEntities.stream()
                 .map(entity -> toTaxTimeBand(entity, currency))
                 .toList();
 
-        return new TaxRuleSet(cityCode, currency, taxTimeBands, taxRuleOptions);
+        return new TaxRuleSet(cityCode, currency, taxTimeBands, taxExemptions, taxRuleOptions);
     }
 }

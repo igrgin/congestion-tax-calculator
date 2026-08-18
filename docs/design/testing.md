@@ -16,7 +16,7 @@ Tests call public operations. They do not test private methods.
 
 Application logging remains active when a test uses a Spring profile. Test code does not write log messages, and tests do not assert log output.
 
-## Domain test responsibilities after issue 5
+## Current domain test responsibilities
 
 `TaxAmountTest` proves:
 
@@ -42,19 +42,37 @@ Application logging remains active when a test uses a Spring profile. Test code 
 `TaxRuleSetTest` proves:
 
 - rejection of null fields;
-- rejection of an empty Tax Time Band list.
+- rejection of an empty Tax Time Band list;
+- each stored Tax Exemption match;
+- all matching Tax Exemption Reasons in stable order;
+- an unmodifiable reason set;
+- present and absent Public Holiday Preceding-Date Option behavior;
+- inert Public Holiday Preceding-Date Option behavior when no public-holiday Tax Exemption exists;
+- the first and last preceding-date boundaries;
+- overlapping public-holiday reasons for consecutive holidays.
+
+`TaxExemptionsTest` proves rejection of null and duplicate Tax Exemption values. It also proves that a Vehicle Type Tax Exemption rejects a blank Vehicle Type code.
+
+`PublicHolidayPrecedingDateOptionTest` proves rejection of a zero or negative calendar-date count.
 
 `ChargeWindowTest` proves rejection of a null, zero, or negative duration.
 
 `DailyMaximumTest` proves rejection of a null or zero Tax Amount.
 
-`TaxRuleOptionsTest` proves rejection of duplicate option types.
+`TaxRuleOptionsTest` proves typed Public Holiday Preceding-Date Option lookup and rejection of duplicate option types.
 
 `DailyTaxTest` proves that the convenience constructor uses an empty Tax Exemption Reason set.
 
 `TaxCalculatorTest` proves:
 
 - one taxed Passage;
+- each initial exempt Vehicle Type;
+- a known Vehicle Type without a matching Tax Exemption remains taxable;
+- each calendar Tax Exemption type;
+- present and absent Public Holiday Preceding-Date Option behavior;
+- all matching Tax Exemption Reasons;
+- zero Daily Tax and total Tax Amount for an exempt date or Vehicle Type;
+- Tax Exemption evaluation before Tax Time Band selection, including an exempt Passage outside all Tax Time Bands;
 - addition of all Passage Tax Amounts when the Charge Window is absent;
 - date grouping and ascending Daily Tax order;
 - one Charge Window across a City Local Time midnight;
@@ -63,14 +81,14 @@ Application logging remains active when a test uses a Spring profile. Test code 
 - Passage instant ordering and highest Tax Amount selection in a Charge Window;
 - the inclusive configured Charge Window boundary;
 - non-sliding Charge Window behavior;
-- participation of zero-amount and repeated Passages;
+- participation of Passages in explicit zero-amount Tax Time Bands, exempt Passages, and repeated Passages in Charge Windows;
 - Daily Maximum application after Charge Window calculation;
 - Tax Time Band selection at second precision, including adjacent boundaries;
-- zero Tax outside the Tax Time Bands;
+- rejection of a non-exempt Passage before the first Tax Time Band and at an exclusive Tax Time Band end when no adjacent band contains it;
 - rejection of an empty Passage list;
 - rejection of null calculation inputs.
 
-## Service and controller test responsibilities after issue 5
+## Current service and controller test responsibilities
 
 `TaxRuleServiceImplTest` proves:
 
@@ -91,7 +109,11 @@ Application logging remains active when a test uses a Spring profile. Test code 
 - use of `OverlappingTaxTimeBandsException` for every overlap shape;
 - failure on the first conflicting pair;
 - safe rejection of invalid stored Charge Window and Daily Maximum content;
-- safe rejection of duplicate stored Tax Rule Option types.
+- safe rejection of invalid stored Public Holiday Preceding-Date Option content;
+- safe rejection of duplicate stored Tax Rule Option types;
+- typed mapping of each stored Tax Exemption Type;
+- safe rejection of invalid shapes, ranges, missing types, and duplicate stored Tax Exemptions;
+- loading a Public Holiday Preceding-Date Option when no public-holiday Tax Exemption exists.
 
 This test stays in the `taxrule.persistence` test package because it uses package-access entity constructors to prepare repository results. It calls the implementation through the `TaxRuleService` interface.
 
@@ -103,9 +125,10 @@ This test stays in the `taxrule.persistence` test package because it uses packag
 - derivation of winter and summer instants with the stored City time zone;
 - translation of unknown City and Vehicle Type failures into calculation-owned exceptions while preserving their causes;
 - translation of an invalid stored Tax Rule Option into a calculation-owned failure with its safe type code;
-- translation of `MissingTaxTimeBandsException` to `MissingStoredTaxTimeBandsException`;
+- translation of `MissingTaxTimeBandsException` and `NoMatchingTaxTimeBandException` to `MissingStoredTaxTimeBandsException`, with the original cause preserved;
 - translation of `InvalidCityTimeZoneException` to `InvalidStoredCityTimeZoneException`;
-- translation of `OverlappingTaxTimeBandsException` to `InvalidStoredTaxTimeBandsException`.
+- translation of `OverlappingTaxTimeBandsException` to `InvalidStoredTaxTimeBandsException`;
+- translation of invalid stored Tax Exemption content into a calculation-owned failure with its safe type code.
 
 `CalculationControllerTest` proves:
 
@@ -125,7 +148,9 @@ This test stays in the `taxrule.persistence` test package because it uses packag
 - the top-level `INVALID_REQUEST` code and the `UNSUPPORTED_PASSAGE_YEAR` code for each affected Passage;
 - inclusion of `errors` only when at least one specific error exists;
 - a Problem Details response for each handled `400`, `404`, `500`, and `503` failure;
-- the safe `CALCULATION_FAILED` response for invalid stored content and unexpected failures.
+- the safe `CALCULATION_FAILED` response for invalid stored content and unexpected failures;
+- all matching Tax Exemption Reasons in stable order with zero Daily and total Tax Amounts;
+- a safe HTTP `500` response for invalid stored Tax Exemption content.
 
 The `503` cases include a data-access resource failure and a PostgreSQL transaction-start failure.
 
@@ -154,7 +179,12 @@ The test proves:
 - two full-day Tax Time Bands are rejected;
 - a Tax Rule Option must reference a known Tax Rule Set;
 - a Tax Rule Set cannot select the same option type twice;
-- each Tax Rule Option has the correct positive value shape.
+- each Tax Rule Option has the correct positive value shape;
+- the closed Tax Exemption Type vocabulary;
+- valid typed Tax Exemption rows;
+- exact Tax Exemption value shapes and weekday and month ranges;
+- Tax Exemption foreign keys;
+- duplicate rejection for each Tax Exemption Type.
 
 PostgreSQL uses a GiST exclusion constraint to reject every Tax Time Band overlap shape in one Tax Rule Set. The schema test proves this constraint directly.
 
@@ -198,7 +228,7 @@ This test proves that HTTP parsing, stored City time-zone handling, Flyway data,
 The test also verifies:
 
 - several Passages are calculated from stored Tax Rules;
-- a Passage outside the stored Tax Time Bands returns zero Tax;
+- a non-exempt Passage outside the stored Tax Time Bands returns a safe HTTP `500` Problem Details response with `CALCULATION_FAILED`;
 - invalid request bodies return HTTP `400`;
 - an unknown City returns HTTP `404`;
 - an unknown Vehicle Type returns HTTP `400`.
@@ -213,6 +243,9 @@ The test also verifies:
 - isolation between Cities;
 - stored Charge Window loading as a typed Domain value;
 - stored Daily Maximum loading as a typed Domain value in the Tax Rule Set currency;
+- stored Public Holiday Preceding-Date Option loading as a typed Domain value;
+- stored weekday, month, public-holiday, and Vehicle Type Tax Exemption loading as typed Domain values;
+- an empty Tax Exemption collection when no rows exist;
 - rejection of a selected Tax Rule Set with no Tax Time Bands;
 - loading of valid non-overlapping Tax Time Bands.
 
@@ -254,8 +287,6 @@ Tests that start Spring without PostgreSQL use the `test` profile. Full Spring B
 
 Later calculation issues will add focused tests for:
 
-- weekday, month, public-holiday, and preceding-date Tax Exemptions;
-- Vehicle Type Tax Exemptions;
 - remaining validation-detail aggregation and API documentation;
 - a second City with different stored Tax Rules.
 

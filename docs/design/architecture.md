@@ -78,15 +78,16 @@ The domain does not:
 4. Derive complete Passages with the stored City time zone.
 5. Ask `TaxRuleService` to load the Vehicle Type.
 6. Call `TaxCalculator`.
-7. Return the calculated City and calculation result.
+7. Write one `DEBUG` event for each exempt Daily Tax.
+8. Return the calculated City and calculation result.
 
-`CalculationServiceImpl` translates expected collaborator lookup and stored-content failures into calculation-owned exceptions after metrics records the outcome. This includes a missing Tax Rule Set, missing Tax Time Bands, an invalid City time zone, invalid Tax Rule Options, and overlapping Tax Time Bands. It preserves each lower exception as the cause. This keeps the Calculation module interface independent of its collaborator implementations.
+`CalculationServiceImpl` translates expected collaborator, Domain calculation, lookup, and stored-content failures into calculation-owned exceptions after metrics records the outcome. This includes a missing Tax Rule Set, an empty Tax Time Band collection, no matching Tax Time Band for a non-exempt Passage, an invalid City time zone, invalid Tax Rule Options, invalid Tax Exemptions, and overlapping Tax Time Bands. Invalid Tax Rule Option and Tax Exemption failures contain only their safe type codes. The service preserves each lower exception as the cause. This keeps the Calculation module interface independent of its collaborator implementations.
 
 `TaxRuleService` owns City existence, stored City time-zone validation, Vehicle Type, and Tax Rule loading. It returns one immutable result that contains the validated City time zone and the City's Tax Rule Set. Its interface and implementation are in `taxrule`. Its entities and repositories are in `taxrule.persistence`. One business responsibility can use one repository or several repositories. The service seam follows the business responsibility, not the number of tables.
 
 `TaxRuleService` is the external interface of the Tax Rule module. Persistence classes and repository interfaces can be public because `TaxRuleServiceImpl` uses them across the package split. That Java access does not make them part of the module interface. No caller outside the Tax Rule implementation uses them.
 
-Database constraints protect stored validity and relationships. This includes a PostgreSQL exclusion constraint that prevents overlapping Tax Time Bands. Repository-facing services repeat important stored-content checks when they assemble calculation values. The pure calculator checks only the inputs that it needs to calculate safely.
+Database constraints protect stored validity and relationships. This includes a PostgreSQL exclusion constraint that prevents overlapping Tax Time Bands. Repository-facing services repeat important stored-content checks when they assemble calculation values. The pure calculator rejects a non-exempt Passage when no Tax Time Band contains its City Local Time. It does not repeat database collection and overlap validation.
 
 ## Dependency directions
 
@@ -117,7 +118,7 @@ A metrics failure cannot change the calculation result.
 
 ## Logging
 
-Application logging stays at boundaries that know an event's operational outcome. `CalculationServiceImpl` owns calculation start and successful completion after supported-year validation. The HTTP exception handler owns expected request rejection and failed HTTP operations. A component that suppresses an internal failure logs it where it catches the failure. Persistence services can log feature decisions at `DEBUG` when the related feature issue requires that detail.
+Application logging stays at boundaries that know an event's operational outcome. `CalculationServiceImpl` owns calculation start and successful completion after supported-year validation. After a successful pure calculation, it also writes one `DEBUG` event for each exempt Daily Tax. The event contains the city code, Vehicle Type code, calculation date, and Tax Exemption Reason count. The HTTP exception handler owns expected request rejection and failed HTTP operations. A component that suppresses an internal failure logs it where it catches the failure. Persistence services can log feature decisions at `DEBUG` when the related feature issue requires that detail.
 
 The pure calculator, Domain values, JPA entities, and repositories do not log. One exception or event has one logging owner. A feature issue adds its required context to the owning boundary instead of logging the same event in several layers. `CONTRIBUTING.md` defines the level meanings and safe-data rules.
 

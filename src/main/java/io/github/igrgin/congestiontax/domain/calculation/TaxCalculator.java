@@ -3,6 +3,7 @@ package io.github.igrgin.congestiontax.domain.calculation;
 import io.github.igrgin.congestiontax.domain.TaxAmount;
 import io.github.igrgin.congestiontax.domain.VehicleType;
 import io.github.igrgin.congestiontax.domain.calculation.exception.InvalidCalculationInputException;
+import io.github.igrgin.congestiontax.domain.calculation.exception.NoMatchingTaxTimeBandException;
 import io.github.igrgin.congestiontax.domain.rule.TaxRuleSet;
 import io.github.igrgin.congestiontax.domain.rule.TaxTimeBand;
 import java.time.Duration;
@@ -11,6 +12,7 @@ import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import lombok.NonNull;
 
@@ -25,14 +27,18 @@ public final class TaxCalculator {
                 .sorted(Comparator.comparing(Passage::occurredAt))
                 .toList();
         var assignedAmounts = initializeDailyAmounts(orderedPassages, taxRuleSet);
+        var taxExemptionReasons = initializeTaxExemptionReasons(orderedPassages, vehicleType, taxRuleSet);
+        var passageCharges = orderedPassages.stream()
+                .map(passage ->
+                        new PassageCharge(passage, calculatePassageAmount(passage, taxRuleSet, taxExemptionReasons)))
+                .toList();
 
         taxRuleSet
                 .taxRuleOptions()
                 .chargeWindow()
                 .ifPresentOrElse(
-                        chargeWindow -> assignChargeWindows(
-                                orderedPassages, taxRuleSet, chargeWindow.duration(), assignedAmounts),
-                        () -> assignPassageAmounts(orderedPassages, taxRuleSet, assignedAmounts));
+                        chargeWindow -> assignChargeWindows(passageCharges, chargeWindow.duration(), assignedAmounts),
+                        () -> assignPassageAmounts(passageCharges, assignedAmounts));
 
         var dailyTaxes = assignedAmounts.entrySet().stream()
                 .map(entry -> {
@@ -41,7 +47,7 @@ public final class TaxCalculator {
                             .dailyMaximum()
                             .map(dailyMaximum -> entry.getValue().min(dailyMaximum.amount()))
                             .orElse(entry.getValue());
-                    return new DailyTax(entry.getKey(), amount);
+                    return new DailyTax(entry.getKey(), taxExemptionReasons.get(entry.getKey()), amount);
                 })
                 .toList();
 
@@ -62,29 +68,36 @@ public final class TaxCalculator {
         return assignedAmounts;
     }
 
-    private static void assignPassageAmounts(
-            List<Passage> orderedPassages, TaxRuleSet taxRuleSet, Map<LocalDate, TaxAmount> assignedAmounts) {
+    private static Map<LocalDate, Set<TaxExemptionReason>> initializeTaxExemptionReasons(
+            List<Passage> orderedPassages, VehicleType vehicleType, TaxRuleSet taxRuleSet) {
 
+        Map<LocalDate, Set<TaxExemptionReason>> taxExemptionReasons = new TreeMap<>();
         for (var passage : orderedPassages) {
-            assign(new PassageCharge(passage, calculatePassageAmount(passage, taxRuleSet)), assignedAmounts);
+            var date = passage.cityDateTime().toLocalDate();
+            taxExemptionReasons.computeIfAbsent(date, ignored -> taxRuleSet.taxExemptionReasonsFor(vehicleType, date));
+        }
+
+        return taxExemptionReasons;
+    }
+
+    private static void assignPassageAmounts(
+            List<PassageCharge> passageCharges, Map<LocalDate, TaxAmount> assignedAmounts) {
+
+        for (var passageCharge : passageCharges) {
+            assign(passageCharge, assignedAmounts);
         }
     }
 
     private static void assignChargeWindows(
-            List<Passage> orderedPassages,
-            TaxRuleSet taxRuleSet,
-            Duration duration,
-            Map<LocalDate, TaxAmount> assignedAmounts) {
+            List<PassageCharge> passageCharges, Duration duration, Map<LocalDate, TaxAmount> assignedAmounts) {
 
         Instant windowStart = null;
         PassageCharge winner = null;
 
-        for (var passage : orderedPassages) {
-            var passageCharge = new PassageCharge(passage, calculatePassageAmount(passage, taxRuleSet));
-
-            if (windowStart == null || passage.occurredAt().isAfter(windowStart.plus(duration))) {
+        for (var passageCharge : passageCharges) {
+            if (windowStart == null || passageCharge.passage().occurredAt().isAfter(windowStart.plus(duration))) {
                 assign(winner, assignedAmounts);
-                windowStart = passage.occurredAt();
+                windowStart = passageCharge.passage().occurredAt();
                 winner = passageCharge;
             } else if (passageCharge.amount().isGreaterThan(winner.amount())) {
                 winner = passageCharge;
@@ -100,16 +113,22 @@ public final class TaxCalculator {
         }
 
         var date = passageCharge.passage().cityDateTime().toLocalDate();
-        assignedAmounts.compute(date, (key, amount) -> amount.add(passageCharge.amount()));
+        assignedAmounts.merge(date, passageCharge.amount(), TaxAmount::add);
     }
 
-    private static TaxAmount calculatePassageAmount(Passage passage, TaxRuleSet taxRuleSet) {
+    private static TaxAmount calculatePassageAmount(
+            Passage passage, TaxRuleSet taxRuleSet, Map<LocalDate, Set<TaxExemptionReason>> taxExemptionReasons) {
+
+        if (!taxExemptionReasons.get(passage.cityDateTime().toLocalDate()).isEmpty()) {
+            return TaxAmount.zero(taxRuleSet.currency());
+        }
+
         return taxRuleSet.taxTimeBands().stream()
                 .filter(taxTimeBand ->
                         taxTimeBand.includes(passage.cityDateTime().toLocalTime()))
                 .findFirst()
                 .map(TaxTimeBand::amount)
-                .orElseGet(() -> TaxAmount.zero(taxRuleSet.currency()));
+                .orElseThrow(NoMatchingTaxTimeBandException::new);
     }
 
     private static void validatePassages(List<Passage> passages) {

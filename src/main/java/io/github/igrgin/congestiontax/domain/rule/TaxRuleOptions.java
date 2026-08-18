@@ -28,6 +28,10 @@ public final class TaxRuleOptions {
         return find(DailyMaximum.class);
     }
 
+    public Optional<PublicHolidayPrecedingDateOption> publicHolidayPrecedingDateOption() {
+        return find(PublicHolidayPrecedingDateOption.class);
+    }
+
     private <T extends TaxRuleOption> Optional<T> find(Class<T> optionType) {
         return options.stream()
                 .filter(optionType::isInstance)
