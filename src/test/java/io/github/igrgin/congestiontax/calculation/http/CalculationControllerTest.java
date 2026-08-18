@@ -1,26 +1,33 @@
 package io.github.igrgin.congestiontax.calculation.http;
 
+import static org.hamcrest.Matchers.emptyString;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.github.igrgin.congestiontax.calculation.CalculationService;
+import io.github.igrgin.congestiontax.calculation.exception.CityNotFoundException;
+import io.github.igrgin.congestiontax.calculation.exception.InvalidStoredTaxRuleOptionException;
+import io.github.igrgin.congestiontax.calculation.exception.MissingStoredTaxRuleSetException;
 import io.github.igrgin.congestiontax.calculation.exception.UnsupportedPassageYearException;
+import io.github.igrgin.congestiontax.calculation.exception.VehicleTypeNotFoundException;
 import io.github.igrgin.congestiontax.calculation.model.CalculatedTax;
 import io.github.igrgin.congestiontax.calculation.model.CalculationCommand;
 import io.github.igrgin.congestiontax.domain.TaxAmount;
 import io.github.igrgin.congestiontax.domain.VehicleType;
 import io.github.igrgin.congestiontax.domain.calculation.CalculationResult;
 import io.github.igrgin.congestiontax.domain.calculation.DailyTax;
+import io.github.igrgin.congestiontax.taxrule.exception.OverlappingTaxTimeBandsException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.Month;
 import java.util.Currency;
 import java.util.List;
@@ -31,6 +38,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -94,7 +102,15 @@ class CalculationControllerTest {
         mockMvc.perform(post("/api/v1/cities/{cityCode}" + "/congestion-tax/calculations", "gothenburg")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestBody))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.title", not(emptyString())))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.detail", not(emptyString())))
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.errors").doesNotExist());
+
+        verifyNoInteractions(calculationService);
     }
 
     private static Stream<Arguments> invalidRequests() {
@@ -334,8 +350,12 @@ class CalculationControllerTest {
                                 }
                                 """))
                 .andExpect(status().isBadRequest())
-                .andExpect(content().string(""))
-                .andExpect(header().doesNotExist("Content-Type"));
+                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.title", not(emptyString())))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.detail", not(emptyString())))
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.errors").doesNotExist());
 
         verifyNoInteractions(calculationService);
     }
@@ -351,15 +371,61 @@ class CalculationControllerTest {
                 .andExpect(jsonPath("$.status").value(400))
                 .andExpect(jsonPath("$.detail").value("The request body is not valid JSON."))
                 .andExpect(jsonPath("$.code").value("INVALID_JSON"))
-                .andExpect(jsonPath("$.errors").isEmpty());
+                .andExpect(jsonPath("$.errors").doesNotExist());
 
         verifyNoInteractions(calculationService);
     }
 
-    @Test
-    void returnsInternalServerErrorForUnexpectedFailure() throws Exception {
-        given(calculationService.calculate(any(CalculationCommand.class)))
-                .willThrow(new IllegalStateException("Unexpected failure."));
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("handledClientAndAvailabilityFailures")
+    void returnsProblemDetailsForHandledClientAndAvailabilityFailure(
+            String scenario, RuntimeException failure, int expectedStatus, String expectedCode) throws Exception {
+        given(calculationService.calculate(any(CalculationCommand.class))).willThrow(failure);
+
+        mockMvc.perform(post("/api/v1/cities/{cityCode}" + "/congestion-tax/calculations", "gothenburg")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "vehicleType": "OTHER",
+                                  "passages": [
+                                    "2013-02-08 06:20:27"
+                                  ]
+                                }
+                                """))
+                .andExpect(status().is(expectedStatus))
+                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.title", not(emptyString())))
+                .andExpect(jsonPath("$.status").value(expectedStatus))
+                .andExpect(jsonPath("$.detail", not(emptyString())))
+                .andExpect(jsonPath("$.code").value(expectedCode))
+                .andExpect(jsonPath("$.errors").doesNotExist());
+    }
+
+    private static Stream<Arguments> handledClientAndAvailabilityFailures() {
+        return Stream.of(
+                Arguments.of(
+                        "unknown City",
+                        new CityNotFoundException("unknown", new IllegalArgumentException("Unknown City.")),
+                        404,
+                        "CITY_NOT_FOUND"),
+                Arguments.of(
+                        "unknown Vehicle Type",
+                        new VehicleTypeNotFoundException(
+                                "UNKNOWN", new IllegalArgumentException("Unknown Vehicle Type.")),
+                        400,
+                        "INVALID_REQUEST"),
+                Arguments.of(
+                        "PostgreSQL unavailable",
+                        new DataAccessResourceFailureException("PostgreSQL unavailable."),
+                        503,
+                        "SERVICE_UNAVAILABLE"));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("internalCalculationFailures")
+    void returnsSafeProblemDetailsForInternalCalculationFailure(String scenario, RuntimeException failure)
+            throws Exception {
+        given(calculationService.calculate(any(CalculationCommand.class))).willThrow(failure);
 
         mockMvc.perform(post("/api/v1/cities/{cityCode}" + "/congestion-tax/calculations", "gothenburg")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -372,6 +438,29 @@ class CalculationControllerTest {
                                 }
                                 """))
                 .andExpect(status().isInternalServerError())
-                .andExpect(content().string(""));
+                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.title").value("Calculation failed"))
+                .andExpect(jsonPath("$.status").value(500))
+                .andExpect(jsonPath("$.detail").value("The calculation could not be completed."))
+                .andExpect(jsonPath("$.code").value("CALCULATION_FAILED"))
+                .andExpect(jsonPath("$.errors").doesNotExist());
+    }
+
+    private static Stream<Arguments> internalCalculationFailures() {
+        var storedFailure = new IllegalStateException("Stored content failure.");
+        return Stream.of(
+                Arguments.of(
+                        "invalid stored Tax Rule Option",
+                        new InvalidStoredTaxRuleOptionException("CHARGE_WINDOW", storedFailure)),
+                Arguments.of("missing Tax Rule Set", new MissingStoredTaxRuleSetException("gothenburg", storedFailure)),
+                Arguments.of(
+                        "overlapping stored Tax Time Bands",
+                        new OverlappingTaxTimeBandsException(
+                                "gothenburg",
+                                LocalTime.of(6, 0),
+                                LocalTime.of(9, 0),
+                                LocalTime.of(7, 0),
+                                LocalTime.of(8, 0))),
+                Arguments.of("unexpected failure", new IllegalStateException("Unexpected failure.")));
     }
 }

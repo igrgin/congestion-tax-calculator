@@ -2,6 +2,7 @@ package io.github.igrgin.congestiontax.calculation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -24,6 +25,7 @@ import io.github.igrgin.congestiontax.metrics.CalculationMetrics;
 import io.github.igrgin.congestiontax.taxrule.TaxRuleService;
 import io.github.igrgin.congestiontax.taxrule.exception.InvalidTaxRuleOptionException;
 import io.github.igrgin.congestiontax.taxrule.exception.MissingTaxRuleSetException;
+import io.github.igrgin.congestiontax.taxrule.exception.OverlappingTaxTimeBandsException;
 import io.github.igrgin.congestiontax.taxrule.exception.UnknownCityException;
 import io.github.igrgin.congestiontax.taxrule.exception.UnknownVehicleTypeException;
 import io.github.igrgin.congestiontax.taxrule.model.CityTaxRuleSet;
@@ -172,6 +174,23 @@ class CalculationServiceImplTest {
                     assertThat(exception.cityCode()).isEqualTo(cityCode);
                     assertThat(exception).hasCause(cause);
                 });
+    }
+
+    @Test
+    void translatesOverlappingTaxTimeBandsWithoutReadingTheCauseMessage() throws ReflectiveOperationException {
+        var cityCode = "gothenburg";
+        var cityDateTime = LocalDateTime.of(2013, Month.FEBRUARY, 8, 6, 20, 27);
+        var command = new CalculationCommand(cityCode, "OTHER", List.of(cityDateTime));
+        var cause = new OverlappingTaxTimeBandsException(
+                cityCode, LocalTime.of(6, 0), LocalTime.of(9, 0), LocalTime.of(7, 0), LocalTime.of(8, 0));
+
+        given(taxRuleService.getCityTaxRuleSet(cityCode)).willThrow(cause);
+
+        var exception = catchThrowable(() -> calculationService.calculate(command));
+
+        assertThat(exception.getClass().getSimpleName()).isEqualTo("InvalidStoredTaxTimeBandsException");
+        assertThat(exception).hasCause(cause);
+        assertThat(exception.getClass().getMethod("cityCode").invoke(exception)).isEqualTo(cityCode);
     }
 
     @Test
