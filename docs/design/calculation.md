@@ -64,9 +64,9 @@ PUBLIC_HOLIDAY
 DATE_BEFORE_PUBLIC_HOLIDAY
 ```
 
-The current calculation does not apply these Tax Exemptions. It creates each Daily Tax with an empty reason set.
+The Domain model can match these Tax Exemptions and return all applicable reasons. The current calculator does not call this behavior. It creates each Daily Tax with an empty reason set.
 
-Later issues can apply the stored Tax Exemptions and add every applicable reason to this set. The HTTP response can then explain why a Daily Tax is zero without adding one Boolean field for each Tax Exemption.
+The next calculation slice will apply the stored Tax Exemptions and add every applicable reason to this set. The HTTP response can then explain why a Daily Tax is zero without one Boolean field for each Tax Exemption.
 
 ## Charge Window and Daily Maximum
 
@@ -109,12 +109,38 @@ classDiagram
         +LocalDate effectiveFrom
         +Currency currency
         +List~TaxTimeBand~ taxTimeBands
+        +TaxExemptions taxExemptions
         +TaxRuleOptions taxRuleOptions
+    }
+
+    class TaxExemptions {
+        +reasonsFor(vehicleType, date, publicHolidayPrecedingDateOption) Set~TaxExemptionReason~
+    }
+
+    class TaxExemption {
+        <<sealed interface>>
+    }
+
+    class WeekdayTaxExemption {
+        +DayOfWeek dayOfWeek
+    }
+
+    class MonthTaxExemption {
+        +Month month
+    }
+
+    class PublicHolidayTaxExemption {
+        +LocalDate date
+    }
+
+    class VehicleTypeTaxExemption {
+        +String vehicleTypeCode
     }
 
     class TaxRuleOptions {
         +chargeWindow() Optional~ChargeWindow~
         +dailyMaximum() Optional~DailyMaximum~
+        +publicHolidayPrecedingDateOption() Optional~PublicHolidayPrecedingDateOption~
     }
 
     class ChargeWindow {
@@ -123,6 +149,10 @@ classDiagram
 
     class DailyMaximum {
         +TaxAmount amount
+    }
+
+    class PublicHolidayPrecedingDateOption {
+        +int calendarDateCount
     }
 
     class TaxTimeBand {
@@ -167,9 +197,16 @@ classDiagram
     TaxCalculator --> TaxRuleSet
     TaxCalculator --> CalculationResult
     TaxRuleSet *-- TaxTimeBand
+    TaxRuleSet *-- TaxExemptions
     TaxRuleSet *-- TaxRuleOptions
+    TaxExemptions *-- TaxExemption
+    TaxExemption <|.. WeekdayTaxExemption
+    TaxExemption <|.. MonthTaxExemption
+    TaxExemption <|.. PublicHolidayTaxExemption
+    TaxExemption <|.. VehicleTypeTaxExemption
     TaxRuleOptions o-- ChargeWindow
     TaxRuleOptions o-- DailyMaximum
+    TaxRuleOptions o-- PublicHolidayPrecedingDateOption
     TaxTimeBand *-- TaxAmount
     DailyMaximum *-- TaxAmount
     CalculationResult *-- DailyTax
@@ -184,6 +221,10 @@ Collection-owning calculation values receive unmodifiable collections from their
 
 `TaxTimeBand` rejects null values, an end time that is equal to or before its start time, and a non-positive Tax Amount.
 
-`TaxRuleSet` rejects null fields and requires at least one Tax Time Band. Its Tax Rule Options can contain one Charge Window and one Daily Maximum.
+`TaxExemptions` contains the four sealed Tax Exemption values. It rejects null and duplicate values. `VehicleTypeTaxExemption` also rejects a blank Vehicle Type code. The centralized matcher returns reasons for a matching Vehicle Type, weekday, month, or public holiday. A Public Holiday Preceding-Date Option extends only stored public-holiday Tax Exemptions. It has no effect when the Tax Rule Set has no public-holiday Tax Exemption.
+
+`TaxRuleSet` rejects null fields and requires at least one Tax Time Band. Its Tax Rule Options can contain one Charge Window, one Daily Maximum, and one Public Holiday Preceding-Date Option. The Public Holiday Preceding-Date Option requires a positive calendar-date count.
+
+This model is available to the calculator. The next calculation slice will apply Tax Exemptions to Daily Tax results.
 
 The calculator has no Spring annotations, repository calls, database calls, system-clock access, logging, or metrics. The same inputs produce the same result.

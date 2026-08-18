@@ -28,8 +28,8 @@ public final class TaxRuleOptions {
         return find(DailyMaximum.class);
     }
 
-    public Optional<HolidayPreceding> holidayPreceding() {
-        return find(HolidayPreceding.class);
+    public Optional<PublicHolidayPrecedingDateOption> publicHolidayPrecedingDateOption() {
+        return find(PublicHolidayPrecedingDateOption.class);
     }
 
     private <T extends TaxRuleOption> Optional<T> find(Class<T> optionType) {

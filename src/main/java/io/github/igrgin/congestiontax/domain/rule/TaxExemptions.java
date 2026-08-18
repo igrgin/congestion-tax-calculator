@@ -29,7 +29,9 @@ public final class TaxExemptions {
     }
 
     Set<TaxExemptionReason> reasonsFor(
-            VehicleType vehicleType, LocalDate date, Optional<HolidayPreceding> holidayPreceding) {
+            VehicleType vehicleType,
+            LocalDate date,
+            Optional<PublicHolidayPrecedingDateOption> publicHolidayPrecedingDateOption) {
         var reasons = EnumSet.noneOf(TaxExemptionReason.class);
 
         for (var exemption : exemptions) {
@@ -43,7 +45,7 @@ public final class TaxExemptions {
                     && monthExemption.month() == date.getMonth()) {
                 reasons.add(TaxExemptionReason.MONTH);
             } else if (exemption instanceof PublicHolidayTaxExemption publicHolidayExemption) {
-                addPublicHolidayReasons(reasons, date, publicHolidayExemption.date(), holidayPreceding);
+                addPublicHolidayReasons(reasons, date, publicHolidayExemption.date(), publicHolidayPrecedingDateOption);
             }
         }
 
@@ -54,12 +56,12 @@ public final class TaxExemptions {
             EnumSet<TaxExemptionReason> reasons,
             LocalDate date,
             LocalDate publicHoliday,
-            Optional<HolidayPreceding> holidayPreceding) {
+            Optional<PublicHolidayPrecedingDateOption> publicHolidayPrecedingDateOption) {
         if (date.equals(publicHoliday)) {
             reasons.add(TaxExemptionReason.PUBLIC_HOLIDAY);
         }
 
-        holidayPreceding.ifPresent(option -> {
+        publicHolidayPrecedingDateOption.ifPresent(option -> {
             var firstPrecedingDate = publicHoliday.minusDays(option.calendarDateCount());
             if (!date.isBefore(firstPrecedingDate) && date.isBefore(publicHoliday)) {
                 reasons.add(TaxExemptionReason.DATE_BEFORE_PUBLIC_HOLIDAY);

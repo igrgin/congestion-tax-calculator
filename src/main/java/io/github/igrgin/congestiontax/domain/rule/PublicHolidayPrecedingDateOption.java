@@ -1,8 +1,8 @@
 package io.github.igrgin.congestiontax.domain.rule;
 
-public record HolidayPreceding(int calendarDateCount) implements TaxRuleOption {
+public record PublicHolidayPrecedingDateOption(int calendarDateCount) implements TaxRuleOption {
 
-    public HolidayPreceding {
+    public PublicHolidayPrecedingDateOption {
         if (calendarDateCount <= 0) {
             throw new IllegalArgumentException("Public Holiday Preceding-Date Option count must be positive.");
         }

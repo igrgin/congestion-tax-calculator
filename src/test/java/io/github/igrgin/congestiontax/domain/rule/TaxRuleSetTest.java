@@ -38,7 +38,7 @@ class TaxRuleSetTest {
                 new VehicleTypeTaxExemption("BUS"),
                 new PublicHolidayTaxExemption(date),
                 new WeekdayTaxExemption(DayOfWeek.MONDAY)));
-        var ruleSet = ruleSet(taxExemptions, new TaxRuleOptions(List.of(new HolidayPreceding(1))));
+        var ruleSet = ruleSet(taxExemptions, new TaxRuleOptions(List.of(new PublicHolidayPrecedingDateOption(1))));
 
         var reasons = ruleSet.taxExemptionReasonsFor(new VehicleType("BUS", "Bus"), date);
 
@@ -54,19 +54,19 @@ class TaxRuleSetTest {
     }
 
     @ParameterizedTest(name = "{0}")
-    @MethodSource("holidayPrecedingBoundaries")
-    void appliesHolidayPrecedingOnlyBeforeThePublicHoliday(
+    @MethodSource("publicHolidayPrecedingDateOptionBoundaries")
+    void appliesPublicHolidayPrecedingDateOptionOnlyBeforeThePublicHoliday(
             String scenario, LocalDate date, Set<TaxExemptionReason> expectedReasons) {
         var publicHoliday = LocalDate.of(2013, Month.MAY, 3);
         var ruleSet = ruleSet(
                 new TaxExemptions(List.of(new PublicHolidayTaxExemption(publicHoliday))),
-                new TaxRuleOptions(List.of(new HolidayPreceding(2))));
+                new TaxRuleOptions(List.of(new PublicHolidayPrecedingDateOption(2))));
 
         assertThat(ruleSet.taxExemptionReasonsFor(OTHER, date)).containsExactlyElementsOf(expectedReasons);
     }
 
     @Test
-    void doesNotApplyHolidayPrecedingWhenOptionIsAbsent() {
+    void doesNotApplyPublicHolidayPrecedingDateOptionWhenOptionIsAbsent() {
         var publicHoliday = LocalDate.of(2013, Month.MAY, 3);
         var ruleSet = ruleSet(
                 new TaxExemptions(List.of(new PublicHolidayTaxExemption(publicHoliday))), TaxRuleOptions.empty());
@@ -76,12 +76,21 @@ class TaxRuleSetTest {
     }
 
     @Test
+    void doesNotApplyPublicHolidayPrecedingDateOptionWithoutPublicHolidayTaxExemptions() {
+        var ruleSet =
+                ruleSet(TaxExemptions.empty(), new TaxRuleOptions(List.of(new PublicHolidayPrecedingDateOption(1))));
+
+        assertThat(ruleSet.taxExemptionReasonsFor(OTHER, LocalDate.of(2013, Month.MAY, 2)))
+                .isEmpty();
+    }
+
+    @Test
     void reportsPublicHolidayAndPrecedingDateReasonsForConsecutiveHolidays() {
         var date = LocalDate.of(2013, Month.MAY, 1);
         var ruleSet = ruleSet(
                 new TaxExemptions(
                         List.of(new PublicHolidayTaxExemption(date), new PublicHolidayTaxExemption(date.plusDays(1)))),
-                new TaxRuleOptions(List.of(new HolidayPreceding(1))));
+                new TaxRuleOptions(List.of(new PublicHolidayPrecedingDateOption(1))));
 
         assertThat(ruleSet.taxExemptionReasonsFor(OTHER, date))
                 .containsExactly(TaxExemptionReason.PUBLIC_HOLIDAY, TaxExemptionReason.DATE_BEFORE_PUBLIC_HOLIDAY);
@@ -178,7 +187,7 @@ class TaxRuleSetTest {
                         "null Tax Rule Options", "gothenburg", EFFECTIVE_FROM, CURRENCY, List.of(TAX_TIME_BAND), null));
     }
 
-    private static Stream<Arguments> holidayPrecedingBoundaries() {
+    private static Stream<Arguments> publicHolidayPrecedingDateOptionBoundaries() {
         return Stream.of(
                 Arguments.of("before range", LocalDate.of(2013, Month.APRIL, 30), Set.<TaxExemptionReason>of()),
                 Arguments.of(

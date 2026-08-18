@@ -7,8 +7,8 @@ import static org.mockito.Mockito.spy;
 
 import io.github.igrgin.congestiontax.domain.TaxAmount;
 import io.github.igrgin.congestiontax.domain.VehicleType;
-import io.github.igrgin.congestiontax.domain.rule.HolidayPreceding;
 import io.github.igrgin.congestiontax.domain.rule.MonthTaxExemption;
+import io.github.igrgin.congestiontax.domain.rule.PublicHolidayPrecedingDateOption;
 import io.github.igrgin.congestiontax.domain.rule.PublicHolidayTaxExemption;
 import io.github.igrgin.congestiontax.domain.rule.TaxExemptions;
 import io.github.igrgin.congestiontax.domain.rule.TaxRuleSet;
@@ -207,22 +207,18 @@ class TaxRuleServiceImplTest {
     }
 
     @Test
-    void loadsStoredPublicHolidayPrecedingDateOption() {
-        var holidayDate = LocalDate.of(2013, Month.DECEMBER, 25);
-        var publicHoliday =
-                new TaxExemptionEntity(RULE_SET_ID, TaxExemptionType.PUBLIC_HOLIDAY, null, null, holidayDate, null);
-        var holidayPreceding =
+    void loadsStoredPublicHolidayPrecedingDateOptionWithoutPublicHolidayTaxExemption() {
+        var publicHolidayPrecedingDateOption =
                 new TaxRuleOptionEntity(RULE_SET_ID, TaxRuleOptionType.HOLIDAY_PRECEDING, null, null, (short) 1);
 
-        givenStoredTaxRuleSet(List.of(holidayPreceding), List.of(publicHoliday));
+        givenStoredTaxRuleSet(List.of(publicHolidayPrecedingDateOption), List.of());
 
         var result = taxRuleService.getApplicableTaxRuleSets(CITY_CODE, Set.of(CALCULATION_DATE));
+        var taxRuleSet = result.taxRuleSetsByCalculationDate().get(CALCULATION_DATE);
 
-        assertThat(result.taxRuleSetsByCalculationDate()
-                        .get(CALCULATION_DATE)
-                        .taxRuleOptions()
-                        .holidayPreceding())
-                .contains(new HolidayPreceding(1));
+        assertThat(taxRuleSet.taxRuleOptions().publicHolidayPrecedingDateOption())
+                .contains(new PublicHolidayPrecedingDateOption(1));
+        assertThat(taxRuleSet.taxExemptions()).isEqualTo(TaxExemptions.empty());
     }
 
     @Test
@@ -240,19 +236,6 @@ class TaxRuleServiceImplTest {
                 new TaxExemptionEntity(RULE_SET_ID, TaxExemptionType.WEEKDAY, (short) 6, null, null, null);
 
         assertInvalidStoredTaxExemptions(List.of(firstTaxExemption, secondTaxExemption), "WEEKDAY");
-    }
-
-    @Test
-    void rejectsPublicHolidayPrecedingDateOptionWithoutPublicHolidayTaxExemption() {
-        var holidayPreceding =
-                new TaxRuleOptionEntity(RULE_SET_ID, TaxRuleOptionType.HOLIDAY_PRECEDING, null, null, (short) 1);
-
-        givenStoredTaxRuleSet(List.of(holidayPreceding), List.of());
-
-        assertThatThrownBy(() -> taxRuleService.getApplicableTaxRuleSets(CITY_CODE, Set.of(CALCULATION_DATE)))
-                .isInstanceOfSatisfying(
-                        InvalidTaxExemptionException.class, exception -> assertThat(exception.taxExemptionTypeCode())
-                                .isEqualTo("PUBLIC_HOLIDAY"));
     }
 
     @Test

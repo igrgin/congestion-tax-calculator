@@ -39,6 +39,6 @@ public record TaxRuleSet(
     public Set<TaxExemptionReason> taxExemptionReasonsFor(VehicleType vehicleType, LocalDate date) {
         Objects.requireNonNull(vehicleType);
         Objects.requireNonNull(date);
-        return taxExemptions.reasonsFor(vehicleType, date, taxRuleOptions.holidayPreceding());
+        return taxExemptions.reasonsFor(vehicleType, date, taxRuleOptions.publicHolidayPrecedingDateOption());
     }
 }

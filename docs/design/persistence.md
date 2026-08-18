@@ -133,7 +133,7 @@ A database check requires exactly one value that matches the type code. The Vehi
 
 Four partial unique indexes prevent one Tax Rule Set from storing the same typed Tax Exemption twice. Each index selects one type code and its matching value column. A normal multicolumn unique constraint is not sufficient because the other typed value columns are null.
 
-The Tax Rule Service maps these rows to `WeekdayTaxExemption`, `MonthTaxExemption`, `PublicHolidayTaxExemption`, and `VehicleTypeTaxExemption`. `TaxExemptions` owns the immutable collection. It rejects duplicate values. `TaxRuleSet.taxExemptionReasonsFor` coordinates this collection with the optional `HolidayPreceding` value.
+The Tax Rule Service maps these rows to `WeekdayTaxExemption`, `MonthTaxExemption`, `PublicHolidayTaxExemption`, and `VehicleTypeTaxExemption`. `TaxExemptions` owns the immutable collection. It rejects duplicate values. Tax Exemptions and Tax Rule Options are independent optional content. `TaxRuleSet.taxExemptionReasonsFor` uses the Public Holiday Preceding-Date Option only when it matches a stored public-holiday Tax Exemption. The option has no effect when the set has no public-holiday Tax Exemption.
 
 ## Tax Time Bands
 
@@ -191,7 +191,7 @@ It loads the selected City, validates its stored time zone with the JDK IANA tim
 
 The Tax Rule Set entity does not contain a JPA child collection. `TaxTimeBandEntity`, `TaxRuleOptionEntity`, and `TaxExemptionEntity` store their parent ID as a scalar field. The service loads the selected parent rows. It then uses one bulk read for each child type and groups the rows by Tax Rule Set ID.
 
-`TaxRuleOptions` owns an unmodifiable collection of typed Domain options. It rejects duplicate option types. Its `chargeWindow()`, `dailyMaximum()`, and `holidayPreceding()` queries return an empty result when the stored row is absent. `ChargeWindow` owns a positive `Duration`. `DailyMaximum` owns a positive `TaxAmount` in the Tax Rule Set currency. `HolidayPreceding` owns a positive calendar-date count.
+`TaxRuleOptions` owns an unmodifiable collection of typed Domain options. It rejects duplicate option types. Its `chargeWindow()`, `dailyMaximum()`, and `publicHolidayPrecedingDateOption()` queries return an empty result when the stored row is absent. `ChargeWindow` owns a positive `Duration`. `DailyMaximum` owns a positive `TaxAmount` in the Tax Rule Set currency. `PublicHolidayPrecedingDateOption` owns a positive calendar-date count.
 
 This makes database reads explicit and avoids a large join that repeats parent data. PostgreSQL foreign keys enforce the stored relationships.
 
@@ -224,7 +224,6 @@ Repository-facing services protect cross-row completeness when they assemble cal
 - invalid stored City time zones;
 - invalid or duplicate stored Tax Rule Options;
 - invalid or duplicate stored Tax Exemptions;
-- a Public Holiday Preceding-Date Option without a public-holiday Tax Exemption;
 - missing Applicable Tax Rule Sets;
 - missing Tax Time Bands;
 - overlapping Tax Time Bands;

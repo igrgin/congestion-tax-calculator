@@ -46,12 +46,13 @@ Application logging remains active when a test uses a Spring profile. Test code 
 - all matching Tax Exemption Reasons in stable order;
 - an unmodifiable reason set;
 - present and absent Public Holiday Preceding-Date Option behavior;
+- inert Public Holiday Preceding-Date Option behavior when no public-holiday Tax Exemption exists;
 - the first and last preceding-date boundaries;
 - overlapping public-holiday reasons for consecutive holidays.
 
-`TaxExemptionsTest` proves rejection of null and duplicate Tax Exemption values.
+`TaxExemptionsTest` proves rejection of null and duplicate Tax Exemption values. It also proves that a Vehicle Type Tax Exemption rejects a blank Vehicle Type code.
 
-`HolidayPrecedingTest` proves rejection of a zero or negative calendar-date count.
+`PublicHolidayPrecedingDateOptionTest` proves rejection of a zero or negative calendar-date count.
 
 `ChargeWindowTest` proves rejection of a null, zero, or negative duration.
 
@@ -98,7 +99,7 @@ Application logging remains active when a test uses a Spring profile. Test code 
 - safe rejection of duplicate stored Tax Rule Option types;
 - typed mapping of each stored Tax Exemption Type;
 - safe rejection of invalid shapes, ranges, missing types, and duplicate stored Tax Exemptions;
-- rejection of a Public Holiday Preceding-Date Option without a public-holiday Tax Exemption.
+- loading a Public Holiday Preceding-Date Option when no public-holiday Tax Exemption exists.
 
 This test stays in the `taxrule.persistence` test package because it uses package-access entity constructors to prepare repository results. It calls the implementation through the `TaxRuleService` interface.
 

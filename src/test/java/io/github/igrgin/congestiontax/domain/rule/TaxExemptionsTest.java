@@ -34,6 +34,13 @@ class TaxExemptionsTest {
         assertThatNullPointerException().isThrownBy(() -> new TaxExemptions(exemptions));
     }
 
+    @Test
+    void rejectsBlankVehicleTypeCode() {
+        assertThatThrownBy(() -> new VehicleTypeTaxExemption(" "))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Vehicle Type code must not be blank.");
+    }
+
     @ParameterizedTest(name = "{0}")
     @MethodSource("nullTaxExemptionValues")
     void typedTaxExemptionsRejectNullValues(String scenario, Runnable constructor) {

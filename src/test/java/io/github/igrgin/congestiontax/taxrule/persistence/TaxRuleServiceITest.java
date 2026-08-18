@@ -8,8 +8,8 @@ import io.github.igrgin.congestiontax.domain.TaxAmount;
 import io.github.igrgin.congestiontax.domain.VehicleType;
 import io.github.igrgin.congestiontax.domain.rule.ChargeWindow;
 import io.github.igrgin.congestiontax.domain.rule.DailyMaximum;
-import io.github.igrgin.congestiontax.domain.rule.HolidayPreceding;
 import io.github.igrgin.congestiontax.domain.rule.MonthTaxExemption;
+import io.github.igrgin.congestiontax.domain.rule.PublicHolidayPrecedingDateOption;
 import io.github.igrgin.congestiontax.domain.rule.PublicHolidayTaxExemption;
 import io.github.igrgin.congestiontax.domain.rule.TaxExemptions;
 import io.github.igrgin.congestiontax.domain.rule.TaxRuleOptions;
@@ -189,7 +189,7 @@ class TaxRuleServiceITest {
         insertMonthTaxExemption(ruleSetId, Month.JULY.getValue());
         insertPublicHolidayTaxExemption(ruleSetId, publicHoliday);
         insertVehicleTypeTaxExemption(ruleSetId, "OTHER");
-        insertHolidayPreceding(ruleSetId, 1);
+        insertPublicHolidayPrecedingDateOption(ruleSetId, 1);
 
         var result = taxRuleService.getApplicableTaxRuleSets(cityCode, Set.of(calculationDate));
         var expectedRuleSet = new TaxRuleSet(
@@ -203,7 +203,7 @@ class TaxRuleServiceITest {
                         new MonthTaxExemption(Month.JULY),
                         new PublicHolidayTaxExemption(publicHoliday),
                         new VehicleTypeTaxExemption("OTHER"))),
-                new TaxRuleOptions(List.of(new HolidayPreceding(1))));
+                new TaxRuleOptions(List.of(new PublicHolidayPrecedingDateOption(1))));
 
         assertThat(result)
                 .isEqualTo(new ApplicableTaxRuleSets(
@@ -356,7 +356,7 @@ class TaxRuleServiceITest {
                 """, ruleSetId, vehicleTypeCode);
     }
 
-    private void insertHolidayPreceding(long ruleSetId, int precedingDays) {
+    private void insertPublicHolidayPrecedingDateOption(long ruleSetId, int precedingDays) {
         jdbcTemplate.update("""
                 INSERT INTO tax_rule_option (
                     rule_set_id,

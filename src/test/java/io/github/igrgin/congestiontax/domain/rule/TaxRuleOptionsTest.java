@@ -10,16 +10,16 @@ import org.junit.jupiter.api.Test;
 class TaxRuleOptionsTest {
 
     @Test
-    void returnsHolidayPrecedingWhenPresent() {
-        var holidayPreceding = new HolidayPreceding(1);
+    void returnsPublicHolidayPrecedingDateOptionWhenPresent() {
+        var publicHolidayPrecedingDateOption = new PublicHolidayPrecedingDateOption(1);
 
-        assertThat(new TaxRuleOptions(List.of(holidayPreceding)).holidayPreceding())
-                .contains(holidayPreceding);
+        assertThat(new TaxRuleOptions(List.of(publicHolidayPrecedingDateOption)).publicHolidayPrecedingDateOption())
+                .contains(publicHolidayPrecedingDateOption);
     }
 
     @Test
-    void returnsEmptyHolidayPrecedingWhenAbsent() {
-        assertThat(TaxRuleOptions.empty().holidayPreceding()).isEmpty();
+    void returnsEmptyPublicHolidayPrecedingDateOptionWhenAbsent() {
+        assertThat(TaxRuleOptions.empty().publicHolidayPrecedingDateOption()).isEmpty();
     }
 
     @Test
