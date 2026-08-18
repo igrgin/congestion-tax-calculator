@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 
 import io.github.igrgin.congestiontax.calculation.exception.CityNotFoundException;
+import io.github.igrgin.congestiontax.calculation.exception.InvalidStoredTaxExemptionException;
 import io.github.igrgin.congestiontax.calculation.exception.InvalidStoredTaxRuleOptionException;
 import io.github.igrgin.congestiontax.calculation.exception.VehicleTypeNotFoundException;
 import io.github.igrgin.congestiontax.calculation.model.CalculatedTax;
@@ -19,6 +20,7 @@ import io.github.igrgin.congestiontax.domain.rule.TaxRuleSet;
 import io.github.igrgin.congestiontax.domain.rule.TaxTimeBand;
 import io.github.igrgin.congestiontax.metrics.CalculationMetrics;
 import io.github.igrgin.congestiontax.taxrule.TaxRuleService;
+import io.github.igrgin.congestiontax.taxrule.exception.InvalidTaxExemptionException;
 import io.github.igrgin.congestiontax.taxrule.exception.InvalidTaxRuleOptionException;
 import io.github.igrgin.congestiontax.taxrule.exception.UnknownCityException;
 import io.github.igrgin.congestiontax.taxrule.exception.UnknownVehicleTypeException;
@@ -161,6 +163,24 @@ class CalculationServiceImplTest {
         assertThatThrownBy(() -> calculationService.calculate(command))
                 .isInstanceOfSatisfying(InvalidStoredTaxRuleOptionException.class, exception -> {
                     assertThat(exception.optionTypeCode()).isEqualTo("CHARGE_WINDOW");
+                    assertThat(exception).hasCause(cause);
+                });
+    }
+
+    @Test
+    void translatesInvalidStoredTaxExemption() {
+        var cityCode = "gothenburg";
+        var cityDateTime = LocalDateTime.of(2013, Month.FEBRUARY, 8, 6, 20, 27);
+        var command = new CalculationCommand(cityCode, "OTHER", List.of(cityDateTime));
+        var calculationDates = Set.of(cityDateTime.toLocalDate());
+        var cause = new InvalidTaxExemptionException("PUBLIC_HOLIDAY");
+
+        given(taxRuleService.getApplicableTaxRuleSets(cityCode, calculationDates))
+                .willThrow(cause);
+
+        assertThatThrownBy(() -> calculationService.calculate(command))
+                .isInstanceOfSatisfying(InvalidStoredTaxExemptionException.class, exception -> {
+                    assertThat(exception.taxExemptionTypeCode()).isEqualTo("PUBLIC_HOLIDAY");
                     assertThat(exception).hasCause(cause);
                 });
     }

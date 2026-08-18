@@ -1,6 +1,7 @@
 package io.github.igrgin.congestiontax.calculation;
 
 import io.github.igrgin.congestiontax.calculation.exception.CityNotFoundException;
+import io.github.igrgin.congestiontax.calculation.exception.InvalidStoredTaxExemptionException;
 import io.github.igrgin.congestiontax.calculation.exception.InvalidStoredTaxRuleOptionException;
 import io.github.igrgin.congestiontax.calculation.exception.VehicleTypeNotFoundException;
 import io.github.igrgin.congestiontax.calculation.model.CalculatedTax;
@@ -9,6 +10,7 @@ import io.github.igrgin.congestiontax.domain.calculation.Passage;
 import io.github.igrgin.congestiontax.domain.calculation.TaxCalculator;
 import io.github.igrgin.congestiontax.metrics.CalculationMetrics;
 import io.github.igrgin.congestiontax.taxrule.TaxRuleService;
+import io.github.igrgin.congestiontax.taxrule.exception.InvalidTaxExemptionException;
 import io.github.igrgin.congestiontax.taxrule.exception.InvalidTaxRuleOptionException;
 import io.github.igrgin.congestiontax.taxrule.exception.UnknownCityException;
 import io.github.igrgin.congestiontax.taxrule.exception.UnknownVehicleTypeException;
@@ -54,6 +56,8 @@ public class CalculationServiceImpl implements CalculationService {
             throw new VehicleTypeNotFoundException(command.vehicleTypeCode(), exception);
         } catch (InvalidTaxRuleOptionException exception) {
             throw new InvalidStoredTaxRuleOptionException(exception.optionTypeCode(), exception);
+        } catch (InvalidTaxExemptionException exception) {
+            throw new InvalidStoredTaxExemptionException(exception.taxExemptionTypeCode(), exception);
         }
     }
 

@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.github.igrgin.congestiontax.calculation.CalculationService;
+import io.github.igrgin.congestiontax.calculation.exception.InvalidStoredTaxExemptionException;
 import io.github.igrgin.congestiontax.calculation.model.CalculatedTax;
 import io.github.igrgin.congestiontax.calculation.model.CalculationCommand;
 import io.github.igrgin.congestiontax.domain.TaxAmount;
@@ -222,6 +223,26 @@ class CalculationControllerTest {
     void returnsInternalServerErrorForUnexpectedFailure() throws Exception {
         given(calculationService.calculate(any(CalculationCommand.class)))
                 .willThrow(new IllegalStateException("Unexpected failure."));
+
+        mockMvc.perform(post("/api/v1/cities/{cityCode}" + "/congestion-tax/calculations", "gothenburg")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "vehicleType": "OTHER",
+                                  "passages": [
+                                    "2013-02-08 06:20:27"
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isInternalServerError())
+                .andExpect(content().string(""));
+    }
+
+    @Test
+    void returnsSafeInternalServerErrorForInvalidStoredTaxExemption() throws Exception {
+        var cause = new IllegalStateException("Sensitive stored value.");
+        given(calculationService.calculate(any(CalculationCommand.class)))
+                .willThrow(new InvalidStoredTaxExemptionException("PUBLIC_HOLIDAY", cause));
 
         mockMvc.perform(post("/api/v1/cities/{cityCode}" + "/congestion-tax/calculations", "gothenburg")
                         .contentType(MediaType.APPLICATION_JSON)
