@@ -46,17 +46,19 @@ public class TaxRuleSetEntity {
         this.currencyCode = currencyCode;
     }
 
-    public TaxRuleSet toTaxRuleSet(
+    public static TaxRuleSet toTaxRuleSet(
+            TaxRuleSetEntity taxRuleSetEntity,
             String cityCode,
             List<TaxTimeBandEntity> taxTimeBandEntities,
             TaxExemptions taxExemptions,
             TaxRuleOptions taxRuleOptions) {
-        var currency = Currency.getInstance(currencyCode);
+        var currency = Currency.getInstance(taxRuleSetEntity.currencyCode);
 
         var taxTimeBands = taxTimeBandEntities.stream()
                 .map(entity -> entity.toTaxTimeBand(currency))
                 .toList();
 
-        return new TaxRuleSet(cityCode, effectiveFrom, currency, taxTimeBands, taxExemptions, taxRuleOptions);
+        return new TaxRuleSet(
+                cityCode, taxRuleSetEntity.effectiveFrom, currency, taxTimeBands, taxExemptions, taxRuleOptions);
     }
 }

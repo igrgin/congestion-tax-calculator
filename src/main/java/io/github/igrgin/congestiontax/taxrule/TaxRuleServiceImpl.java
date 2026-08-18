@@ -171,7 +171,8 @@ public class TaxRuleServiceImpl implements TaxRuleService {
         var taxExemptions = mapTaxExemptions(taxExemptionEntities);
         validateHolidayPrecedingRelation(taxRuleOptions, taxExemptionEntities);
 
-        return taxRuleSetEntity.toTaxRuleSet(cityCode, taxTimeBandEntities, taxExemptions, taxRuleOptions);
+        return TaxRuleSetEntity.toTaxRuleSet(
+                taxRuleSetEntity, cityCode, taxTimeBandEntities, taxExemptions, taxRuleOptions);
     }
 
     private static TaxExemptions mapTaxExemptions(List<TaxExemptionEntity> taxExemptionEntities) {
