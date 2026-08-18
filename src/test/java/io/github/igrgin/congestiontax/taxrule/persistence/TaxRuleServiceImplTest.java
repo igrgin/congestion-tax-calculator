@@ -144,8 +144,7 @@ class TaxRuleServiceImplTest {
         var taxRuleSet = storedTaxRuleSet(RULE_SET_ID, EFFECTIVE_FROM, "SEK");
         var taxTimeBand =
                 new TaxTimeBandEntity(RULE_SET_ID, LocalTime.of(6, 0), LocalTime.of(6, 30), new BigDecimal("8.00"));
-        var taxExemption =
-                new TaxExemptionEntity(RULE_SET_ID, TaxExemptionType.WEEKDAY, (short) 6, null, null, null);
+        var taxExemption = new TaxExemptionEntity(RULE_SET_ID, TaxExemptionType.WEEKDAY, (short) 6, null, null, null);
 
         given(cityRepository.findByCode(CITY_CODE))
                 .willReturn(Optional.of(new CityEntity(CITY_CODE, "Gothenburg", "Europe/Stockholm")));

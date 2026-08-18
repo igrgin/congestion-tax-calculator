@@ -4,9 +4,12 @@ import io.github.igrgin.congestiontax.domain.TaxAmount;
 import io.github.igrgin.congestiontax.domain.VehicleType;
 import io.github.igrgin.congestiontax.domain.rule.ChargeWindow;
 import io.github.igrgin.congestiontax.domain.rule.DailyMaximum;
+import io.github.igrgin.congestiontax.domain.rule.TaxExemption;
+import io.github.igrgin.congestiontax.domain.rule.TaxExemptions;
 import io.github.igrgin.congestiontax.domain.rule.TaxRuleOption;
 import io.github.igrgin.congestiontax.domain.rule.TaxRuleOptions;
 import io.github.igrgin.congestiontax.domain.rule.TaxRuleSet;
+import io.github.igrgin.congestiontax.domain.rule.WeekdayTaxExemption;
 import io.github.igrgin.congestiontax.taxrule.exception.InvalidCityTimeZoneException;
 import io.github.igrgin.congestiontax.taxrule.exception.InvalidTaxRuleOptionException;
 import io.github.igrgin.congestiontax.taxrule.exception.MissingApplicableTaxRuleSetException;
@@ -17,6 +20,9 @@ import io.github.igrgin.congestiontax.taxrule.exception.UnknownVehicleTypeExcept
 import io.github.igrgin.congestiontax.taxrule.model.ApplicableTaxRuleSets;
 import io.github.igrgin.congestiontax.taxrule.persistence.CityEntity;
 import io.github.igrgin.congestiontax.taxrule.persistence.CityRepository;
+import io.github.igrgin.congestiontax.taxrule.persistence.TaxExemptionEntity;
+import io.github.igrgin.congestiontax.taxrule.persistence.TaxExemptionRepository;
+import io.github.igrgin.congestiontax.taxrule.persistence.TaxExemptionType;
 import io.github.igrgin.congestiontax.taxrule.persistence.TaxRuleOptionEntity;
 import io.github.igrgin.congestiontax.taxrule.persistence.TaxRuleOptionRepository;
 import io.github.igrgin.congestiontax.taxrule.persistence.TaxRuleOptionType;
@@ -26,6 +32,7 @@ import io.github.igrgin.congestiontax.taxrule.persistence.TaxTimeBandEntity;
 import io.github.igrgin.congestiontax.taxrule.persistence.TaxTimeBandRepository;
 import io.github.igrgin.congestiontax.taxrule.persistence.VehicleTypeEntity;
 import io.github.igrgin.congestiontax.taxrule.persistence.VehicleTypeRepository;
+import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -52,6 +59,7 @@ public class TaxRuleServiceImpl implements TaxRuleService {
     private final TaxRuleSetRepository taxRuleSetRepository;
     private final TaxTimeBandRepository taxTimeBandRepository;
     private final TaxRuleOptionRepository taxRuleOptionRepository;
+    private final TaxExemptionRepository taxExemptionRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -91,10 +99,17 @@ public class TaxRuleServiceImpl implements TaxRuleService {
         var taxRuleOptionsByRuleSetId = taxRuleOptionRepository.findByRuleSetIdIn(selectedRuleSetIds).stream()
                 .collect(Collectors.groupingBy(TaxRuleOptionEntity::getRuleSetId));
 
+        var taxExemptionsByRuleSetId = taxExemptionRepository.findByRuleSetIdIn(selectedRuleSetIds).stream()
+                .collect(Collectors.groupingBy(TaxExemptionEntity::getRuleSetId));
+
         var taxRuleSetsByCalculationDate = ruleSetEntitiesByDate.entrySet().stream()
                 .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> {
                     var taxRuleSet = mapCompleteTaxRuleSet(
-                            cityCode, entry.getValue(), taxTimeBandsByRuleSetId, taxRuleOptionsByRuleSetId);
+                            cityCode,
+                            entry.getValue(),
+                            taxTimeBandsByRuleSetId,
+                            taxRuleOptionsByRuleSetId,
+                            taxExemptionsByRuleSetId);
 
                     log.debug(
                             "Selected Applicable Tax Rule Set."
@@ -132,7 +147,8 @@ public class TaxRuleServiceImpl implements TaxRuleService {
             String cityCode,
             TaxRuleSetEntity taxRuleSetEntity,
             Map<Long, List<TaxTimeBandEntity>> taxTimeBandsByRuleSetId,
-            Map<Long, List<TaxRuleOptionEntity>> taxRuleOptionsByRuleSetId) {
+            Map<Long, List<TaxRuleOptionEntity>> taxRuleOptionsByRuleSetId,
+            Map<Long, List<TaxExemptionEntity>> taxExemptionsByRuleSetId) {
         var taxTimeBandEntities = taxTimeBandsByRuleSetId.getOrDefault(taxRuleSetEntity.getId(), List.of());
 
         if (taxTimeBandEntities.isEmpty()) {
@@ -145,7 +161,22 @@ public class TaxRuleServiceImpl implements TaxRuleService {
                 taxRuleOptionsByRuleSetId.getOrDefault(taxRuleSetEntity.getId(), List.of()),
                 Currency.getInstance(taxRuleSetEntity.getCurrencyCode()));
 
-        return taxRuleSetEntity.toTaxRuleSet(cityCode, taxTimeBandEntities, taxRuleOptions);
+        var taxExemptions =
+                mapTaxExemptions(taxExemptionsByRuleSetId.getOrDefault(taxRuleSetEntity.getId(), List.of()));
+
+        return taxRuleSetEntity.toTaxRuleSet(cityCode, taxTimeBandEntities, taxExemptions, taxRuleOptions);
+    }
+
+    private static TaxExemptions mapTaxExemptions(List<TaxExemptionEntity> taxExemptionEntities) {
+        var taxExemptions = taxExemptionEntities.stream()
+                .<TaxExemption>mapMulti((entity, consumer) -> {
+                    if (entity.getType() == TaxExemptionType.WEEKDAY) {
+                        consumer.accept(new WeekdayTaxExemption(DayOfWeek.of(entity.getDayOfWeek())));
+                    }
+                })
+                .toList();
+
+        return new TaxExemptions(taxExemptions);
     }
 
     private static TaxRuleOptions mapTaxRuleOptions(

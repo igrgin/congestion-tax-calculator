@@ -10,6 +10,7 @@ public record TaxRuleSet(
         @NonNull LocalDate effectiveFrom,
         @NonNull Currency currency,
         @NonNull List<TaxTimeBand> taxTimeBands,
+        @NonNull TaxExemptions taxExemptions,
         @NonNull TaxRuleOptions taxRuleOptions) {
 
     public TaxRuleSet {
@@ -19,6 +20,15 @@ public record TaxRuleSet(
     }
 
     public TaxRuleSet(String cityCode, LocalDate effectiveFrom, Currency currency, List<TaxTimeBand> taxTimeBands) {
-        this(cityCode, effectiveFrom, currency, taxTimeBands, TaxRuleOptions.empty());
+        this(cityCode, effectiveFrom, currency, taxTimeBands, TaxExemptions.empty(), TaxRuleOptions.empty());
+    }
+
+    public TaxRuleSet(
+            String cityCode,
+            LocalDate effectiveFrom,
+            Currency currency,
+            List<TaxTimeBand> taxTimeBands,
+            TaxRuleOptions taxRuleOptions) {
+        this(cityCode, effectiveFrom, currency, taxTimeBands, TaxExemptions.empty(), taxRuleOptions);
     }
 }
