@@ -87,13 +87,12 @@ class TaxRuleSchemaITest {
     }
 
     @Test
-    void rejectsSecondTaxRuleSetForSameCityAndDate() {
-        long cityId = insertCity("duplicate-rule-date");
-        LocalDate effectiveFrom = LocalDate.of(2020, Month.JANUARY, 1);
+    void rejectsSecondTaxRuleSetForSameCity() {
+        long cityId = insertCity("duplicate-city-rule-set");
 
-        insertTaxRuleSet(cityId, effectiveFrom);
+        insertTaxRuleSet(cityId, LocalDate.of(2020, Month.JANUARY, 1));
 
-        assertThatThrownBy(() -> insertTaxRuleSet(cityId, effectiveFrom))
+        assertThatThrownBy(() -> insertTaxRuleSet(cityId, LocalDate.of(2021, Month.JANUARY, 1)))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
@@ -107,27 +106,51 @@ class TaxRuleSchemaITest {
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
-    @ParameterizedTest
-    @ArgumentsSource(NonPositiveAmounts.class)
-    void rejectsNonPositiveTaxTimeBandAmount(BigDecimal amount) {
-        long cityId = insertCity("invalid-band-amount-" + amount.abs());
+    @Test
+    void rejectsNegativeTaxTimeBandAmount() {
+        long cityId = insertCity("negative-band-amount");
         long ruleSetId = insertTaxRuleSet(cityId, LocalDate.of(2020, Month.JANUARY, 1));
         LocalTime startTime = LocalTime.of(6, 0);
         LocalTime endTime = LocalTime.of(6, 30);
 
-        assertThatThrownBy(() -> insertTaxTimeBand(ruleSetId, startTime, endTime, amount))
+        assertThatThrownBy(() -> insertTaxTimeBand(ruleSetId, startTime, endTime, new BigDecimal("-1.00")))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
-    @ParameterizedTest
-    @ArgumentsSource(InvalidTimeBands.class)
-    void rejectsTaxTimeBandThatDoesNotEndAfterItsStart(LocalTime startTime, LocalTime endTime) {
-        long cityId = insertCity("invalid-band-" + startTime + "-" + endTime);
+    @Test
+    void acceptsZeroTaxTimeBandAmount() {
+        long cityId = insertCity("zero-band-amount");
         long ruleSetId = insertTaxRuleSet(cityId, LocalDate.of(2020, Month.JANUARY, 1));
-        BigDecimal amount = new BigDecimal("8.00");
 
-        assertThatThrownBy(() -> insertTaxTimeBand(ruleSetId, startTime, endTime, amount))
+        insertTaxTimeBand(ruleSetId, LocalTime.of(6, 0), LocalTime.of(6, 30), BigDecimal.ZERO);
+
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM tax_time_band WHERE rule_set_id = ?", Integer.class, ruleSetId);
+
+        assertThat(count).isEqualTo(1);
+    }
+
+    @Test
+    void rejectsTaxTimeBandWithEqualBoundaries() {
+        long cityId = insertCity("equal-band-boundaries");
+        long ruleSetId = insertTaxRuleSet(cityId, LocalDate.of(2020, Month.JANUARY, 1));
+        LocalTime boundary = LocalTime.of(6, 0);
+
+        assertThatThrownBy(() -> insertTaxTimeBand(ruleSetId, boundary, boundary, new BigDecimal("8.00")))
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void acceptsCrossMidnightTaxTimeBand() {
+        long cityId = insertCity("cross-midnight-band");
+        long ruleSetId = insertTaxRuleSet(cityId, LocalDate.of(2020, Month.JANUARY, 1));
+
+        insertTaxTimeBand(ruleSetId, LocalTime.of(18, 30), LocalTime.of(6, 0), new BigDecimal("8.00"));
+
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM tax_time_band WHERE rule_set_id = ?", Integer.class, ruleSetId);
+
+        assertThat(count).isEqualTo(1);
     }
 
     @Test
@@ -234,26 +257,6 @@ class TaxRuleSchemaITest {
                 )
                 VALUES (?, ?, ?, ?, ?)
                 """, ruleSetId, typeCode, amount, durationMinutes, precedingDays);
-    }
-
-    private static final class NonPositiveAmounts implements ArgumentsProvider {
-
-        @Override
-        public Stream<? extends Arguments> provideArguments(
-                ParameterDeclarations parameters, ExtensionContext context) {
-            return Stream.of(Arguments.of(new BigDecimal("0.00")), Arguments.of(new BigDecimal("-1.00")));
-        }
-    }
-
-    private static final class InvalidTimeBands implements ArgumentsProvider {
-
-        @Override
-        public Stream<? extends Arguments> provideArguments(
-                ParameterDeclarations parameters, ExtensionContext context) {
-            return Stream.of(
-                    Arguments.of(LocalTime.of(6, 0), LocalTime.of(6, 0)),
-                    Arguments.of(LocalTime.of(6, 30), LocalTime.of(6, 0)));
-        }
     }
 
     private static final class InvalidTaxRuleOptions implements ArgumentsProvider {

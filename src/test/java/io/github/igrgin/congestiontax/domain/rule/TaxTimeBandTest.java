@@ -47,13 +47,12 @@ class TaxTimeBandTest {
         assertThatThrownBy(() -> new TaxTimeBand(time, time, AMOUNT)).isInstanceOf(InvalidTaxTimeBandException.class);
     }
 
-    @Test
-    void rejectsEndTimeBeforeStartTime() {
-        var startTime = LocalTime.of(6, 30);
-        var endTime = LocalTime.of(6, 0);
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("crossMidnightTimes")
+    void matchesCrossMidnightTimeBand(String scenario, LocalTime localTime, boolean expected) {
+        var band = new TaxTimeBand(LocalTime.of(18, 30), LocalTime.of(6, 0), AMOUNT);
 
-        assertThatThrownBy(() -> new TaxTimeBand(startTime, endTime, AMOUNT))
-                .isInstanceOf(InvalidTaxTimeBandException.class);
+        assertThat(band.includes(localTime)).isEqualTo(expected);
     }
 
     @ParameterizedTest(name = "{0}")
@@ -63,11 +62,12 @@ class TaxTimeBandTest {
     }
 
     @Test
-    void rejectsZeroTaxAmount() {
+    void acceptsZeroTaxAmount() {
         var zeroAmount = TaxAmount.zero(Currency.getInstance("SEK"));
 
-        assertThatThrownBy(() -> new TaxTimeBand(LocalTime.of(6, 0), LocalTime.of(6, 30), zeroAmount))
-                .isInstanceOf(InvalidTaxTimeBandException.class);
+        var band = new TaxTimeBand(LocalTime.of(6, 0), LocalTime.of(6, 30), zeroAmount);
+
+        assertThat(band.amount()).isEqualTo(zeroAmount);
     }
 
     private static Stream<Arguments> nullValues() {
@@ -75,5 +75,14 @@ class TaxTimeBandTest {
                 Arguments.of("null start time", null, LocalTime.of(6, 30), AMOUNT),
                 Arguments.of("null end time", LocalTime.of(6, 0), null, AMOUNT),
                 Arguments.of("null Tax Amount", LocalTime.of(6, 0), LocalTime.of(6, 30), null));
+    }
+
+    private static Stream<Arguments> crossMidnightTimes() {
+        return Stream.of(
+                Arguments.of("includes start", LocalTime.of(18, 30), true),
+                Arguments.of("includes before midnight", LocalTime.of(23, 59, 59), true),
+                Arguments.of("includes after midnight", LocalTime.of(0, 0), true),
+                Arguments.of("excludes end", LocalTime.of(6, 0), false),
+                Arguments.of("excludes before start", LocalTime.of(18, 29, 59), false));
     }
 }
