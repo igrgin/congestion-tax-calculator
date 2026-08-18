@@ -77,7 +77,8 @@ The domain does not:
 4. Derive complete Passages with the stored City time zone.
 5. Ask `TaxRuleService` to load the Vehicle Type.
 6. Call `TaxCalculator`.
-7. Return the calculated City and calculation result.
+7. Write one `DEBUG` event for each exempt Daily Tax.
+8. Return the calculated City and calculation result.
 
 `CalculationServiceImpl` translates expected collaborator lookup failures into calculation-owned exceptions after metrics records the outcome. It also translates invalid stored Tax Rule Option and Tax Exemption content to calculation-owned failures with the safe type code. It preserves the lower exception as the cause. This keeps the Calculation module interface independent of its collaborator implementations.
 
@@ -116,7 +117,7 @@ A metrics failure cannot change the calculation result.
 
 ## Logging
 
-Application logging stays at boundaries that know an event's operational outcome. `CalculationServiceImpl` owns calculation start and successful completion. The HTTP exception handler owns expected request rejection and failed HTTP operations. A component that suppresses an internal failure logs it where it catches the failure. Persistence services can log feature decisions at `DEBUG` when the related feature issue requires that detail.
+Application logging stays at boundaries that know an event's operational outcome. `CalculationServiceImpl` owns calculation start, applied Tax Exemptions, and successful completion. After a successful pure calculation, it writes one `DEBUG` event for each exempt Daily Tax. The event contains the city code, Vehicle Type code, calculation date, and Tax Exemption Reason count. The HTTP exception handler owns expected request rejection and failed HTTP operations. A component that suppresses an internal failure logs it where it catches the failure. Persistence services can log feature decisions at `DEBUG` when the related feature issue requires that detail.
 
 The pure calculator, Domain values, JPA entities, and repositories do not log. One exception or event has one logging owner. A feature issue adds its required context to the owning boundary instead of logging the same event in several layers. `CONTRIBUTING.md` defines the level meanings and safe-data rules.
 

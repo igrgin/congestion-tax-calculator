@@ -81,6 +81,16 @@ public class CalculationServiceImpl implements CalculationService {
         var calculationResult =
                 taxCalculator.calculate(vehicleType, passages, applicableTaxRuleSets.taxRuleSetsByCalculationDate());
 
+        calculationResult.dailyTaxes().stream()
+                .filter(dailyTax -> !dailyTax.taxExemptionReasons().isEmpty())
+                .forEach(dailyTax -> log.debug(
+                        "Applied Tax Exemptions."
+                                + " cityCode={} vehicleTypeCode={} calculationDate={} exemptionReasonCount={}",
+                        command.cityCode(),
+                        command.vehicleTypeCode(),
+                        dailyTax.date(),
+                        dailyTax.taxExemptionReasons().size()));
+
         return new CalculatedTax(command.cityCode(), calculationResult);
     }
 }

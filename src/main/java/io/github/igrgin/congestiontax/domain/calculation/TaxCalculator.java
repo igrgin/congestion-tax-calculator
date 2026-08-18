@@ -30,6 +30,12 @@ public final class TaxCalculator {
                 .sorted(Map.Entry.comparingByKey())
                 .map(entry -> {
                     var taxRuleSet = applicableTaxRuleSets.get(entry.getKey());
+                    var taxExemptionReasons = taxRuleSet.taxExemptionReasonsFor(vehicleType, entry.getKey());
+
+                    if (!taxExemptionReasons.isEmpty()) {
+                        return new DailyTax(entry.getKey(), taxExemptionReasons, TaxAmount.zero(taxRuleSet.currency()));
+                    }
+
                     var amount = calculateDailyAmount(entry.getValue(), taxRuleSet);
 
                     return new DailyTax(entry.getKey(), amount);

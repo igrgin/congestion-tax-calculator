@@ -65,6 +65,13 @@ Application logging remains active when a test uses a Spring profile. Test code 
 `TaxCalculatorTest` proves:
 
 - one taxed Passage;
+- each initial exempt Vehicle Type;
+- a known Vehicle Type without a matching Tax Exemption remains taxable;
+- each calendar Tax Exemption type;
+- present and absent Public Holiday Preceding-Date Option behavior;
+- all matching Tax Exemption Reasons;
+- zero Daily Tax and total Tax Amount for an exempt date or Vehicle Type;
+- Tax Exemption evaluation for a Passage outside the Tax Time Bands;
 - addition of all Passage Tax Amounts when the Charge Window is absent;
 - date grouping and ascending Daily Tax order;
 - rejection of a missing Applicable Tax Rule Set for any Passage date;
@@ -251,8 +258,6 @@ Tests that start Spring without PostgreSQL use the `test` profile. Full Spring B
 
 Later calculation issues will add focused tests for:
 
-- applying stored Tax Exemptions before amount calculation;
-- zero Daily Tax and response reasons for exempt dates and Vehicle Types;
 - successive Applicable Tax Rule Sets;
 - mixed currencies in one calculation;
 - complete transport validation and Problem Details;

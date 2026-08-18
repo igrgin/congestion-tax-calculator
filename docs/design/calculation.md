@@ -26,7 +26,8 @@ The Calculation Service:
 3. creates each complete Passage with its City Local Time and derived instant;
 4. asks the Tax Rule Service for the Vehicle Type;
 5. calls the pure `TaxCalculator`;
-6. returns the calculated City and result.
+6. writes one `DEBUG` event for each exempt Daily Tax;
+7. returns the calculated City and result.
 
 The Tax Calculator:
 
@@ -34,13 +35,15 @@ The Tax Calculator:
 2. checks that the Applicable Tax Rule Set map is not empty;
 3. checks that the map contains an Applicable Tax Rule Set for each Passage date;
 4. groups the Passages by City Local Time date and orders the date groups;
-5. orders the Passages in each date group by instant;
-6. finds the Tax Time Band amount for each Passage;
-7. uses a zero Tax Amount in the Tax Rule Set currency when no band matches;
-8. applies the optional Charge Window;
-9. applies the optional Daily Maximum;
-10. returns one Daily Tax for each input date;
-11. adds the Daily Taxes to produce the total Tax Amount.
+5. gets all matching Tax Exemption Reasons for the Vehicle Type and date;
+6. returns a zero Daily Tax in the Tax Rule Set currency when one or more Tax Exemptions match, without Tax Time Band, Charge Window, or Daily Maximum calculation;
+7. orders the Passages in each date group by instant when no Tax Exemption matches;
+8. finds the Tax Time Band amount for each Passage;
+9. uses a zero Tax Amount in the Tax Rule Set currency when no band matches;
+10. applies the optional Charge Window;
+11. applies the optional Daily Maximum;
+12. returns one Daily Tax for each input date;
+13. adds the Daily Taxes to produce the total Tax Amount.
 
 The Tax Rule Service requires each Applicable Tax Rule Set to contain at least one Tax Time Band. It throws `MissingTaxTimeBandsException` when stored Tax Rules do not meet this requirement.
 
@@ -64,9 +67,7 @@ PUBLIC_HOLIDAY
 DATE_BEFORE_PUBLIC_HOLIDAY
 ```
 
-The Domain model can match these Tax Exemptions and return all applicable reasons. The current calculator does not call this behavior. It creates each Daily Tax with an empty reason set.
-
-The next calculation slice will apply the stored Tax Exemptions and add every applicable reason to this set. The HTTP response can then explain why a Daily Tax is zero without one Boolean field for each Tax Exemption.
+The calculator gets all matching reasons from the Applicable Tax Rule Set before it calculates Passage amounts. When one or more reasons match, it returns a zero Daily Tax in the Tax Rule Set currency with all reasons. It does not apply Tax Time Bands, Charge Windows, or the Daily Maximum to that date. The HTTP response can explain why the Daily Tax is zero without one Boolean field for each Tax Exemption.
 
 ## Charge Window and Daily Maximum
 
@@ -83,8 +84,6 @@ When a Charge Window is present:
 Zero Tax Amount Passages and repeated Passages participate. A Charge Window uses actual elapsed time between instants. Date grouping prevents a Charge Window from crossing a City Local Time date boundary.
 
 After Charge Window calculation, the optional Daily Maximum limits the Daily Tax. When the Applicable Tax Rule Set has no Daily Maximum, the calculated daily amount is unchanged.
-
-Later issues will apply Vehicle Type, weekday, month, public-holiday, and pre-holiday Tax Exemptions.
 
 ## Java calculation model
 
@@ -226,6 +225,6 @@ Collection-owning calculation values receive unmodifiable collections from their
 
 `TaxRuleSet` rejects null fields and requires at least one Tax Time Band. Its Tax Rule Options can contain one Charge Window, one Daily Maximum, and one Public Holiday Preceding-Date Option. The Public Holiday Preceding-Date Option requires a positive calendar-date count.
 
-This model is available to the calculator. The next calculation slice will apply Tax Exemptions to Daily Tax results.
+The calculator uses this centralized matcher for Tax Exemptions. It does not copy the matching rules into the calculation flow.
 
 The calculator has no Spring annotations, repository calls, database calls, system-clock access, logging, or metrics. The same inputs produce the same result.
