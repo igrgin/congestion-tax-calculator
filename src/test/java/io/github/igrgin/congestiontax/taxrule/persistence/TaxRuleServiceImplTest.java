@@ -7,13 +7,18 @@ import static org.mockito.Mockito.spy;
 
 import io.github.igrgin.congestiontax.domain.TaxAmount;
 import io.github.igrgin.congestiontax.domain.VehicleType;
+import io.github.igrgin.congestiontax.domain.rule.HolidayPreceding;
+import io.github.igrgin.congestiontax.domain.rule.MonthTaxExemption;
+import io.github.igrgin.congestiontax.domain.rule.PublicHolidayTaxExemption;
 import io.github.igrgin.congestiontax.domain.rule.TaxExemptions;
 import io.github.igrgin.congestiontax.domain.rule.TaxRuleSet;
 import io.github.igrgin.congestiontax.domain.rule.TaxTimeBand;
+import io.github.igrgin.congestiontax.domain.rule.VehicleTypeTaxExemption;
 import io.github.igrgin.congestiontax.domain.rule.WeekdayTaxExemption;
 import io.github.igrgin.congestiontax.taxrule.TaxRuleService;
 import io.github.igrgin.congestiontax.taxrule.TaxRuleServiceImpl;
 import io.github.igrgin.congestiontax.taxrule.exception.InvalidCityTimeZoneException;
+import io.github.igrgin.congestiontax.taxrule.exception.InvalidTaxExemptionException;
 import io.github.igrgin.congestiontax.taxrule.exception.InvalidTaxRuleOptionException;
 import io.github.igrgin.congestiontax.taxrule.exception.MissingApplicableTaxRuleSetException;
 import io.github.igrgin.congestiontax.taxrule.exception.MissingTaxTimeBandsException;
@@ -32,9 +37,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -160,6 +169,166 @@ class TaxRuleServiceImplTest {
     }
 
     @Test
+    void loadsStoredMonthTaxExemption() {
+        var taxExemption = new TaxExemptionEntity(RULE_SET_ID, TaxExemptionType.MONTH, null, (short) 7, null, null);
+
+        givenStoredTaxRuleSetWithTaxExemptions(List.of(taxExemption));
+
+        var result = taxRuleService.getApplicableTaxRuleSets(CITY_CODE, Set.of(CALCULATION_DATE));
+
+        assertThat(result.taxRuleSetsByCalculationDate().get(CALCULATION_DATE).taxExemptions())
+                .isEqualTo(new TaxExemptions(List.of(new MonthTaxExemption(Month.JULY))));
+    }
+
+    @Test
+    void loadsStoredPublicHolidayTaxExemption() {
+        var holidayDate = LocalDate.of(2013, Month.DECEMBER, 25);
+        var taxExemption =
+                new TaxExemptionEntity(RULE_SET_ID, TaxExemptionType.PUBLIC_HOLIDAY, null, null, holidayDate, null);
+
+        givenStoredTaxRuleSetWithTaxExemptions(List.of(taxExemption));
+
+        var result = taxRuleService.getApplicableTaxRuleSets(CITY_CODE, Set.of(CALCULATION_DATE));
+
+        assertThat(result.taxRuleSetsByCalculationDate().get(CALCULATION_DATE).taxExemptions())
+                .isEqualTo(new TaxExemptions(List.of(new PublicHolidayTaxExemption(holidayDate))));
+    }
+
+    @Test
+    void loadsStoredVehicleTypeTaxExemption() {
+        var taxExemption = new TaxExemptionEntity(RULE_SET_ID, TaxExemptionType.VEHICLE_TYPE, null, null, null, "BUS");
+
+        givenStoredTaxRuleSetWithTaxExemptions(List.of(taxExemption));
+
+        var result = taxRuleService.getApplicableTaxRuleSets(CITY_CODE, Set.of(CALCULATION_DATE));
+
+        assertThat(result.taxRuleSetsByCalculationDate().get(CALCULATION_DATE).taxExemptions())
+                .isEqualTo(new TaxExemptions(List.of(new VehicleTypeTaxExemption("BUS"))));
+    }
+
+    @Test
+    void loadsStoredPublicHolidayPrecedingDateOption() {
+        var holidayDate = LocalDate.of(2013, Month.DECEMBER, 25);
+        var publicHoliday =
+                new TaxExemptionEntity(RULE_SET_ID, TaxExemptionType.PUBLIC_HOLIDAY, null, null, holidayDate, null);
+        var holidayPreceding =
+                new TaxRuleOptionEntity(RULE_SET_ID, TaxRuleOptionType.HOLIDAY_PRECEDING, null, null, (short) 1);
+
+        givenStoredTaxRuleSet(List.of(holidayPreceding), List.of(publicHoliday));
+
+        var result = taxRuleService.getApplicableTaxRuleSets(CITY_CODE, Set.of(CALCULATION_DATE));
+
+        assertThat(result.taxRuleSetsByCalculationDate()
+                        .get(CALCULATION_DATE)
+                        .taxRuleOptions()
+                        .holidayPreceding())
+                .contains(new HolidayPreceding(1));
+    }
+
+    @Test
+    void rejectsMissingStoredTaxExemptionType() {
+        var taxExemption = new TaxExemptionEntity(RULE_SET_ID, null, (short) 6, null, null, null);
+
+        assertInvalidStoredTaxExemptions(List.of(taxExemption), "UNKNOWN");
+    }
+
+    @Test
+    void rejectsDuplicateStoredTaxExemptions() {
+        var firstTaxExemption =
+                new TaxExemptionEntity(RULE_SET_ID, TaxExemptionType.WEEKDAY, (short) 6, null, null, null);
+        var secondTaxExemption =
+                new TaxExemptionEntity(RULE_SET_ID, TaxExemptionType.WEEKDAY, (short) 6, null, null, null);
+
+        assertInvalidStoredTaxExemptions(List.of(firstTaxExemption, secondTaxExemption), "WEEKDAY");
+    }
+
+    @Test
+    void rejectsPublicHolidayPrecedingDateOptionWithoutPublicHolidayTaxExemption() {
+        var holidayPreceding =
+                new TaxRuleOptionEntity(RULE_SET_ID, TaxRuleOptionType.HOLIDAY_PRECEDING, null, null, (short) 1);
+
+        givenStoredTaxRuleSet(List.of(holidayPreceding), List.of());
+
+        assertThatThrownBy(() -> taxRuleService.getApplicableTaxRuleSets(CITY_CODE, Set.of(CALCULATION_DATE)))
+                .isInstanceOfSatisfying(
+                        InvalidTaxExemptionException.class, exception -> assertThat(exception.taxExemptionTypeCode())
+                                .isEqualTo("PUBLIC_HOLIDAY"));
+    }
+
+    @Test
+    void rejectsStoredWeekdayTaxExemptionWithoutWeekday() {
+        var taxExemption = new TaxExemptionEntity(RULE_SET_ID, TaxExemptionType.WEEKDAY, null, null, null, null);
+
+        assertInvalidStoredTaxExemptions(List.of(taxExemption), "WEEKDAY");
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("invalidStoredTaxExemptions")
+    void rejectsInvalidStoredTaxExemption(
+            String scenario, TaxExemptionEntity taxExemption, String taxExemptionTypeCode) {
+        assertInvalidStoredTaxExemptions(List.of(taxExemption), taxExemptionTypeCode);
+    }
+
+    private static Stream<Arguments> invalidStoredTaxExemptions() {
+        return Stream.of(
+                Arguments.of(
+                        "weekday is below its accepted range",
+                        new TaxExemptionEntity(RULE_SET_ID, TaxExemptionType.WEEKDAY, (short) 0, null, null, null),
+                        "WEEKDAY"),
+                Arguments.of(
+                        "weekday is above its accepted range",
+                        new TaxExemptionEntity(RULE_SET_ID, TaxExemptionType.WEEKDAY, (short) 8, null, null, null),
+                        "WEEKDAY"),
+                Arguments.of(
+                        "weekday row has another typed value",
+                        new TaxExemptionEntity(RULE_SET_ID, TaxExemptionType.WEEKDAY, (short) 6, (short) 7, null, null),
+                        "WEEKDAY"),
+                Arguments.of(
+                        "month is absent",
+                        new TaxExemptionEntity(RULE_SET_ID, TaxExemptionType.MONTH, null, null, null, null),
+                        "MONTH"),
+                Arguments.of(
+                        "month is below its accepted range",
+                        new TaxExemptionEntity(RULE_SET_ID, TaxExemptionType.MONTH, null, (short) 0, null, null),
+                        "MONTH"),
+                Arguments.of(
+                        "month is above its accepted range",
+                        new TaxExemptionEntity(RULE_SET_ID, TaxExemptionType.MONTH, null, (short) 13, null, null),
+                        "MONTH"),
+                Arguments.of(
+                        "month row has another typed value",
+                        new TaxExemptionEntity(RULE_SET_ID, TaxExemptionType.MONTH, (short) 6, (short) 7, null, null),
+                        "MONTH"),
+                Arguments.of(
+                        "public-holiday date is absent",
+                        new TaxExemptionEntity(RULE_SET_ID, TaxExemptionType.PUBLIC_HOLIDAY, null, null, null, null),
+                        "PUBLIC_HOLIDAY"),
+                Arguments.of(
+                        "public-holiday row has another typed value",
+                        new TaxExemptionEntity(
+                                RULE_SET_ID,
+                                TaxExemptionType.PUBLIC_HOLIDAY,
+                                null,
+                                (short) 7,
+                                LocalDate.of(2013, Month.DECEMBER, 25),
+                                null),
+                        "PUBLIC_HOLIDAY"),
+                Arguments.of(
+                        "Vehicle Type code is absent",
+                        new TaxExemptionEntity(RULE_SET_ID, TaxExemptionType.VEHICLE_TYPE, null, null, null, null),
+                        "VEHICLE_TYPE"),
+                Arguments.of(
+                        "Vehicle Type code is blank",
+                        new TaxExemptionEntity(RULE_SET_ID, TaxExemptionType.VEHICLE_TYPE, null, null, null, " "),
+                        "VEHICLE_TYPE"),
+                Arguments.of(
+                        "Vehicle Type row has another typed value",
+                        new TaxExemptionEntity(
+                                RULE_SET_ID, TaxExemptionType.VEHICLE_TYPE, (short) 6, null, null, "BUS"),
+                        "VEHICLE_TYPE"));
+    }
+
+    @Test
     void rejectsUnknownCity() {
         var cityCode = "unknown";
         var calculationDates = Set.of(LocalDate.of(2013, Month.FEBRUARY, 8));
@@ -244,6 +413,13 @@ class TaxRuleServiceImplTest {
     }
 
     @Test
+    void rejectsInvalidStoredPublicHolidayPrecedingDateOption() {
+        var taxRuleOption = new TaxRuleOptionEntity(RULE_SET_ID, TaxRuleOptionType.HOLIDAY_PRECEDING, null, null, null);
+
+        assertInvalidStoredTaxRuleOptions(List.of(taxRuleOption), "HOLIDAY_PRECEDING");
+    }
+
+    @Test
     void rejectsDuplicateStoredTaxRuleOptionTypes() {
         var firstTaxRuleOption = new TaxRuleOptionEntity(RULE_SET_ID, TaxRuleOptionType.CHARGE_WINDOW, null, 60, null);
         var secondTaxRuleOption = new TaxRuleOptionEntity(RULE_SET_ID, TaxRuleOptionType.CHARGE_WINDOW, null, 30, null);
@@ -278,6 +454,25 @@ class TaxRuleServiceImplTest {
         return taxRuleSetEntity;
     }
 
+    private void givenStoredTaxRuleSetWithTaxExemptions(List<TaxExemptionEntity> taxExemptions) {
+        givenStoredTaxRuleSet(List.of(), taxExemptions);
+    }
+
+    private void givenStoredTaxRuleSet(
+            List<TaxRuleOptionEntity> taxRuleOptions, List<TaxExemptionEntity> taxExemptions) {
+        var taxRuleSet = storedTaxRuleSet(RULE_SET_ID, EFFECTIVE_FROM, "SEK");
+        var taxTimeBand =
+                new TaxTimeBandEntity(RULE_SET_ID, LocalTime.of(6, 0), LocalTime.of(6, 30), new BigDecimal("8.00"));
+
+        given(cityRepository.findByCode(CITY_CODE))
+                .willReturn(Optional.of(new CityEntity(CITY_CODE, "Gothenburg", "Europe/Stockholm")));
+        given(taxRuleSetRepository.findApplicableCandidates(CITY_CODE, CALCULATION_DATE))
+                .willReturn(List.of(taxRuleSet));
+        given(taxTimeBandRepository.findByRuleSetIdIn(Set.of(RULE_SET_ID))).willReturn(List.of(taxTimeBand));
+        given(taxRuleOptionRepository.findByRuleSetIdIn(Set.of(RULE_SET_ID))).willReturn(taxRuleOptions);
+        given(taxExemptionRepository.findByRuleSetIdIn(Set.of(RULE_SET_ID))).willReturn(taxExemptions);
+    }
+
     private void assertInvalidStoredTaxRuleOptions(List<TaxRuleOptionEntity> taxRuleOptions, String optionTypeCode) {
         var taxRuleSet = storedTaxRuleSet(RULE_SET_ID, EFFECTIVE_FROM, "SEK");
         var taxTimeBand =
@@ -294,5 +489,14 @@ class TaxRuleServiceImplTest {
                 .isInstanceOfSatisfying(
                         InvalidTaxRuleOptionException.class,
                         exception -> assertThat(exception.optionTypeCode()).isEqualTo(optionTypeCode));
+    }
+
+    private void assertInvalidStoredTaxExemptions(List<TaxExemptionEntity> taxExemptions, String taxExemptionTypeCode) {
+        givenStoredTaxRuleSetWithTaxExemptions(taxExemptions);
+
+        assertThatThrownBy(() -> taxRuleService.getApplicableTaxRuleSets(CITY_CODE, Set.of(CALCULATION_DATE)))
+                .isInstanceOfSatisfying(
+                        InvalidTaxExemptionException.class, exception -> assertThat(exception.taxExemptionTypeCode())
+                                .isEqualTo(taxExemptionTypeCode));
     }
 }

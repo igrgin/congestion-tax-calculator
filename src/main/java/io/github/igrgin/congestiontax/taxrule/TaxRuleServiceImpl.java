@@ -4,13 +4,18 @@ import io.github.igrgin.congestiontax.domain.TaxAmount;
 import io.github.igrgin.congestiontax.domain.VehicleType;
 import io.github.igrgin.congestiontax.domain.rule.ChargeWindow;
 import io.github.igrgin.congestiontax.domain.rule.DailyMaximum;
+import io.github.igrgin.congestiontax.domain.rule.HolidayPreceding;
+import io.github.igrgin.congestiontax.domain.rule.MonthTaxExemption;
+import io.github.igrgin.congestiontax.domain.rule.PublicHolidayTaxExemption;
 import io.github.igrgin.congestiontax.domain.rule.TaxExemption;
 import io.github.igrgin.congestiontax.domain.rule.TaxExemptions;
 import io.github.igrgin.congestiontax.domain.rule.TaxRuleOption;
 import io.github.igrgin.congestiontax.domain.rule.TaxRuleOptions;
 import io.github.igrgin.congestiontax.domain.rule.TaxRuleSet;
+import io.github.igrgin.congestiontax.domain.rule.VehicleTypeTaxExemption;
 import io.github.igrgin.congestiontax.domain.rule.WeekdayTaxExemption;
 import io.github.igrgin.congestiontax.taxrule.exception.InvalidCityTimeZoneException;
+import io.github.igrgin.congestiontax.taxrule.exception.InvalidTaxExemptionException;
 import io.github.igrgin.congestiontax.taxrule.exception.InvalidTaxRuleOptionException;
 import io.github.igrgin.congestiontax.taxrule.exception.MissingApplicableTaxRuleSetException;
 import io.github.igrgin.congestiontax.taxrule.exception.MissingTaxTimeBandsException;
@@ -35,6 +40,7 @@ import io.github.igrgin.congestiontax.taxrule.persistence.VehicleTypeRepository;
 import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.LocalDate;
+import java.time.Month;
 import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.Currency;
@@ -161,22 +167,84 @@ public class TaxRuleServiceImpl implements TaxRuleService {
                 taxRuleOptionsByRuleSetId.getOrDefault(taxRuleSetEntity.getId(), List.of()),
                 Currency.getInstance(taxRuleSetEntity.getCurrencyCode()));
 
-        var taxExemptions =
-                mapTaxExemptions(taxExemptionsByRuleSetId.getOrDefault(taxRuleSetEntity.getId(), List.of()));
+        var taxExemptionEntities = taxExemptionsByRuleSetId.getOrDefault(taxRuleSetEntity.getId(), List.of());
+        var taxExemptions = mapTaxExemptions(taxExemptionEntities);
+        validateHolidayPrecedingRelation(taxRuleOptions, taxExemptionEntities);
 
         return taxRuleSetEntity.toTaxRuleSet(cityCode, taxTimeBandEntities, taxExemptions, taxRuleOptions);
     }
 
     private static TaxExemptions mapTaxExemptions(List<TaxExemptionEntity> taxExemptionEntities) {
+        for (var entity : taxExemptionEntities) {
+            validateTaxExemption(entity);
+        }
+
         var taxExemptions = taxExemptionEntities.stream()
-                .<TaxExemption>mapMulti((entity, consumer) -> {
-                    if (entity.getType() == TaxExemptionType.WEEKDAY) {
-                        consumer.accept(new WeekdayTaxExemption(DayOfWeek.of(entity.getDayOfWeek())));
-                    }
+                .<TaxExemption>map(entity -> switch (entity.getType()) {
+                    case WEEKDAY -> new WeekdayTaxExemption(DayOfWeek.of(entity.getDayOfWeek()));
+                    case MONTH -> new MonthTaxExemption(Month.of(entity.getMonthNumber()));
+                    case PUBLIC_HOLIDAY -> new PublicHolidayTaxExemption(entity.getHolidayDate());
+                    case VEHICLE_TYPE -> new VehicleTypeTaxExemption(entity.getVehicleTypeCode());
                 })
                 .toList();
 
+        var uniqueTaxExemptions = new HashSet<TaxExemption>();
+        for (var index = 0; index < taxExemptions.size(); index++) {
+            if (!uniqueTaxExemptions.add(taxExemptions.get(index))) {
+                throw new InvalidTaxExemptionException(
+                        taxExemptionEntities.get(index).getType().name());
+            }
+        }
+
         return new TaxExemptions(taxExemptions);
+    }
+
+    private static void validateTaxExemption(TaxExemptionEntity entity) {
+        if (entity.getType() == null) {
+            throw new InvalidTaxExemptionException("UNKNOWN");
+        }
+
+        var valid =
+                switch (entity.getType()) {
+                    case WEEKDAY ->
+                        entity.getDayOfWeek() != null
+                                && entity.getDayOfWeek() >= 1
+                                && entity.getDayOfWeek() <= 7
+                                && entity.getMonthNumber() == null
+                                && entity.getHolidayDate() == null
+                                && entity.getVehicleTypeCode() == null;
+                    case MONTH ->
+                        entity.getDayOfWeek() == null
+                                && entity.getMonthNumber() != null
+                                && entity.getMonthNumber() >= 1
+                                && entity.getMonthNumber() <= 12
+                                && entity.getHolidayDate() == null
+                                && entity.getVehicleTypeCode() == null;
+                    case PUBLIC_HOLIDAY ->
+                        entity.getDayOfWeek() == null
+                                && entity.getMonthNumber() == null
+                                && entity.getHolidayDate() != null
+                                && entity.getVehicleTypeCode() == null;
+                    case VEHICLE_TYPE ->
+                        entity.getDayOfWeek() == null
+                                && entity.getMonthNumber() == null
+                                && entity.getHolidayDate() == null
+                                && entity.getVehicleTypeCode() != null
+                                && !entity.getVehicleTypeCode().isBlank();
+                };
+
+        if (!valid) {
+            throw new InvalidTaxExemptionException(entity.getType().name());
+        }
+    }
+
+    private static void validateHolidayPrecedingRelation(
+            TaxRuleOptions taxRuleOptions, List<TaxExemptionEntity> taxExemptionEntities) {
+        if (taxRuleOptions.holidayPreceding().isPresent()
+                && taxExemptionEntities.stream()
+                        .noneMatch(entity -> entity.getType() == TaxExemptionType.PUBLIC_HOLIDAY)) {
+            throw new InvalidTaxExemptionException(TaxExemptionType.PUBLIC_HOLIDAY.name());
+        }
     }
 
     private static TaxRuleOptions mapTaxRuleOptions(
@@ -191,6 +259,9 @@ public class TaxRuleServiceImpl implements TaxRuleService {
                     } else if (entity.getType() == TaxRuleOptionType.DAILY_MAXIMUM) {
                         validateDailyMaximum(entity);
                         consumer.accept(new DailyMaximum(new TaxAmount(entity.getAmount(), currency)));
+                    } else if (entity.getType() == TaxRuleOptionType.HOLIDAY_PRECEDING) {
+                        validateHolidayPreceding(entity);
+                        consumer.accept(new HolidayPreceding(entity.getPrecedingDays()));
                     }
                 })
                 .toList();
@@ -226,6 +297,15 @@ public class TaxRuleServiceImpl implements TaxRuleService {
                 || entity.getAmount().signum() <= 0
                 || entity.getDurationMinutes() != null
                 || entity.getPrecedingDays() != null) {
+            throw new InvalidTaxRuleOptionException(entity.getType().name());
+        }
+    }
+
+    private static void validateHolidayPreceding(TaxRuleOptionEntity entity) {
+        if (entity.getPrecedingDays() == null
+                || entity.getPrecedingDays() <= 0
+                || entity.getAmount() != null
+                || entity.getDurationMinutes() != null) {
             throw new InvalidTaxRuleOptionException(entity.getType().name());
         }
     }
