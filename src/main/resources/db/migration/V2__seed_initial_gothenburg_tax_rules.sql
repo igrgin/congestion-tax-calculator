@@ -6,7 +6,6 @@ VALUES ('OTHER', 'Other vehicle');
 
 INSERT INTO tax_rule_set (
     city_id,
-    effective_from,
     currency_code
 )
 VALUES (
@@ -15,7 +14,6 @@ VALUES (
         FROM city
         WHERE code = 'gothenburg'
     ),
-    DATE '2013-01-01',
     'SEK'
 );
 
@@ -32,7 +30,6 @@ VALUES (
         JOIN city
             ON city.id = tax_rule_set.city_id
         WHERE city.code = 'gothenburg'
-          AND tax_rule_set.effective_from = DATE '2013-01-01'
     ),
     TIME '06:00:00',
     TIME '06:30:00',

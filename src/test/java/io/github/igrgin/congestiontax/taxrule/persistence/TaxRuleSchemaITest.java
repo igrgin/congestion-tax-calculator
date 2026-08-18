@@ -16,7 +16,9 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.ArgumentsProvider;
 import org.junit.jupiter.params.provider.ArgumentsSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.support.ParameterDeclarations;
+import org.postgresql.util.PSQLException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -56,7 +58,7 @@ class TaxRuleSchemaITest {
         long cityId = insertCity("schema-city");
         insertVehicleType("SCHEMA_VEHICLE");
 
-        long ruleSetId = insertTaxRuleSet(cityId, LocalDate.of(2020, Month.JANUARY, 1));
+        long ruleSetId = insertTaxRuleSet(cityId);
 
         insertTaxTimeBand(ruleSetId, LocalTime.of(6, 0), LocalTime.of(6, 30), new BigDecimal("8.00"));
 
@@ -76,7 +78,7 @@ class TaxRuleSchemaITest {
     void acceptsValidTaxExemptionRowsAndDefinesClosedTypeVocabulary() {
         long cityId = insertCity("valid-tax-exemptions");
         insertVehicleType("VALID_EXEMPT_VEHICLE");
-        long ruleSetId = insertTaxRuleSet(cityId, LocalDate.of(2020, Month.JANUARY, 1));
+        long ruleSetId = insertTaxRuleSet(cityId);
 
         insertTaxExemption(ruleSetId, "WEEKDAY", (short) 1, null, null, null);
         insertTaxExemption(ruleSetId, "MONTH", null, (short) 12, null, null);
@@ -103,7 +105,7 @@ class TaxRuleSchemaITest {
             String vehicleTypeCode) {
         long cityId = insertCity("invalid-exemption-shape-" + scenario);
         insertVehicleType("SHAPE_VEHICLE");
-        long ruleSetId = insertTaxRuleSet(cityId, LocalDate.of(2020, Month.JANUARY, 1));
+        long ruleSetId = insertTaxRuleSet(cityId);
 
         assertThatThrownBy(() ->
                         insertTaxExemption(ruleSetId, typeCode, dayOfWeek, monthNumber, holidayDate, vehicleTypeCode))
@@ -115,7 +117,7 @@ class TaxRuleSchemaITest {
     void rejectsTaxExemptionValueOutsideAcceptedRange(
             String scenario, String typeCode, Short dayOfWeek, Short monthNumber) {
         long cityId = insertCity("invalid-exemption-range-" + scenario);
-        long ruleSetId = insertTaxRuleSet(cityId, LocalDate.of(2020, Month.JANUARY, 1));
+        long ruleSetId = insertTaxRuleSet(cityId);
 
         assertThatThrownBy(() -> insertTaxExemption(ruleSetId, typeCode, dayOfWeek, monthNumber, null, null))
                 .isInstanceOf(DataIntegrityViolationException.class);
@@ -130,7 +132,7 @@ class TaxRuleSchemaITest {
     @Test
     void rejectsUnknownTaxExemptionType() {
         long cityId = insertCity("unknown-exemption-type");
-        long ruleSetId = insertTaxRuleSet(cityId, LocalDate.of(2020, Month.JANUARY, 1));
+        long ruleSetId = insertTaxRuleSet(cityId);
 
         assertThatThrownBy(() -> insertTaxExemption(ruleSetId, "UNKNOWN", null, null, null, null))
                 .isInstanceOf(DataIntegrityViolationException.class);
@@ -139,7 +141,7 @@ class TaxRuleSchemaITest {
     @Test
     void rejectsVehicleTypeTaxExemptionForUnknownVehicleType() {
         long cityId = insertCity("unknown-exempt-vehicle");
-        long ruleSetId = insertTaxRuleSet(cityId, LocalDate.of(2020, Month.JANUARY, 1));
+        long ruleSetId = insertTaxRuleSet(cityId);
 
         assertThatThrownBy(() -> insertTaxExemption(ruleSetId, "VEHICLE_TYPE", null, null, null, "UNKNOWN_VEHICLE"))
                 .isInstanceOf(DataIntegrityViolationException.class);
@@ -156,7 +158,7 @@ class TaxRuleSchemaITest {
             String vehicleTypeCode) {
         long cityId = insertCity("duplicate-exemption-" + scenario);
         insertVehicleType("DUPLICATE_EXEMPT_VEHICLE");
-        long ruleSetId = insertTaxRuleSet(cityId, LocalDate.of(2020, Month.JANUARY, 1));
+        long ruleSetId = insertTaxRuleSet(cityId);
 
         insertTaxExemption(ruleSetId, typeCode, dayOfWeek, monthNumber, holidayDate, vehicleTypeCode);
 
@@ -174,21 +176,16 @@ class TaxRuleSchemaITest {
 
     @Test
     void rejectsTaxRuleSetForUnknownCity() {
-        LocalDate effectiveFrom = LocalDate.of(2020, Month.JANUARY, 1);
-
-        assertThatThrownBy(() -> insertTaxRuleSet(Long.MAX_VALUE, effectiveFrom))
-                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> insertTaxRuleSet(Long.MAX_VALUE)).isInstanceOf(DataIntegrityViolationException.class);
     }
 
     @Test
-    void rejectsSecondTaxRuleSetForSameCityAndDate() {
-        long cityId = insertCity("duplicate-rule-date");
-        LocalDate effectiveFrom = LocalDate.of(2020, Month.JANUARY, 1);
+    void rejectsSecondTaxRuleSetForSameCity() {
+        long cityId = insertCity("duplicate-city-rule-set");
 
-        insertTaxRuleSet(cityId, effectiveFrom);
+        insertTaxRuleSet(cityId);
 
-        assertThatThrownBy(() -> insertTaxRuleSet(cityId, effectiveFrom))
-                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> insertTaxRuleSet(cityId)).isInstanceOf(DataIntegrityViolationException.class);
     }
 
     @Test
@@ -201,33 +198,61 @@ class TaxRuleSchemaITest {
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
-    @ParameterizedTest
-    @ArgumentsSource(NonPositiveAmounts.class)
-    void rejectsNonPositiveTaxTimeBandAmount(BigDecimal amount) {
-        long cityId = insertCity("invalid-band-amount-" + amount.abs());
-        long ruleSetId = insertTaxRuleSet(cityId, LocalDate.of(2020, Month.JANUARY, 1));
+    @Test
+    void rejectsNegativeTaxTimeBandAmount() {
+        long cityId = insertCity("negative-band-amount");
+        long ruleSetId = insertTaxRuleSet(cityId);
         LocalTime startTime = LocalTime.of(6, 0);
         LocalTime endTime = LocalTime.of(6, 30);
 
-        assertThatThrownBy(() -> insertTaxTimeBand(ruleSetId, startTime, endTime, amount))
+        assertThatThrownBy(() -> insertTaxTimeBand(ruleSetId, startTime, endTime, new BigDecimal("-1.00")))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
-    @ParameterizedTest
-    @ArgumentsSource(InvalidTimeBands.class)
-    void rejectsTaxTimeBandThatDoesNotEndAfterItsStart(LocalTime startTime, LocalTime endTime) {
-        long cityId = insertCity("invalid-band-" + startTime + "-" + endTime);
-        long ruleSetId = insertTaxRuleSet(cityId, LocalDate.of(2020, Month.JANUARY, 1));
-        BigDecimal amount = new BigDecimal("8.00");
+    @Test
+    void acceptsZeroTaxTimeBandAmount() {
+        long cityId = insertCity("zero-band-amount");
+        long ruleSetId = insertTaxRuleSet(cityId);
 
-        assertThatThrownBy(() -> insertTaxTimeBand(ruleSetId, startTime, endTime, amount))
-                .isInstanceOf(DataIntegrityViolationException.class);
+        insertTaxTimeBand(ruleSetId, LocalTime.of(6, 0), LocalTime.of(6, 30), BigDecimal.ZERO);
+
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM tax_time_band WHERE rule_set_id = ?", Integer.class, ruleSetId);
+
+        assertThat(count).isEqualTo(1);
+    }
+
+    @Test
+    void acceptsFullDayTaxTimeBandWithEqualBoundaries() {
+        long cityId = insertCity("equal-band-boundaries");
+        long ruleSetId = insertTaxRuleSet(cityId);
+        LocalTime boundary = LocalTime.of(6, 0);
+
+        insertTaxTimeBand(ruleSetId, boundary, boundary, new BigDecimal("8.00"));
+
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM tax_time_band WHERE rule_set_id = ?", Integer.class, ruleSetId);
+
+        assertThat(count).isEqualTo(1);
+    }
+
+    @Test
+    void acceptsCrossMidnightTaxTimeBand() {
+        long cityId = insertCity("cross-midnight-band");
+        long ruleSetId = insertTaxRuleSet(cityId);
+
+        insertTaxTimeBand(ruleSetId, LocalTime.of(18, 30), LocalTime.of(6, 0), new BigDecimal("8.00"));
+
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM tax_time_band WHERE rule_set_id = ?", Integer.class, ruleSetId);
+
+        assertThat(count).isEqualTo(1);
     }
 
     @Test
     void rejectsDuplicateTaxTimeBandForOneTaxRuleSet() {
         long cityId = insertCity("duplicate-time-band");
-        long ruleSetId = insertTaxRuleSet(cityId, LocalDate.of(2020, Month.JANUARY, 1));
+        long ruleSetId = insertTaxRuleSet(cityId);
         LocalTime startTime = LocalTime.of(6, 0);
         LocalTime endTime = LocalTime.of(6, 30);
         BigDecimal duplicateAmount = new BigDecimal("13.00");
@@ -236,6 +261,39 @@ class TaxRuleSchemaITest {
 
         assertThatThrownBy(() -> insertTaxTimeBand(ruleSetId, startTime, endTime, duplicateAmount))
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("overlappingTaxTimeBands")
+    void rejectsEveryTaxTimeBandOverlapShape(
+            String scenario, LocalTime firstStart, LocalTime firstEnd, LocalTime secondStart, LocalTime secondEnd) {
+        long cityId = insertCity("overlap-" + scenario);
+        long ruleSetId = insertTaxRuleSet(cityId);
+
+        assertThatThrownBy(() -> {
+                    insertTaxTimeBand(ruleSetId, firstStart, firstEnd, new BigDecimal("8.00"));
+                    insertTaxTimeBand(ruleSetId, secondStart, secondEnd, new BigDecimal("13.00"));
+                })
+                .isInstanceOfSatisfying(
+                        DataIntegrityViolationException.class, exception -> assertThat(exception.getRootCause())
+                                .isInstanceOfSatisfying(PSQLException.class, cause -> assertThat(cause.getSQLState())
+                                        .isEqualTo("23P01")));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("nonOverlappingTaxTimeBands")
+    void acceptsNonOverlappingTaxTimeBands(
+            String scenario, LocalTime firstStart, LocalTime firstEnd, LocalTime secondStart, LocalTime secondEnd) {
+        long cityId = insertCity("non-overlap-" + scenario);
+        long ruleSetId = insertTaxRuleSet(cityId);
+
+        insertTaxTimeBand(ruleSetId, firstStart, firstEnd, new BigDecimal("8.00"));
+        insertTaxTimeBand(ruleSetId, secondStart, secondEnd, new BigDecimal("13.00"));
+
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM tax_time_band WHERE rule_set_id = ?", Integer.class, ruleSetId);
+
+        assertThat(count).isEqualTo(2);
     }
 
     @Test
@@ -249,7 +307,7 @@ class TaxRuleSchemaITest {
     @Test
     void rejectsDuplicateTaxRuleOptionTypeForOneTaxRuleSet() {
         long cityId = insertCity("duplicate-option");
-        long ruleSetId = insertTaxRuleSet(cityId, LocalDate.of(2020, Month.JANUARY, 1));
+        long ruleSetId = insertTaxRuleSet(cityId);
         BigDecimal duplicateAmount = new BigDecimal("70.00");
 
         insertTaxRuleOption(ruleSetId, "DAILY_MAXIMUM", new BigDecimal("60.00"), null, null);
@@ -263,7 +321,7 @@ class TaxRuleSchemaITest {
     void rejectsInvalidTaxRuleOptionValue(
             String scenario, String typeCode, BigDecimal amount, Integer durationMinutes, Short precedingDays) {
         long cityId = insertCity("invalid-option-" + scenario);
-        long ruleSetId = insertTaxRuleSet(cityId, LocalDate.of(2020, Month.JANUARY, 1));
+        long ruleSetId = insertTaxRuleSet(cityId);
 
         assertThatThrownBy(() -> insertTaxRuleOption(ruleSetId, typeCode, amount, durationMinutes, precedingDays))
                 .isInstanceOf(DataIntegrityViolationException.class);
@@ -296,12 +354,12 @@ class TaxRuleSchemaITest {
                 """, code, "Schema test Vehicle Type");
     }
 
-    private long insertTaxRuleSet(long cityId, LocalDate effectiveFrom) {
+    private long insertTaxRuleSet(long cityId) {
         return jdbcTemplate.queryForObject("""
-                INSERT INTO tax_rule_set (city_id, effective_from, currency_code)
-                VALUES (?, ?, ?)
+                INSERT INTO tax_rule_set (city_id, currency_code)
+                VALUES (?, ?)
                 RETURNING id
-                """, Long.class, cityId, effectiveFrom, "EUR");
+                """, Long.class, cityId, "EUR");
     }
 
     private void insertTaxTimeBand(long ruleSetId, LocalTime startTime, LocalTime endTime, BigDecimal amount) {
@@ -350,24 +408,40 @@ class TaxRuleSchemaITest {
                 """, ruleSetId, typeCode, dayOfWeek, monthNumber, holidayDate, vehicleTypeCode);
     }
 
-    private static final class NonPositiveAmounts implements ArgumentsProvider {
-
-        @Override
-        public Stream<? extends Arguments> provideArguments(
-                ParameterDeclarations parameters, ExtensionContext context) {
-            return Stream.of(Arguments.of(new BigDecimal("0.00")), Arguments.of(new BigDecimal("-1.00")));
-        }
+    private static Stream<Arguments> overlappingTaxTimeBands() {
+        return Stream.of(
+                Arguments.of(
+                        "partial-same-date",
+                        LocalTime.of(6, 0),
+                        LocalTime.of(8, 0),
+                        LocalTime.of(7, 0),
+                        LocalTime.of(9, 0)),
+                Arguments.of("nested", LocalTime.of(6, 0), LocalTime.of(9, 0), LocalTime.of(7, 0), LocalTime.of(8, 0)),
+                Arguments.of(
+                        "cross-midnight",
+                        LocalTime.of(18, 30),
+                        LocalTime.of(6, 0),
+                        LocalTime.of(5, 0),
+                        LocalTime.of(7, 0)),
+                Arguments.of(
+                        "full-day-and-another-band",
+                        LocalTime.of(7, 0),
+                        LocalTime.of(8, 0),
+                        LocalTime.of(6, 0),
+                        LocalTime.of(6, 0)),
+                Arguments.of(
+                        "two-full-day-bands",
+                        LocalTime.of(6, 0),
+                        LocalTime.of(6, 0),
+                        LocalTime.of(12, 0),
+                        LocalTime.of(12, 0)));
     }
 
-    private static final class InvalidTimeBands implements ArgumentsProvider {
-
-        @Override
-        public Stream<? extends Arguments> provideArguments(
-                ParameterDeclarations parameters, ExtensionContext context) {
-            return Stream.of(
-                    Arguments.of(LocalTime.of(6, 0), LocalTime.of(6, 0)),
-                    Arguments.of(LocalTime.of(6, 30), LocalTime.of(6, 0)));
-        }
+    private static Stream<Arguments> nonOverlappingTaxTimeBands() {
+        return Stream.of(
+                Arguments.of(
+                        "adjacent", LocalTime.of(6, 0), LocalTime.of(7, 0), LocalTime.of(7, 0), LocalTime.of(8, 0)),
+                Arguments.of("gap", LocalTime.of(6, 0), LocalTime.of(7, 0), LocalTime.of(8, 0), LocalTime.of(9, 0)));
     }
 
     private static final class InvalidTaxRuleOptions implements ArgumentsProvider {

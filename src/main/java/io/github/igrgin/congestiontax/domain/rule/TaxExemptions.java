@@ -7,6 +7,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import lombok.EqualsAndHashCode;
@@ -18,7 +19,8 @@ public final class TaxExemptions {
     private final List<TaxExemption> exemptions;
 
     public TaxExemptions(@NonNull List<TaxExemption> exemptions) {
-        this.exemptions = List.copyOf(exemptions);
+        exemptions.forEach(Objects::requireNonNull);
+        this.exemptions = exemptions;
         if (new HashSet<>(this.exemptions).size() != this.exemptions.size()) {
             throw new IllegalArgumentException("Tax Exemptions must not contain duplicate values.");
         }

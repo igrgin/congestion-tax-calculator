@@ -1,5 +1,7 @@
 # Issue 3: Calculate One Passage from Stored Tax Rules
 
+> This document records the issue 3 plan. ADR-0009 and issue 5 supersede its effective-dated Tax Rule Set design. The current design stores one Tax Rule Set for each City.
+
 ## Purpose
 
 Issue 3 adds the first complete Congestion Tax Calculation path.

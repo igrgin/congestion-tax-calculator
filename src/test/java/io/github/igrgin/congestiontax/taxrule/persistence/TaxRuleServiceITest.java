@@ -20,8 +20,7 @@ import io.github.igrgin.congestiontax.domain.rule.WeekdayTaxExemption;
 import io.github.igrgin.congestiontax.taxrule.TaxRuleService;
 import io.github.igrgin.congestiontax.taxrule.exception.InvalidCityTimeZoneException;
 import io.github.igrgin.congestiontax.taxrule.exception.MissingTaxTimeBandsException;
-import io.github.igrgin.congestiontax.taxrule.exception.OverlappingTaxTimeBandsException;
-import io.github.igrgin.congestiontax.taxrule.model.ApplicableTaxRuleSets;
+import io.github.igrgin.congestiontax.taxrule.model.CityTaxRuleSet;
 import java.math.BigDecimal;
 import java.time.DayOfWeek;
 import java.time.Duration;
@@ -32,8 +31,6 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Currency;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -103,55 +100,36 @@ class TaxRuleServiceITest {
     }
 
     @Test
-    void loadsApplicableTaxRuleSetsForSelectedCityAndDates() {
+    void loadsTaxRuleSetForSelectedCity() {
         var cityCode = "tax-rule-service-city";
         var cityId = insertCity(cityCode, "Europe/Stockholm");
         var otherCityId = insertCity("tax-rule-service-other-city", "Europe/Zagreb");
 
-        var firstRuleSetId = insertTaxRuleSet(cityId, LocalDate.of(2013, Month.JANUARY, 1));
-        var secondRuleSetId = insertTaxRuleSet(cityId, LocalDate.of(2013, Month.FEBRUARY, 15));
-        var futureRuleSetId = insertTaxRuleSet(cityId, LocalDate.of(2013, Month.APRIL, 1));
-        var otherCityRuleSetId = insertTaxRuleSet(otherCityId, LocalDate.of(2013, Month.FEBRUARY, 20));
+        var ruleSetId = insertTaxRuleSet(cityId);
+        var otherCityRuleSetId = insertTaxRuleSet(otherCityId);
 
-        insertTaxTimeBand(firstRuleSetId, new BigDecimal("8.00"));
-        insertTaxTimeBand(secondRuleSetId, new BigDecimal("13.00"));
-        insertTaxTimeBand(futureRuleSetId, new BigDecimal("18.00"));
+        insertTaxTimeBand(ruleSetId, new BigDecimal("8.00"));
         insertTaxTimeBand(otherCityRuleSetId, new BigDecimal("99.00"));
 
-        var firstCalculationDate = LocalDate.of(2013, Month.FEBRUARY, 8);
-        var secondCalculationDate = LocalDate.of(2013, Month.MARCH, 1);
-
-        var result =
-                taxRuleService.getApplicableTaxRuleSets(cityCode, Set.of(firstCalculationDate, secondCalculationDate));
+        var result = taxRuleService.getCityTaxRuleSet(cityCode);
 
         assertThat(result)
-                .isEqualTo(new ApplicableTaxRuleSets(
-                        ZoneId.of("Europe/Stockholm"),
-                        Map.of(
-                                firstCalculationDate,
-                                taxRuleSet(cityCode, LocalDate.of(2013, Month.JANUARY, 1), new BigDecimal("8.00")),
-                                secondCalculationDate,
-                                taxRuleSet(
-                                        cityCode, LocalDate.of(2013, Month.FEBRUARY, 15), new BigDecimal("13.00")))));
+                .isEqualTo(new CityTaxRuleSet(
+                        ZoneId.of("Europe/Stockholm"), taxRuleSet(cityCode, new BigDecimal("8.00"))));
     }
 
     @Test
     void loadsStoredChargeWindow() {
         var cityCode = "tax-rule-service-charge-window";
         var cityId = insertCity(cityCode, "Europe/Stockholm");
-        var effectiveFrom = LocalDate.of(2013, Month.JANUARY, 1);
-        var calculationDate = LocalDate.of(2013, Month.FEBRUARY, 8);
-        var ruleSetId = insertTaxRuleSet(cityId, effectiveFrom);
+        var ruleSetId = insertTaxRuleSet(cityId);
 
         insertTaxTimeBand(ruleSetId, new BigDecimal("8.00"));
         insertChargeWindow(ruleSetId, 60);
 
-        var result = taxRuleService.getApplicableTaxRuleSets(cityCode, Set.of(calculationDate));
+        var result = taxRuleService.getCityTaxRuleSet(cityCode);
 
-        assertThat(result.taxRuleSetsByCalculationDate()
-                        .get(calculationDate)
-                        .taxRuleOptions()
-                        .chargeWindow())
+        assertThat(result.taxRuleSet().taxRuleOptions().chargeWindow())
                 .contains(new ChargeWindow(Duration.ofMinutes(60)));
     }
 
@@ -159,19 +137,14 @@ class TaxRuleServiceITest {
     void loadsStoredDailyMaximum() {
         var cityCode = "tax-rule-service-daily-maximum";
         var cityId = insertCity(cityCode, "Europe/Stockholm");
-        var effectiveFrom = LocalDate.of(2013, Month.JANUARY, 1);
-        var calculationDate = LocalDate.of(2013, Month.FEBRUARY, 8);
-        var ruleSetId = insertTaxRuleSet(cityId, effectiveFrom);
+        var ruleSetId = insertTaxRuleSet(cityId);
 
         insertTaxTimeBand(ruleSetId, new BigDecimal("8.00"));
         insertDailyMaximum(ruleSetId, new BigDecimal("60.00"));
 
-        var result = taxRuleService.getApplicableTaxRuleSets(cityCode, Set.of(calculationDate));
+        var result = taxRuleService.getCityTaxRuleSet(cityCode);
 
-        assertThat(result.taxRuleSetsByCalculationDate()
-                        .get(calculationDate)
-                        .taxRuleOptions()
-                        .dailyMaximum())
+        assertThat(result.taxRuleSet().taxRuleOptions().dailyMaximum())
                 .contains(new DailyMaximum(new TaxAmount(new BigDecimal("60.00"), SEK)));
     }
 
@@ -179,10 +152,8 @@ class TaxRuleServiceITest {
     void loadsCompleteTypedTaxExemptionsAndPublicHolidayPrecedingDateOption() {
         var cityCode = "tax-rule-service-exemptions";
         var cityId = insertCity(cityCode, "Europe/Stockholm");
-        var effectiveFrom = LocalDate.of(2013, Month.JANUARY, 1);
-        var calculationDate = LocalDate.of(2013, Month.FEBRUARY, 8);
         var publicHoliday = LocalDate.of(2013, Month.DECEMBER, 25);
-        var ruleSetId = insertTaxRuleSet(cityId, effectiveFrom);
+        var ruleSetId = insertTaxRuleSet(cityId);
 
         insertTaxTimeBand(ruleSetId, new BigDecimal("8.00"));
         insertWeekdayTaxExemption(ruleSetId, 6);
@@ -191,10 +162,9 @@ class TaxRuleServiceITest {
         insertVehicleTypeTaxExemption(ruleSetId, "OTHER");
         insertPublicHolidayPrecedingDateOption(ruleSetId, 1);
 
-        var result = taxRuleService.getApplicableTaxRuleSets(cityCode, Set.of(calculationDate));
+        var result = taxRuleService.getCityTaxRuleSet(cityCode);
         var expectedRuleSet = new TaxRuleSet(
                 cityCode,
-                effectiveFrom,
                 SEK,
                 List.of(new TaxTimeBand(
                         LocalTime.of(6, 0), LocalTime.of(6, 30), new TaxAmount(new BigDecimal("8.00"), SEK))),
@@ -205,44 +175,32 @@ class TaxRuleServiceITest {
                         new VehicleTypeTaxExemption("OTHER"))),
                 new TaxRuleOptions(List.of(new PublicHolidayPrecedingDateOption(1))));
 
-        assertThat(result)
-                .isEqualTo(new ApplicableTaxRuleSets(
-                        ZoneId.of("Europe/Stockholm"), Map.of(calculationDate, expectedRuleSet)));
+        assertThat(result).isEqualTo(new CityTaxRuleSet(ZoneId.of("Europe/Stockholm"), expectedRuleSet));
+    }
+
+    @Test
+    void loadsSeededSupportingPublicHoliday() {
+        assertThat(taxRuleService.getCityTaxRuleSet("gothenburg").taxRuleSet().taxExemptions())
+                .isEqualTo(new TaxExemptions(
+                        List.of(new PublicHolidayTaxExemption(LocalDate.of(2014, Month.JANUARY, 1)))));
     }
 
     @Test
     void rejectsStoredTaxRuleSetWithoutTaxTimeBands() {
         var cityCode = "tax-rule-service-missing-bands";
         var cityId = insertCity(cityCode, "Europe/Stockholm");
-        var calculationDates = Set.of(LocalDate.of(2013, Month.FEBRUARY, 8));
+        insertTaxRuleSet(cityId);
 
-        insertTaxRuleSet(cityId, LocalDate.of(2013, Month.JANUARY, 1));
-
-        assertThatThrownBy(() -> taxRuleService.getApplicableTaxRuleSets(cityCode, calculationDates))
+        assertThatThrownBy(() -> taxRuleService.getCityTaxRuleSet(cityCode))
                 .isInstanceOf(MissingTaxTimeBandsException.class);
-    }
-
-    @Test
-    void rejectsStoredOverlappingTaxTimeBands() {
-        var cityCode = "tax-rule-service-overlap";
-        var cityId = insertCity(cityCode, "Europe/Stockholm");
-        var ruleSetId = insertTaxRuleSet(cityId, LocalDate.of(2013, Month.JANUARY, 1));
-        var calculationDates = Set.of(LocalDate.of(2013, Month.FEBRUARY, 8));
-
-        insertTaxTimeBand(ruleSetId, LocalTime.of(6, 0), LocalTime.of(6, 30), new BigDecimal("8.00"));
-        insertTaxTimeBand(ruleSetId, LocalTime.of(6, 15), LocalTime.of(7, 0), new BigDecimal("13.00"));
-
-        assertThatThrownBy(() -> taxRuleService.getApplicableTaxRuleSets(cityCode, calculationDates))
-                .isInstanceOf(OverlappingTaxTimeBandsException.class);
     }
 
     @Test
     void rejectsInvalidStoredCityTimeZone() {
         var cityCode = "tax-rule-service-invalid-time-zone";
-        var calculationDates = Set.of(LocalDate.of(2013, Month.FEBRUARY, 8));
         insertCity(cityCode, "Mars/Olympus");
 
-        assertThatThrownBy(() -> taxRuleService.getApplicableTaxRuleSets(cityCode, calculationDates))
+        assertThatThrownBy(() -> taxRuleService.getCityTaxRuleSet(cityCode))
                 .isInstanceOf(InvalidCityTimeZoneException.class);
     }
 
@@ -262,16 +220,15 @@ class TaxRuleServiceITest {
         return cityId;
     }
 
-    private long insertTaxRuleSet(long cityId, LocalDate effectiveFrom) {
+    private long insertTaxRuleSet(long cityId) {
         return jdbcTemplate.queryForObject("""
                 INSERT INTO tax_rule_set (
                     city_id,
-                    effective_from,
                     currency_code
                 )
-                VALUES (?, ?, ?)
+                VALUES (?, ?)
                 RETURNING id
-                """, Long.class, cityId, effectiveFrom, SEK.getCurrencyCode());
+                """, Long.class, cityId, SEK.getCurrencyCode());
     }
 
     private void insertTaxTimeBand(long ruleSetId, BigDecimal amount) {
@@ -367,10 +324,9 @@ class TaxRuleServiceITest {
                 """, ruleSetId, precedingDays);
     }
 
-    private static TaxRuleSet taxRuleSet(String cityCode, LocalDate effectiveFrom, BigDecimal amount) {
+    private static TaxRuleSet taxRuleSet(String cityCode, BigDecimal amount) {
         return new TaxRuleSet(
                 cityCode,
-                effectiveFrom,
                 SEK,
                 List.of(new TaxTimeBand(LocalTime.of(6, 0), LocalTime.of(6, 30), new TaxAmount(amount, SEK))));
     }

@@ -11,7 +11,6 @@ import lombok.NonNull;
 
 public record TaxRuleSet(
         @NonNull String cityCode,
-        @NonNull LocalDate effectiveFrom,
         @NonNull Currency currency,
         @NonNull List<TaxTimeBand> taxTimeBands,
         @NonNull TaxExemptions taxExemptions,
@@ -23,17 +22,13 @@ public record TaxRuleSet(
         }
     }
 
-    public TaxRuleSet(String cityCode, LocalDate effectiveFrom, Currency currency, List<TaxTimeBand> taxTimeBands) {
-        this(cityCode, effectiveFrom, currency, taxTimeBands, TaxExemptions.empty(), TaxRuleOptions.empty());
+    public TaxRuleSet(String cityCode, Currency currency, List<TaxTimeBand> taxTimeBands) {
+        this(cityCode, currency, taxTimeBands, TaxExemptions.empty(), TaxRuleOptions.empty());
     }
 
     public TaxRuleSet(
-            String cityCode,
-            LocalDate effectiveFrom,
-            Currency currency,
-            List<TaxTimeBand> taxTimeBands,
-            TaxRuleOptions taxRuleOptions) {
-        this(cityCode, effectiveFrom, currency, taxTimeBands, TaxExemptions.empty(), taxRuleOptions);
+            String cityCode, Currency currency, List<TaxTimeBand> taxTimeBands, TaxRuleOptions taxRuleOptions) {
+        this(cityCode, currency, taxTimeBands, TaxExemptions.empty(), taxRuleOptions);
     }
 
     public Set<TaxExemptionReason> taxExemptionReasonsFor(VehicleType vehicleType, LocalDate date) {

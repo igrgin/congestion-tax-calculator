@@ -1,5 +1,7 @@
 # Issue 4: Calculate Charge Windows and apply the Daily Maximum
 
+> This document records the issue 4 plan. Issue 5 supersedes its City Local Time date boundary. A Charge Window can cross midnight, and ADR-0009 replaces effective-dated Tax Rule Sets with one Tax Rule Set for each City.
+
 ## Purpose
 
 Issue 4 extends the first calculation path from one Passage to several Passages. It loads optional Tax Rule Options, calculates one Daily Tax for each City Local Time date, and records the accepted Passage count.

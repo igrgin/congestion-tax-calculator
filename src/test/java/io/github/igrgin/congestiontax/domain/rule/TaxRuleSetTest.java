@@ -7,11 +7,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import io.github.igrgin.congestiontax.domain.TaxAmount;
 import io.github.igrgin.congestiontax.domain.VehicleType;
 import io.github.igrgin.congestiontax.domain.calculation.TaxExemptionReason;
+import java.lang.reflect.RecordComponent;
 import java.math.BigDecimal;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.Month;
+import java.util.Arrays;
 import java.util.Currency;
 import java.util.List;
 import java.util.Set;
@@ -23,11 +25,16 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 class TaxRuleSetTest {
 
-    private static final LocalDate EFFECTIVE_FROM = LocalDate.of(2013, Month.JANUARY, 1);
     private static final Currency CURRENCY = Currency.getInstance("SEK");
     private static final TaxTimeBand TAX_TIME_BAND =
             new TaxTimeBand(LocalTime.of(6, 0), LocalTime.of(6, 30), new TaxAmount(new BigDecimal("8.00"), CURRENCY));
     private static final VehicleType OTHER = new VehicleType("OTHER", "Other");
+
+    @Test
+    void exposesOnlyCurrentCityTaxRuleFields() {
+        assertThat(Arrays.stream(TaxRuleSet.class.getRecordComponents()).map(RecordComponent::getName))
+                .containsExactly("cityCode", "currency", "taxTimeBands", "taxExemptions", "taxRuleOptions");
+    }
 
     @Test
     void reportsEveryApplicableReasonInDeclarationOrder() {
@@ -137,25 +144,18 @@ class TaxRuleSetTest {
     void rejectsNullValues(
             String scenario,
             String cityCode,
-            LocalDate effectiveFrom,
             Currency currency,
             List<TaxTimeBand> taxTimeBands,
+            TaxExemptions taxExemptions,
             TaxRuleOptions taxRuleOptions) {
         assertThatNullPointerException()
-                .isThrownBy(() -> new TaxRuleSet(cityCode, effectiveFrom, currency, taxTimeBands, taxRuleOptions));
+                .isThrownBy(() -> new TaxRuleSet(cityCode, currency, taxTimeBands, taxExemptions, taxRuleOptions));
     }
 
     @Test
     void rejectsEmptyTaxTimeBands() {
-        assertThatThrownBy(() -> new TaxRuleSet("gothenburg", EFFECTIVE_FROM, CURRENCY, List.of()))
+        assertThatThrownBy(() -> new TaxRuleSet("gothenburg", CURRENCY, List.of()))
                 .isInstanceOf(IllegalArgumentException.class);
-    }
-
-    @Test
-    void rejectsNullTaxExemptions() {
-        assertThatNullPointerException()
-                .isThrownBy(() -> new TaxRuleSet(
-                        "gothenburg", EFFECTIVE_FROM, CURRENCY, List.of(TAX_TIME_BAND), null, TaxRuleOptions.empty()));
     }
 
     private static Stream<Arguments> nullValues() {
@@ -163,28 +163,38 @@ class TaxRuleSetTest {
                 Arguments.of(
                         "null City code",
                         null,
-                        EFFECTIVE_FROM,
                         CURRENCY,
                         List.of(TAX_TIME_BAND),
-                        TaxRuleOptions.empty()),
-                Arguments.of(
-                        "null effective date",
-                        "gothenburg",
-                        null,
-                        CURRENCY,
-                        List.of(TAX_TIME_BAND),
+                        TaxExemptions.empty(),
                         TaxRuleOptions.empty()),
                 Arguments.of(
                         "null currency",
                         "gothenburg",
-                        EFFECTIVE_FROM,
                         null,
                         List.of(TAX_TIME_BAND),
+                        TaxExemptions.empty(),
                         TaxRuleOptions.empty()),
                 Arguments.of(
-                        "null Tax Time Bands", "gothenburg", EFFECTIVE_FROM, CURRENCY, null, TaxRuleOptions.empty()),
+                        "null Tax Time Bands",
+                        "gothenburg",
+                        CURRENCY,
+                        null,
+                        TaxExemptions.empty(),
+                        TaxRuleOptions.empty()),
                 Arguments.of(
-                        "null Tax Rule Options", "gothenburg", EFFECTIVE_FROM, CURRENCY, List.of(TAX_TIME_BAND), null));
+                        "null Tax Exemptions",
+                        "gothenburg",
+                        CURRENCY,
+                        List.of(TAX_TIME_BAND),
+                        null,
+                        TaxRuleOptions.empty()),
+                Arguments.of(
+                        "null Tax Rule Options",
+                        "gothenburg",
+                        CURRENCY,
+                        List.of(TAX_TIME_BAND),
+                        TaxExemptions.empty(),
+                        null));
     }
 
     private static Stream<Arguments> publicHolidayPrecedingDateOptionBoundaries() {
@@ -232,7 +242,6 @@ class TaxRuleSetTest {
     }
 
     private static TaxRuleSet ruleSet(TaxExemptions taxExemptions, TaxRuleOptions taxRuleOptions) {
-        return new TaxRuleSet(
-                "gothenburg", EFFECTIVE_FROM, CURRENCY, List.of(TAX_TIME_BAND), taxExemptions, taxRuleOptions);
+        return new TaxRuleSet("gothenburg", CURRENCY, List.of(TAX_TIME_BAND), taxExemptions, taxRuleOptions);
     }
 }

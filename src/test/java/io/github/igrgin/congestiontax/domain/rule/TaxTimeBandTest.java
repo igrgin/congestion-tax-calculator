@@ -2,10 +2,8 @@ package io.github.igrgin.congestiontax.domain.rule;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.igrgin.congestiontax.domain.TaxAmount;
-import io.github.igrgin.congestiontax.domain.rule.exception.InvalidTaxTimeBandException;
 import java.math.BigDecimal;
 import java.time.LocalTime;
 import java.util.Currency;
@@ -40,20 +38,29 @@ class TaxTimeBandTest {
         assertThat(band.includes(LocalTime.of(5, 59))).isFalse();
     }
 
-    @Test
-    void rejectsEndTimeEqualToStartTime() {
-        var time = LocalTime.of(6, 0);
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("fullDayTimes")
+    void fullDayTaxTimeBandMatchesEveryLocalTime(String scenario, LocalTime localTime) {
+        var boundary = LocalTime.of(6, 0);
+        var band = new TaxTimeBand(boundary, boundary, AMOUNT);
 
-        assertThatThrownBy(() -> new TaxTimeBand(time, time, AMOUNT)).isInstanceOf(InvalidTaxTimeBandException.class);
+        assertThat(band.includes(localTime)).isTrue();
     }
 
     @Test
-    void rejectsEndTimeBeforeStartTime() {
-        var startTime = LocalTime.of(6, 30);
-        var endTime = LocalTime.of(6, 0);
+    void fullDayTaxTimeBandRejectsNullLocalTime() {
+        var boundary = LocalTime.of(6, 0);
+        var band = new TaxTimeBand(boundary, boundary, AMOUNT);
 
-        assertThatThrownBy(() -> new TaxTimeBand(startTime, endTime, AMOUNT))
-                .isInstanceOf(InvalidTaxTimeBandException.class);
+        assertThatNullPointerException().isThrownBy(() -> band.includes(null));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("crossMidnightTimes")
+    void matchesCrossMidnightTimeBand(String scenario, LocalTime localTime, boolean expected) {
+        var band = new TaxTimeBand(LocalTime.of(18, 30), LocalTime.of(6, 0), AMOUNT);
+
+        assertThat(band.includes(localTime)).isEqualTo(expected);
     }
 
     @ParameterizedTest(name = "{0}")
@@ -63,11 +70,12 @@ class TaxTimeBandTest {
     }
 
     @Test
-    void rejectsZeroTaxAmount() {
+    void acceptsZeroTaxAmount() {
         var zeroAmount = TaxAmount.zero(Currency.getInstance("SEK"));
 
-        assertThatThrownBy(() -> new TaxTimeBand(LocalTime.of(6, 0), LocalTime.of(6, 30), zeroAmount))
-                .isInstanceOf(InvalidTaxTimeBandException.class);
+        var band = new TaxTimeBand(LocalTime.of(6, 0), LocalTime.of(6, 30), zeroAmount);
+
+        assertThat(band.amount()).isEqualTo(zeroAmount);
     }
 
     private static Stream<Arguments> nullValues() {
@@ -75,5 +83,23 @@ class TaxTimeBandTest {
                 Arguments.of("null start time", null, LocalTime.of(6, 30), AMOUNT),
                 Arguments.of("null end time", LocalTime.of(6, 0), null, AMOUNT),
                 Arguments.of("null Tax Amount", LocalTime.of(6, 0), LocalTime.of(6, 30), null));
+    }
+
+    private static Stream<Arguments> crossMidnightTimes() {
+        return Stream.of(
+                Arguments.of("includes start", LocalTime.of(18, 30), true),
+                Arguments.of("includes before midnight", LocalTime.of(23, 59, 59), true),
+                Arguments.of("includes after midnight", LocalTime.of(0, 0), true),
+                Arguments.of("excludes end", LocalTime.of(6, 0), false),
+                Arguments.of("excludes before start", LocalTime.of(18, 29, 59), false));
+    }
+
+    private static Stream<Arguments> fullDayTimes() {
+        return Stream.of(
+                Arguments.of("matches midnight", LocalTime.MIN),
+                Arguments.of("matches before boundary", LocalTime.of(5, 59, 59)),
+                Arguments.of("matches boundary", LocalTime.of(6, 0)),
+                Arguments.of("matches after boundary", LocalTime.of(6, 0, 0, 1)),
+                Arguments.of("matches end of day", LocalTime.MAX));
     }
 }

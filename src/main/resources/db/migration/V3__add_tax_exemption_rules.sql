@@ -94,3 +94,19 @@ VALUES
     ('MONTH', 'Tax-free month'),
     ('PUBLIC_HOLIDAY', 'Tax-free public holiday'),
     ('VEHICLE_TYPE', 'Tax-free Vehicle Type');
+
+INSERT INTO tax_exemption (
+    rule_set_id,
+    type_code,
+    holiday_date,
+    description
+)
+SELECT
+    tax_rule_set.id,
+    'PUBLIC_HOLIDAY',
+    DATE '2014-01-01',
+    'New Year''s Day supporting date'
+FROM tax_rule_set
+JOIN city
+    ON city.id = tax_rule_set.city_id
+WHERE city.code = 'gothenburg';

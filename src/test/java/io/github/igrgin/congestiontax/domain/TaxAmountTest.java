@@ -39,6 +39,16 @@ class TaxAmountTest {
     }
 
     @Test
+    void identifiesGreaterTaxAmount() {
+        var smaller = new TaxAmount(new BigDecimal("8.00"), SEK);
+        var larger = new TaxAmount(new BigDecimal("13.00"), SEK);
+
+        assertThat(larger.isGreaterThan(smaller)).isTrue();
+        assertThat(smaller.isGreaterThan(larger)).isFalse();
+        assertThat(smaller.isGreaterThan(smaller)).isFalse();
+    }
+
+    @Test
     void createsZeroTaxAmount() {
         assertThat(TaxAmount.zero(SEK)).isEqualTo(new TaxAmount(new BigDecimal("0.00"), SEK));
     }
@@ -84,5 +94,13 @@ class TaxAmountTest {
         var eurAmount = new TaxAmount(new BigDecimal("8.00"), EUR);
 
         assertThatThrownBy(() -> sekAmount.max(eurAmount)).isInstanceOf(CurrencyMismatchException.class);
+    }
+
+    @Test
+    void rejectsGreaterThanComparisonOfDifferentCurrencies() {
+        var sekAmount = new TaxAmount(new BigDecimal("8.00"), SEK);
+        var eurAmount = new TaxAmount(new BigDecimal("8.00"), EUR);
+
+        assertThatThrownBy(() -> sekAmount.isGreaterThan(eurAmount)).isInstanceOf(CurrencyMismatchException.class);
     }
 }

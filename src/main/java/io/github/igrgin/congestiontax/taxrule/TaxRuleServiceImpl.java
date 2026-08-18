@@ -17,12 +17,12 @@ import io.github.igrgin.congestiontax.domain.rule.WeekdayTaxExemption;
 import io.github.igrgin.congestiontax.taxrule.exception.InvalidCityTimeZoneException;
 import io.github.igrgin.congestiontax.taxrule.exception.InvalidTaxExemptionException;
 import io.github.igrgin.congestiontax.taxrule.exception.InvalidTaxRuleOptionException;
-import io.github.igrgin.congestiontax.taxrule.exception.MissingApplicableTaxRuleSetException;
+import io.github.igrgin.congestiontax.taxrule.exception.MissingTaxRuleSetException;
 import io.github.igrgin.congestiontax.taxrule.exception.MissingTaxTimeBandsException;
 import io.github.igrgin.congestiontax.taxrule.exception.OverlappingTaxTimeBandsException;
 import io.github.igrgin.congestiontax.taxrule.exception.UnknownCityException;
 import io.github.igrgin.congestiontax.taxrule.exception.UnknownVehicleTypeException;
-import io.github.igrgin.congestiontax.taxrule.model.ApplicableTaxRuleSets;
+import io.github.igrgin.congestiontax.taxrule.model.CityTaxRuleSet;
 import io.github.igrgin.congestiontax.taxrule.persistence.CityEntity;
 import io.github.igrgin.congestiontax.taxrule.persistence.CityRepository;
 import io.github.igrgin.congestiontax.taxrule.persistence.TaxExemptionEntity;
@@ -38,17 +38,12 @@ import io.github.igrgin.congestiontax.taxrule.persistence.VehicleTypeEntity;
 import io.github.igrgin.congestiontax.taxrule.persistence.VehicleTypeRepository;
 import java.time.DayOfWeek;
 import java.time.Duration;
-import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.Month;
 import java.time.ZoneId;
-import java.util.Comparator;
 import java.util.Currency;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -77,59 +72,28 @@ public class TaxRuleServiceImpl implements TaxRuleService {
 
     @Override
     @Transactional(readOnly = true)
-    public ApplicableTaxRuleSets getApplicableTaxRuleSets(String cityCode, Set<LocalDate> calculationDates) {
+    public CityTaxRuleSet getCityTaxRuleSet(String cityCode) {
         var cityTimeZone = cityRepository
                 .findByCode(cityCode)
                 .map(CityEntity::getTimeZone)
                 .map(timeZone -> parseCityTimeZone(cityCode, timeZone))
                 .orElseThrow(() -> new UnknownCityException(cityCode));
 
-        var latestCalculationDate =
-                calculationDates.stream().max(LocalDate::compareTo).orElseThrow();
+        var taxRuleSetEntity = taxRuleSetRepository
+                .findByCityCode(cityCode)
+                .orElseThrow(() -> new MissingTaxRuleSetException(cityCode));
+        var taxTimeBands = taxTimeBandRepository.findByRuleSetId(taxRuleSetEntity.getId());
+        var taxRuleOptions = taxRuleOptionRepository.findByRuleSetId(taxRuleSetEntity.getId());
+        var taxExemptions = taxExemptionRepository.findByRuleSetId(taxRuleSetEntity.getId());
+        var taxRuleSet = mapCompleteTaxRuleSet(cityCode, taxRuleSetEntity, taxTimeBands, taxRuleOptions, taxExemptions);
 
-        var candidates = taxRuleSetRepository.findApplicableCandidates(cityCode, latestCalculationDate);
+        log.debug(
+                "Loaded City Tax Rule Set. cityCode={} chargeWindowEnabled={} dailyMaximumEnabled={}",
+                cityCode,
+                taxRuleSet.taxRuleOptions().chargeWindow().isPresent(),
+                taxRuleSet.taxRuleOptions().dailyMaximum().isPresent());
 
-        var ruleSetEntitiesByDate = calculationDates.stream()
-                .collect(Collectors.toUnmodifiableMap(
-                        Function.identity(),
-                        calculationDate -> selectApplicableTaxRuleSet(cityCode, calculationDate, candidates)));
-
-        var selectedRuleSetIds = ruleSetEntitiesByDate.values().stream()
-                .map(TaxRuleSetEntity::getId)
-                .collect(Collectors.toUnmodifiableSet());
-
-        var taxTimeBandsByRuleSetId = taxTimeBandRepository.findByRuleSetIdIn(selectedRuleSetIds).stream()
-                .collect(Collectors.groupingBy(TaxTimeBandEntity::getRuleSetId));
-
-        var taxRuleOptionsByRuleSetId = taxRuleOptionRepository.findByRuleSetIdIn(selectedRuleSetIds).stream()
-                .collect(Collectors.groupingBy(TaxRuleOptionEntity::getRuleSetId));
-
-        var taxExemptionsByRuleSetId = taxExemptionRepository.findByRuleSetIdIn(selectedRuleSetIds).stream()
-                .collect(Collectors.groupingBy(TaxExemptionEntity::getRuleSetId));
-
-        var taxRuleSetsByCalculationDate = ruleSetEntitiesByDate.entrySet().stream()
-                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> {
-                    var taxRuleSet = mapCompleteTaxRuleSet(
-                            cityCode,
-                            entry.getValue(),
-                            taxTimeBandsByRuleSetId,
-                            taxRuleOptionsByRuleSetId,
-                            taxExemptionsByRuleSetId);
-
-                    log.debug(
-                            "Selected Applicable Tax Rule Set."
-                                    + " cityCode={} calculationDate={} effectiveFrom={}"
-                                    + " chargeWindowEnabled={} dailyMaximumEnabled={}",
-                            cityCode,
-                            entry.getKey(),
-                            taxRuleSet.effectiveFrom(),
-                            taxRuleSet.taxRuleOptions().chargeWindow().isPresent(),
-                            taxRuleSet.taxRuleOptions().dailyMaximum().isPresent());
-
-                    return taxRuleSet;
-                }));
-
-        return new ApplicableTaxRuleSets(cityTimeZone, taxRuleSetsByCalculationDate);
+        return new CityTaxRuleSet(cityTimeZone, taxRuleSet);
     }
 
     private static ZoneId parseCityTimeZone(String cityCode, String timeZone) {
@@ -140,34 +104,21 @@ public class TaxRuleServiceImpl implements TaxRuleService {
         return ZoneId.of(timeZone);
     }
 
-    private static TaxRuleSetEntity selectApplicableTaxRuleSet(
-            String cityCode, LocalDate calculationDate, List<TaxRuleSetEntity> candidates) {
-        return candidates.stream()
-                .filter(candidate -> !candidate.getEffectiveFrom().isAfter(calculationDate))
-                .max(Comparator.comparing(TaxRuleSetEntity::getEffectiveFrom))
-                .orElseThrow(() -> new MissingApplicableTaxRuleSetException(cityCode, calculationDate));
-    }
-
     private static TaxRuleSet mapCompleteTaxRuleSet(
             String cityCode,
             TaxRuleSetEntity taxRuleSetEntity,
-            Map<Long, List<TaxTimeBandEntity>> taxTimeBandsByRuleSetId,
-            Map<Long, List<TaxRuleOptionEntity>> taxRuleOptionsByRuleSetId,
-            Map<Long, List<TaxExemptionEntity>> taxExemptionsByRuleSetId) {
-        var taxTimeBandEntities = taxTimeBandsByRuleSetId.getOrDefault(taxRuleSetEntity.getId(), List.of());
-
+            List<TaxTimeBandEntity> taxTimeBandEntities,
+            List<TaxRuleOptionEntity> taxRuleOptionEntities,
+            List<TaxExemptionEntity> taxExemptionEntities) {
         if (taxTimeBandEntities.isEmpty()) {
-            throw new MissingTaxTimeBandsException(cityCode, taxRuleSetEntity.getEffectiveFrom());
+            throw new MissingTaxTimeBandsException(cityCode);
         }
 
-        validateTaxTimeBands(cityCode, taxRuleSetEntity.getEffectiveFrom(), taxTimeBandEntities);
+        validateTaxTimeBands(cityCode, taxTimeBandEntities);
 
-        var taxRuleOptions = mapTaxRuleOptions(
-                taxRuleOptionsByRuleSetId.getOrDefault(taxRuleSetEntity.getId(), List.of()),
-                Currency.getInstance(taxRuleSetEntity.getCurrencyCode()));
-
-        var taxExemptions =
-                mapTaxExemptions(taxExemptionsByRuleSetId.getOrDefault(taxRuleSetEntity.getId(), List.of()));
+        var taxRuleOptions =
+                mapTaxRuleOptions(taxRuleOptionEntities, Currency.getInstance(taxRuleSetEntity.getCurrencyCode()));
+        var taxExemptions = mapTaxExemptions(taxExemptionEntities);
 
         return TaxRuleSetEntity.toTaxRuleSet(
                 taxRuleSetEntity, cityCode, taxTimeBandEntities, taxExemptions, taxRuleOptions);
@@ -302,25 +253,30 @@ public class TaxRuleServiceImpl implements TaxRuleService {
         }
     }
 
-    private static void validateTaxTimeBands(
-            String cityCode, LocalDate effectiveFrom, List<TaxTimeBandEntity> taxTimeBands) {
-        var orderedTaxTimeBands = taxTimeBands.stream()
-                .sorted(Comparator.comparing(TaxTimeBandEntity::getStartTime))
-                .toList();
+    private static void validateTaxTimeBands(String cityCode, List<TaxTimeBandEntity> taxTimeBands) {
+        for (var firstIndex = 0; firstIndex < taxTimeBands.size(); firstIndex++) {
+            for (var secondIndex = firstIndex + 1; secondIndex < taxTimeBands.size(); secondIndex++) {
+                var first = taxTimeBands.get(firstIndex);
+                var second = taxTimeBands.get(secondIndex);
+                if (!overlaps(first, second)) {
+                    continue;
+                }
 
-        for (var index = 1; index < orderedTaxTimeBands.size(); index++) {
-            var precedingTaxTimeBand = orderedTaxTimeBands.get(index - 1);
-            var taxTimeBand = orderedTaxTimeBands.get(index);
-
-            if (taxTimeBand.getStartTime().isBefore(precedingTaxTimeBand.getEndTime())) {
                 throw new OverlappingTaxTimeBandsException(
-                        cityCode,
-                        effectiveFrom,
-                        precedingTaxTimeBand.getStartTime(),
-                        precedingTaxTimeBand.getEndTime(),
-                        taxTimeBand.getStartTime(),
-                        taxTimeBand.getEndTime());
+                        cityCode, first.getStartTime(), first.getEndTime(), second.getStartTime(), second.getEndTime());
             }
         }
+    }
+
+    private static boolean overlaps(TaxTimeBandEntity first, TaxTimeBandEntity second) {
+        return includes(first, second.getStartTime()) || includes(second, first.getStartTime());
+    }
+
+    private static boolean includes(TaxTimeBandEntity taxTimeBand, LocalTime time) {
+        if (taxTimeBand.getEndTime().isAfter(taxTimeBand.getStartTime())) {
+            return !time.isBefore(taxTimeBand.getStartTime()) && time.isBefore(taxTimeBand.getEndTime());
+        }
+
+        return !time.isBefore(taxTimeBand.getStartTime()) || time.isBefore(taxTimeBand.getEndTime());
     }
 }

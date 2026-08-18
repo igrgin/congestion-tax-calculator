@@ -12,13 +12,13 @@ PostgreSQL, not JPA, enforces the relationship. A foreign key requires each non-
 
 ## Benefits
 
-Scalar foreign-key fields keep loading decisions in the repository-facing service implementation. `TaxRuleServiceImpl` can load Tax Rule Set candidates first and then bulk-load the required Tax Time Bands. Later issues can use the same pattern for Tax Rule Options and Tax Exemptions. No entity association can cause an implicit fetch, and no association cascade or orphan-removal operation exists. JPA supplies these operations only through association mappings. [Jakarta Persistence `ManyToOne` API](https://jakarta.ee/specifications/persistence/3.2/apidocs/jakarta.persistence/jakarta/persistence/manytoone) [Jakarta Persistence `OneToMany` API](https://jakarta.ee/specifications/persistence/3.2/apidocs/jakarta.persistence/jakarta/persistence/onetomany)
+Scalar foreign-key fields keep loading decisions in the repository-facing service implementation. `TaxRuleServiceImpl` can load the City's Tax Rule Set and then load its Tax Time Bands. Later issues can use the same pattern for Tax Rule Options and Tax Exemptions. No entity association can cause an implicit fetch, and no association cascade or orphan-removal operation exists. JPA supplies these operations only through association mappings. [Jakarta Persistence `ManyToOne` API](https://jakarta.ee/specifications/persistence/3.2/apidocs/jakarta.persistence/jakarta/persistence/manytoone) [Jakarta Persistence `OneToMany` API](https://jakarta.ee/specifications/persistence/3.2/apidocs/jakarta.persistence/jakarta/persistence/onetomany)
 
 Spring Data JPA can derive all proposed queries from scalar entity fields. It checks entity property names, supports `LessThanEqual`, `In`, and static `OrderBy`, and accepts a `Collection` for an `In` parameter. [Spring Data JPA query-method documentation](https://docs.spring.io/spring-data/jpa/reference/jpa/query-methods.html)
 
 The proposed unique constraints also provide useful PostgreSQL B-tree indexes because each query filters on the leading column:
 
-- `tax_rule_set (city_id, effective_from)` supports the City and effective-date query.
+- the unique `tax_rule_set (city_id)` key supports the City query.
 - `tax_rule_option (rule_set_id, type_code)` supports the Tax Rule Option bulk query.
 - `tax_time_band (rule_set_id, start_time, end_time)` supports the Tax Time Band bulk query.
 
@@ -46,7 +46,7 @@ Hibernate `@Immutable` is optional. It stops dirty checking and does not synchro
 
 ### Multi-query consistency
 
-Keep the candidate query and child-row queries in one service transaction. PostgreSQL `READ COMMITTED` can give two successive queries different snapshots. This is safe here only if a Tax Rule Set and all its child rows are inserted in one transaction and an existing Tax Rule Set is never changed. These rules make the first candidate query a valid point-in-time selection. If the application later permits concurrent changes to an existing Tax Rule Set, use a stable snapshot such as `REPEATABLE READ` or replace the reads with one consistent query. [PostgreSQL transaction-isolation documentation](https://www.postgresql.org/docs/current/transaction-iso.html)
+Keep the Tax Rule Set query and child-row queries in one service transaction. PostgreSQL `READ COMMITTED` can give two successive queries different committed states. If an external process can update one Tax Rule Set while a calculation reads it, use a stable transaction snapshot such as `REPEATABLE READ` or replace the reads with one consistent query. [PostgreSQL transaction-isolation documentation](https://www.postgresql.org/docs/current/transaction-iso.html)
 
 ### Enum storage
 
@@ -60,7 +60,7 @@ Use scalar foreign-key fields and explicit bulk queries in repository-facing ser
 - Repository interfaces expose read operations only.
 - Each repository-facing service operation owns one read-only transaction.
 - The service groups rows by scalar ID and maps complete immutable values before return.
-- Tax Rule Set rows and their child rows form an immutable snapshot after commit.
+- The service maps the loaded Tax Rule Set and child rows to one request-local immutable value.
 - Integration tests, not Hibernate schema validation alone, verify the Flyway schema and the complete read path.
 
 Add a JPA association only when application code needs object navigation, association fetch plans, or JPA cascade behavior. Database foreign keys express and enforce the current relationships.

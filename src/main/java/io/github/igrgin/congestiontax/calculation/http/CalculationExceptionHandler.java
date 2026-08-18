@@ -1,84 +1,205 @@
 package io.github.igrgin.congestiontax.calculation.http;
 
 import io.github.igrgin.congestiontax.calculation.exception.CityNotFoundException;
+import io.github.igrgin.congestiontax.calculation.exception.InvalidStoredCityTimeZoneException;
 import io.github.igrgin.congestiontax.calculation.exception.InvalidStoredTaxExemptionException;
 import io.github.igrgin.congestiontax.calculation.exception.InvalidStoredTaxRuleOptionException;
+import io.github.igrgin.congestiontax.calculation.exception.InvalidStoredTaxTimeBandsException;
+import io.github.igrgin.congestiontax.calculation.exception.MissingStoredTaxRuleSetException;
+import io.github.igrgin.congestiontax.calculation.exception.MissingStoredTaxTimeBandsException;
+import io.github.igrgin.congestiontax.calculation.exception.UnsupportedPassageYearException;
 import io.github.igrgin.congestiontax.calculation.exception.VehicleTypeNotFoundException;
-import io.github.igrgin.congestiontax.calculation.http.exception.InvalidPassageTimestampException;
+import io.github.igrgin.congestiontax.calculation.http.dto.CalculationProblemResponse;
+import java.time.LocalDateTime;
+import java.util.OptionalInt;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.transaction.CannotCreateTransactionException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.exc.StreamReadException;
+import tools.jackson.databind.exc.MismatchedInputException;
 
 @RestControllerAdvice(assignableTypes = CalculationController.class)
 @Slf4j
 public class CalculationExceptionHandler {
 
     @ExceptionHandler(CityNotFoundException.class)
-    @ResponseStatus(HttpStatus.NOT_FOUND)
-    public void handleCityNotFound(CityNotFoundException exception) {
+    public ResponseEntity<CalculationProblemResponse> handleCityNotFound(CityNotFoundException exception) {
         log.warn(
                 "Rejected Congestion Tax Calculation request. reason={} cityCode={}",
                 "unknown-city",
                 exception.cityCode());
+
+        return problem(HttpStatus.NOT_FOUND, CalculationProblemResponse.forUnknownCity());
     }
 
     @ExceptionHandler(VehicleTypeNotFoundException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public void handleVehicleTypeNotFound(VehicleTypeNotFoundException exception) {
+    public ResponseEntity<CalculationProblemResponse> handleVehicleTypeNotFound(
+            VehicleTypeNotFoundException exception) {
         log.warn(
                 "Rejected Congestion Tax Calculation request. reason={} vehicleTypeCode={}",
                 "unknown-vehicle-type",
                 exception.vehicleTypeCode());
+
+        return problem(HttpStatus.BAD_REQUEST, CalculationProblemResponse.forInvalidRequest());
     }
 
-    @ExceptionHandler(InvalidPassageTimestampException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public void handleInvalidPassageTimestamp(InvalidPassageTimestampException exception) {
+    @ExceptionHandler(UnsupportedPassageYearException.class)
+    public ResponseEntity<CalculationProblemResponse> handleUnsupportedPassageYear(
+            UnsupportedPassageYearException exception) {
         log.warn(
-                "Rejected Congestion Tax Calculation request. reason={} passageIndex={}",
-                "invalid-passage-timestamp",
-                exception.passageIndex());
+                "Rejected Congestion Tax Calculation request. reason={} passageIndexes={}",
+                "unsupported-passage-year",
+                exception.passageIndexes());
+
+        return problem(
+                HttpStatus.BAD_REQUEST,
+                CalculationProblemResponse.forUnsupportedPassageYears(exception.passageIndexes()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public void handleInvalidRequest() {
+    public ResponseEntity<CalculationProblemResponse> handleInvalidRequest() {
         log.warn("Rejected Congestion Tax Calculation request. reason={}", "invalid-request");
+
+        return problem(HttpStatus.BAD_REQUEST, CalculationProblemResponse.forInvalidRequest());
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public void handleInvalidJson() {
-        log.warn("Rejected Congestion Tax Calculation request. reason={}", "invalid-json");
+    public ResponseEntity<CalculationProblemResponse> handleUnreadableRequest(
+            HttpMessageNotReadableException exception) {
+        var invalidPassageIndex = invalidPassageIndex(exception);
+        if (invalidPassageIndex.isPresent()) {
+            log.warn(
+                    "Rejected Congestion Tax Calculation request. reason={} passageIndex={}",
+                    "invalid-passage-timestamp",
+                    invalidPassageIndex.getAsInt());
+            return problem(
+                    HttpStatus.BAD_REQUEST,
+                    CalculationProblemResponse.forInvalidPassageTimestamp(invalidPassageIndex.getAsInt()));
+        }
+
+        if (hasCause(exception, StreamReadException.class)) {
+            log.warn("Rejected Congestion Tax Calculation request. reason={}", "invalid-json");
+            return problem(HttpStatus.BAD_REQUEST, CalculationProblemResponse.forInvalidJson());
+        }
+
+        log.warn("Rejected Congestion Tax Calculation request. reason={}", "invalid-request");
+        return problem(HttpStatus.BAD_REQUEST, CalculationProblemResponse.forInvalidRequest());
     }
 
     @ExceptionHandler(InvalidStoredTaxRuleOptionException.class)
-    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
-    public void handleInvalidTaxRuleOption(InvalidStoredTaxRuleOptionException exception) {
+    public ResponseEntity<CalculationProblemResponse> handleInvalidTaxRuleOption(
+            InvalidStoredTaxRuleOptionException exception) {
         log.error(
                 "Congestion Tax Calculation failed. reason={} optionTypeCode={}",
                 "invalid-tax-rule-option",
                 exception.optionTypeCode(),
                 exception);
+
+        return internalFailure();
     }
 
     @ExceptionHandler(InvalidStoredTaxExemptionException.class)
-    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
-    public void handleInvalidTaxExemption(InvalidStoredTaxExemptionException exception) {
+    public ResponseEntity<CalculationProblemResponse> handleInvalidTaxExemption(
+            InvalidStoredTaxExemptionException exception) {
         log.error(
                 "Congestion Tax Calculation failed. reason={} taxExemptionTypeCode={}",
                 "invalid-tax-exemption",
                 exception.taxExemptionTypeCode(),
                 exception);
+
+        return internalFailure();
+    }
+
+    @ExceptionHandler(MissingStoredTaxRuleSetException.class)
+    public ResponseEntity<CalculationProblemResponse> handleMissingTaxRuleSet(
+            MissingStoredTaxRuleSetException exception) {
+        return storedCityFailure("missing-tax-rule-set", exception.cityCode(), exception);
+    }
+
+    @ExceptionHandler(MissingStoredTaxTimeBandsException.class)
+    public ResponseEntity<CalculationProblemResponse> handleMissingTaxTimeBands(
+            MissingStoredTaxTimeBandsException exception) {
+        return storedCityFailure("missing-tax-time-bands", exception.cityCode(), exception);
+    }
+
+    @ExceptionHandler(InvalidStoredCityTimeZoneException.class)
+    public ResponseEntity<CalculationProblemResponse> handleInvalidCityTimeZone(
+            InvalidStoredCityTimeZoneException exception) {
+        return storedCityFailure("invalid-city-time-zone", exception.cityCode(), exception);
+    }
+
+    @ExceptionHandler(InvalidStoredTaxTimeBandsException.class)
+    public ResponseEntity<CalculationProblemResponse> handleInvalidTaxTimeBands(
+            InvalidStoredTaxTimeBandsException exception) {
+        return storedCityFailure("overlapping-tax-time-bands", exception.cityCode(), exception);
+    }
+
+    @ExceptionHandler({DataAccessResourceFailureException.class, CannotCreateTransactionException.class})
+    public ResponseEntity<CalculationProblemResponse> handleServiceUnavailable(RuntimeException exception) {
+        log.error("Congestion Tax Calculation failed. reason={}", "service-unavailable", exception);
+
+        return problem(HttpStatus.SERVICE_UNAVAILABLE, CalculationProblemResponse.forServiceUnavailable());
     }
 
     @ExceptionHandler(Exception.class)
-    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
-    public void handleUnexpectedFailure(Exception exception) {
+    public ResponseEntity<CalculationProblemResponse> handleUnexpectedFailure(Exception exception) {
         log.error("Congestion Tax Calculation failed unexpectedly.", exception);
+
+        return internalFailure();
+    }
+
+    private static ResponseEntity<CalculationProblemResponse> internalFailure() {
+        return problem(HttpStatus.INTERNAL_SERVER_ERROR, CalculationProblemResponse.forCalculationFailure());
+    }
+
+    private static ResponseEntity<CalculationProblemResponse> storedCityFailure(
+            String reason, String cityCode, RuntimeException exception) {
+        log.error("Congestion Tax Calculation failed. reason={} cityCode={}", reason, cityCode, exception);
+
+        return internalFailure();
+    }
+
+    private static ResponseEntity<CalculationProblemResponse> problem(
+            HttpStatus status, CalculationProblemResponse response) {
+        return ResponseEntity.status(status)
+                .contentType(MediaType.APPLICATION_PROBLEM_JSON)
+                .body(response);
+    }
+
+    private static OptionalInt invalidPassageIndex(Throwable exception) {
+        for (var cause = exception; cause != null; cause = cause.getCause()) {
+            if (cause instanceof MismatchedInputException mismatch
+                    && mismatch.getTargetType() == LocalDateTime.class
+                    && hasPassagesProperty(mismatch)) {
+                return mismatch.getPath().stream()
+                        .mapToInt(JacksonException.Reference::getIndex)
+                        .filter(index -> index >= 0)
+                        .findFirst();
+            }
+        }
+        return OptionalInt.empty();
+    }
+
+    private static boolean hasPassagesProperty(MismatchedInputException exception) {
+        return exception.getPath().stream()
+                .map(JacksonException.Reference::getPropertyName)
+                .anyMatch("passages"::equals);
+    }
+
+    private static boolean hasCause(Throwable exception, Class<? extends Throwable> causeType) {
+        for (var cause = exception; cause != null; cause = cause.getCause()) {
+            if (causeType.isInstance(cause)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

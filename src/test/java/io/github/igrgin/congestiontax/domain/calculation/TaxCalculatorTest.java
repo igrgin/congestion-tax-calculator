@@ -28,7 +28,6 @@ import java.time.Month;
 import java.time.ZoneOffset;
 import java.util.Currency;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
@@ -44,10 +43,7 @@ class TaxCalculatorTest {
     private static final VehicleType VEHICLE_TYPE = new VehicleType("OTHER", "Other vehicle");
     private static final TaxAmount TAX_AMOUNT = new TaxAmount(new BigDecimal("8.00"), SEK);
     private static final TaxRuleSet TAX_RULE_SET = new TaxRuleSet(
-            "gothenburg",
-            LocalDate.of(2013, Month.JANUARY, 1),
-            SEK,
-            List.of(new TaxTimeBand(LocalTime.of(6, 0), LocalTime.of(6, 30), TAX_AMOUNT)));
+            "gothenburg", SEK, List.of(new TaxTimeBand(LocalTime.of(6, 0), LocalTime.of(6, 30), TAX_AMOUNT)));
 
     private final TaxCalculator calculator = new TaxCalculator();
 
@@ -56,7 +52,7 @@ class TaxCalculatorTest {
         var passage = new Passage(
                 Instant.parse("2013-02-08T05:20:27Z"), LocalDateTime.of(2013, Month.FEBRUARY, 8, 6, 20, 27));
 
-        var result = calculator.calculate(VEHICLE_TYPE, List.of(passage), Map.of(DATE, TAX_RULE_SET));
+        var result = calculator.calculate(VEHICLE_TYPE, List.of(passage), TAX_RULE_SET);
 
         assertThat(result)
                 .isEqualTo(new CalculationResult(VEHICLE_TYPE, List.of(new DailyTax(DATE, TAX_AMOUNT)), TAX_AMOUNT));
@@ -70,7 +66,7 @@ class TaxCalculatorTest {
                 new TaxExemptions(List.of(new VehicleTypeTaxExemption(vehicleTypeCode))), TaxRuleOptions.empty());
         var passage = passage("2013-02-08T05:20:00Z", 6, 20);
 
-        var result = calculator.calculate(vehicleType, List.of(passage), Map.of(DATE, taxRuleSet));
+        var result = calculator.calculate(vehicleType, List.of(passage), taxRuleSet);
 
         var zero = TaxAmount.zero(SEK);
         assertThat(result)
@@ -84,7 +80,7 @@ class TaxCalculatorTest {
                 taxRuleSet(new TaxExemptions(List.of(new VehicleTypeTaxExemption("BUS"))), TaxRuleOptions.empty());
         var passage = passage("2013-02-08T05:20:00Z", 6, 20);
 
-        var result = calculator.calculate(VEHICLE_TYPE, List.of(passage), Map.of(DATE, taxRuleSet));
+        var result = calculator.calculate(VEHICLE_TYPE, List.of(passage), taxRuleSet);
 
         assertThat(result)
                 .isEqualTo(new CalculationResult(VEHICLE_TYPE, List.of(new DailyTax(DATE, TAX_AMOUNT)), TAX_AMOUNT));
@@ -100,7 +96,7 @@ class TaxCalculatorTest {
         var taxRuleSet = taxRuleSet(taxExemptions, taxRuleOptions);
         var passage = passage("2013-02-08T05:20:00Z", 6, 20);
 
-        var result = calculator.calculate(VEHICLE_TYPE, List.of(passage), Map.of(DATE, taxRuleSet));
+        var result = calculator.calculate(VEHICLE_TYPE, List.of(passage), taxRuleSet);
 
         var zero = TaxAmount.zero(SEK);
         assertThat(result)
@@ -119,7 +115,7 @@ class TaxCalculatorTest {
                 taxRuleSet(new TaxExemptions(List.of(new PublicHolidayTaxExemption(DATE.plusDays(1)))), taxRuleOptions);
         var passage = passage("2013-02-08T05:20:00Z", 6, 20);
 
-        var result = calculator.calculate(VEHICLE_TYPE, List.of(passage), Map.of(DATE, taxRuleSet));
+        var result = calculator.calculate(VEHICLE_TYPE, List.of(passage), taxRuleSet);
 
         assertThat(result)
                 .isEqualTo(new CalculationResult(
@@ -138,7 +134,7 @@ class TaxCalculatorTest {
         var taxRuleSet = taxRuleSet(taxExemptions, taxRuleOptions);
         var passage = passage("2013-02-08T05:20:00Z", 6, 20);
 
-        var result = calculator.calculate(VEHICLE_TYPE, List.of(passage), Map.of(DATE, taxRuleSet));
+        var result = calculator.calculate(VEHICLE_TYPE, List.of(passage), taxRuleSet);
 
         var zero = TaxAmount.zero(SEK);
         assertThat(result)
@@ -162,7 +158,7 @@ class TaxCalculatorTest {
                 new TaxExemptions(List.of(new WeekdayTaxExemption(DayOfWeek.FRIDAY))), TaxRuleOptions.empty());
         var passage = passage("2013-02-08T04:59:00Z", 5, 59);
 
-        var result = calculator.calculate(VEHICLE_TYPE, List.of(passage), Map.of(DATE, taxRuleSet));
+        var result = calculator.calculate(VEHICLE_TYPE, List.of(passage), taxRuleSet);
 
         var zero = TaxAmount.zero(SEK);
         assertThat(result)
@@ -176,12 +172,11 @@ class TaxCalculatorTest {
             String scenario, TaxRuleOptions taxRuleOptions, List<Passage> passages, String expectedAmount) {
         var taxRuleSet = new TaxRuleSet(
                 "gothenburg",
-                LocalDate.of(2013, Month.JANUARY, 1),
                 SEK,
                 List.of(new TaxTimeBand(LocalTime.of(6, 0), LocalTime.of(8, 0), TAX_AMOUNT)),
                 taxRuleOptions);
 
-        var result = calculator.calculate(VEHICLE_TYPE, passages, Map.of(DATE, taxRuleSet));
+        var result = calculator.calculate(VEHICLE_TYPE, passages, taxRuleSet);
 
         var amount = new TaxAmount(new BigDecimal(expectedAmount), SEK);
 
@@ -196,10 +191,7 @@ class TaxCalculatorTest {
         var earlierPassage =
                 new Passage(Instant.parse("2013-02-08T05:20:00Z"), LocalDateTime.of(2013, Month.FEBRUARY, 8, 6, 20));
 
-        var result = calculator.calculate(
-                VEHICLE_TYPE,
-                List.of(laterPassage, earlierPassage),
-                Map.of(DATE, TAX_RULE_SET, laterDate, TAX_RULE_SET));
+        var result = calculator.calculate(VEHICLE_TYPE, List.of(laterPassage, earlierPassage), TAX_RULE_SET);
 
         var totalAmount = new TaxAmount(new BigDecimal("16.00"), SEK);
 
@@ -210,12 +202,99 @@ class TaxCalculatorTest {
                         totalAmount));
     }
 
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("crossDateDailyMaximumScenarios")
+    void assignsCrossDateChargeWindowToWinnerDateBeforeOptionalDailyMaximum(
+            String scenario, TaxRuleOptions taxRuleOptions, String expectedAmount) {
+        var laterDate = DATE.plusDays(1);
+        var laterTaxAmount = new TaxAmount(new BigDecimal("13.00"), SEK);
+        var taxRuleSet = new TaxRuleSet(
+                "gothenburg",
+                SEK,
+                List.of(
+                        new TaxTimeBand(LocalTime.of(0, 0), LocalTime.of(1, 0), laterTaxAmount),
+                        new TaxTimeBand(LocalTime.of(2, 0), LocalTime.of(3, 0), laterTaxAmount),
+                        new TaxTimeBand(LocalTime.of(23, 0), LocalTime.MAX, TAX_AMOUNT)),
+                taxRuleOptions);
+        var earlierPassage =
+                new Passage(Instant.parse("2013-02-08T22:50:00Z"), LocalDateTime.of(2013, Month.FEBRUARY, 8, 23, 50));
+        var winningPassage =
+                new Passage(Instant.parse("2013-02-08T23:10:00Z"), LocalDateTime.of(2013, Month.FEBRUARY, 9, 0, 10));
+        var secondWindowPassage =
+                new Passage(Instant.parse("2013-02-09T01:00:00Z"), LocalDateTime.of(2013, Month.FEBRUARY, 9, 2, 0));
+
+        var result = calculator.calculate(
+                VEHICLE_TYPE, List.of(secondWindowPassage, winningPassage, earlierPassage), taxRuleSet);
+        var expectedDailyAmount = new TaxAmount(new BigDecimal(expectedAmount), SEK);
+
+        assertThat(result)
+                .isEqualTo(new CalculationResult(
+                        VEHICLE_TYPE,
+                        List.of(new DailyTax(DATE, TaxAmount.zero(SEK)), new DailyTax(laterDate, expectedDailyAmount)),
+                        expectedDailyAmount));
+    }
+
+    @Test
+    void assignsEqualHighestCrossDateChargeToEarliestPassageDate() {
+        var laterDate = DATE.plusDays(1);
+        var taxRuleSet = new TaxRuleSet(
+                "gothenburg",
+                SEK,
+                List.of(
+                        new TaxTimeBand(LocalTime.of(0, 0), LocalTime.of(1, 0), TAX_AMOUNT),
+                        new TaxTimeBand(LocalTime.of(23, 0), LocalTime.MAX, TAX_AMOUNT)),
+                new TaxRuleOptions(List.of(new ChargeWindow(Duration.ofMinutes(60)))));
+        var earliestPassage =
+                new Passage(Instant.parse("2013-02-08T22:50:00Z"), LocalDateTime.of(2013, Month.FEBRUARY, 8, 23, 50));
+        var laterPassage =
+                new Passage(Instant.parse("2013-02-08T23:10:00Z"), LocalDateTime.of(2013, Month.FEBRUARY, 9, 0, 10));
+
+        var result = calculator.calculate(VEHICLE_TYPE, List.of(laterPassage, earliestPassage), taxRuleSet);
+
+        assertThat(result)
+                .isEqualTo(new CalculationResult(
+                        VEHICLE_TYPE,
+                        List.of(new DailyTax(DATE, TAX_AMOUNT), new DailyTax(laterDate, TaxAmount.zero(SEK))),
+                        TAX_AMOUNT));
+    }
+
+    @Test
+    void keepsExemptPassageInCrossDateChargeWindow() {
+        var laterDate = DATE.plusDays(1);
+        var laterTaxAmount = new TaxAmount(new BigDecimal("13.00"), SEK);
+        var taxRuleSet = new TaxRuleSet(
+                "gothenburg",
+                SEK,
+                List.of(
+                        new TaxTimeBand(LocalTime.of(0, 0), LocalTime.of(2, 0), laterTaxAmount),
+                        new TaxTimeBand(LocalTime.of(23, 0), LocalTime.MAX, TAX_AMOUNT)),
+                new TaxExemptions(List.of(new WeekdayTaxExemption(DayOfWeek.FRIDAY))),
+                new TaxRuleOptions(List.of(new ChargeWindow(Duration.ofMinutes(60)))));
+        var exemptWindowStart =
+                new Passage(Instant.parse("2013-02-08T22:50:00Z"), LocalDateTime.of(2013, Month.FEBRUARY, 8, 23, 50));
+        var firstTaxedPassage =
+                new Passage(Instant.parse("2013-02-08T23:10:00Z"), LocalDateTime.of(2013, Month.FEBRUARY, 9, 0, 10));
+        var secondTaxedPassage =
+                new Passage(Instant.parse("2013-02-09T00:00:00Z"), LocalDateTime.of(2013, Month.FEBRUARY, 9, 1, 0));
+
+        var result = calculator.calculate(
+                VEHICLE_TYPE, List.of(secondTaxedPassage, firstTaxedPassage, exemptWindowStart), taxRuleSet);
+
+        var laterDailyAmount = new TaxAmount(new BigDecimal("26.00"), SEK);
+        assertThat(result)
+                .isEqualTo(new CalculationResult(
+                        VEHICLE_TYPE,
+                        List.of(
+                                new DailyTax(DATE, Set.of(TaxExemptionReason.WEEKDAY), TaxAmount.zero(SEK)),
+                                new DailyTax(laterDate, laterDailyAmount)),
+                        laterDailyAmount));
+    }
+
     @Test
     void usesHighestChargeInChargeWindowAfterInstantOrdering() {
         var higherTaxAmount = new TaxAmount(new BigDecimal("13.00"), SEK);
         var taxRuleSet = new TaxRuleSet(
                 "gothenburg",
-                LocalDate.of(2013, Month.JANUARY, 1),
                 SEK,
                 List.of(
                         new TaxTimeBand(LocalTime.of(6, 0), LocalTime.of(6, 30), TAX_AMOUNT),
@@ -226,8 +305,7 @@ class TaxCalculatorTest {
         var earlierPassage =
                 new Passage(Instant.parse("2013-02-08T05:10:00Z"), LocalDateTime.of(2013, Month.FEBRUARY, 8, 6, 10));
 
-        var result =
-                calculator.calculate(VEHICLE_TYPE, List.of(laterPassage, earlierPassage), Map.of(DATE, taxRuleSet));
+        var result = calculator.calculate(VEHICLE_TYPE, List.of(laterPassage, earlierPassage), taxRuleSet);
 
         assertThat(result)
                 .isEqualTo(new CalculationResult(
@@ -239,7 +317,6 @@ class TaxCalculatorTest {
     void includesConfiguredChargeWindowBoundary(long secondsAfterWindowStart, String expectedAmount) {
         var taxRuleSet = new TaxRuleSet(
                 "gothenburg",
-                LocalDate.of(2013, Month.JANUARY, 1),
                 SEK,
                 List.of(new TaxTimeBand(LocalTime.of(6, 0), LocalTime.of(8, 0), TAX_AMOUNT)),
                 new TaxRuleOptions(List.of(new ChargeWindow(Duration.ofMinutes(60)))));
@@ -249,7 +326,7 @@ class TaxCalculatorTest {
                 windowStart.plusSeconds(secondsAfterWindowStart),
                 LocalDateTime.of(2013, Month.FEBRUARY, 8, 6, 10).plusSeconds(secondsAfterWindowStart));
 
-        var result = calculator.calculate(VEHICLE_TYPE, List.of(firstPassage, secondPassage), Map.of(DATE, taxRuleSet));
+        var result = calculator.calculate(VEHICLE_TYPE, List.of(firstPassage, secondPassage), taxRuleSet);
 
         var amount = new TaxAmount(new BigDecimal(expectedAmount), SEK);
 
@@ -261,7 +338,6 @@ class TaxCalculatorTest {
         var higherTaxAmount = new TaxAmount(new BigDecimal("13.00"), SEK);
         var taxRuleSet = new TaxRuleSet(
                 "gothenburg",
-                LocalDate.of(2013, Month.JANUARY, 1),
                 SEK,
                 List.of(
                         new TaxTimeBand(LocalTime.of(6, 0), LocalTime.of(6, 30), TAX_AMOUNT),
@@ -275,8 +351,7 @@ class TaxCalculatorTest {
         var thirdPassage =
                 new Passage(Instant.parse("2013-02-08T06:40:00Z"), LocalDateTime.of(2013, Month.FEBRUARY, 8, 7, 40));
 
-        var result = calculator.calculate(
-                VEHICLE_TYPE, List.of(firstPassage, secondPassage, thirdPassage), Map.of(DATE, taxRuleSet));
+        var result = calculator.calculate(VEHICLE_TYPE, List.of(firstPassage, secondPassage, thirdPassage), taxRuleSet);
 
         var amount = new TaxAmount(new BigDecimal("21.00"), SEK);
 
@@ -296,7 +371,6 @@ class TaxCalculatorTest {
         var higherTaxAmount = new TaxAmount(new BigDecimal("13.00"), SEK);
         var taxRuleSet = new TaxRuleSet(
                 "gothenburg",
-                LocalDate.of(2013, Month.JANUARY, 1),
                 SEK,
                 List.of(
                         new TaxTimeBand(LocalTime.of(6, 0), LocalTime.of(6, 30), TAX_AMOUNT),
@@ -304,7 +378,7 @@ class TaxCalculatorTest {
         var cityDateTime = LocalDateTime.of(DATE, LocalTime.parse(localTime));
         var passage = new Passage(cityDateTime.toInstant(ZoneOffset.ofHours(1)), cityDateTime);
 
-        var result = calculator.calculate(VEHICLE_TYPE, List.of(passage), Map.of(DATE, taxRuleSet));
+        var result = calculator.calculate(VEHICLE_TYPE, List.of(passage), taxRuleSet);
 
         var amount = new TaxAmount(new BigDecimal(expectedAmount), SEK);
 
@@ -352,6 +426,18 @@ class TaxCalculatorTest {
                         "15.00"));
     }
 
+    private static Stream<Arguments> crossDateDailyMaximumScenarios() {
+        var chargeWindow = new ChargeWindow(Duration.ofMinutes(60));
+
+        return Stream.of(
+                Arguments.of("Daily Maximum absent", new TaxRuleOptions(List.of(chargeWindow)), "26.00"),
+                Arguments.of(
+                        "Daily Maximum applied after charge assignment",
+                        new TaxRuleOptions(
+                                List.of(chargeWindow, new DailyMaximum(new TaxAmount(new BigDecimal("15.00"), SEK)))),
+                        "15.00"));
+    }
+
     private static Stream<Arguments> calendarTaxExemptionScenarios() {
         return Stream.of(
                 Arguments.of(
@@ -389,7 +475,6 @@ class TaxCalculatorTest {
     private static TaxRuleSet taxRuleSet(TaxExemptions taxExemptions, TaxRuleOptions taxRuleOptions) {
         return new TaxRuleSet(
                 "gothenburg",
-                LocalDate.of(2013, Month.JANUARY, 1),
                 SEK,
                 List.of(new TaxTimeBand(LocalTime.of(6, 0), LocalTime.of(6, 30), TAX_AMOUNT)),
                 taxExemptions,
@@ -405,7 +490,7 @@ class TaxCalculatorTest {
         var passage =
                 new Passage(Instant.parse("2013-02-08T04:59:00Z"), LocalDateTime.of(2013, Month.FEBRUARY, 8, 5, 59));
 
-        var result = calculator.calculate(VEHICLE_TYPE, List.of(passage), Map.of(DATE, TAX_RULE_SET));
+        var result = calculator.calculate(VEHICLE_TYPE, List.of(passage), TAX_RULE_SET);
 
         var zero = TaxAmount.zero(SEK);
 
@@ -415,49 +500,10 @@ class TaxCalculatorTest {
     @Test
     void rejectsEmptyPassages() {
         var passages = List.<Passage>of();
-        var applicableTaxRuleSets = Map.of(DATE, TAX_RULE_SET);
 
-        assertThatThrownBy(() -> calculator.calculate(VEHICLE_TYPE, passages, applicableTaxRuleSets))
+        assertThatThrownBy(() -> calculator.calculate(VEHICLE_TYPE, passages, TAX_RULE_SET))
                 .isInstanceOf(InvalidCalculationInputException.class)
                 .hasMessage("Passages must not be empty.");
-    }
-
-    @Test
-    void rejectsEmptyApplicableTaxRuleSets() {
-        var passage = new Passage(
-                Instant.parse("2013-02-08T05:20:27Z"), LocalDateTime.of(2013, Month.FEBRUARY, 8, 6, 20, 27));
-        var passages = List.of(passage);
-        var applicableTaxRuleSets = Map.<LocalDate, TaxRuleSet>of();
-
-        assertThatThrownBy(() -> calculator.calculate(VEHICLE_TYPE, passages, applicableTaxRuleSets))
-                .isInstanceOf(InvalidCalculationInputException.class)
-                .hasMessage("Applicable Tax Rule Sets must not be empty.");
-    }
-
-    @Test
-    void rejectsMissingApplicableTaxRuleSetForPassageDate() {
-        var passage = new Passage(
-                Instant.parse("2013-02-08T05:20:27Z"), LocalDateTime.of(2013, Month.FEBRUARY, 8, 6, 20, 27));
-        var passages = List.of(passage);
-        var applicableTaxRuleSets = Map.of(DATE.minusDays(1), TAX_RULE_SET);
-
-        assertThatThrownBy(() -> calculator.calculate(VEHICLE_TYPE, passages, applicableTaxRuleSets))
-                .isInstanceOf(InvalidCalculationInputException.class)
-                .hasMessage("Applicable Tax Rule Set is missing" + " for calculation date: 2013-02-08.");
-    }
-
-    @Test
-    void rejectsMissingApplicableTaxRuleSetForAnyPassageDate() {
-        var laterDate = DATE.plusDays(1);
-        var earlierPassage =
-                new Passage(Instant.parse("2013-02-08T05:20:00Z"), LocalDateTime.of(2013, Month.FEBRUARY, 8, 6, 20));
-        var laterPassage =
-                new Passage(Instant.parse("2013-02-09T05:20:00Z"), LocalDateTime.of(2013, Month.FEBRUARY, 9, 6, 20));
-
-        assertThatThrownBy(() -> calculator.calculate(
-                        VEHICLE_TYPE, List.of(earlierPassage, laterPassage), Map.of(DATE, TAX_RULE_SET)))
-                .isInstanceOf(InvalidCalculationInputException.class)
-                .hasMessage("Applicable Tax Rule Set is missing" + " for calculation date: " + laterDate + ".");
     }
 
     @Test
@@ -465,27 +511,24 @@ class TaxCalculatorTest {
         var passage = new Passage(
                 Instant.parse("2013-02-08T05:20:27Z"), LocalDateTime.of(2013, Month.FEBRUARY, 8, 6, 20, 27));
         var passages = List.of(passage);
-        var applicableTaxRuleSets = Map.of(DATE, TAX_RULE_SET);
 
-        assertThatThrownBy(() -> calculator.calculate(null, passages, applicableTaxRuleSets))
+        assertThatThrownBy(() -> calculator.calculate(null, passages, TAX_RULE_SET))
                 .isInstanceOf(NullPointerException.class);
     }
 
     @Test
     void rejectsNullPassages() {
-        var applicableTaxRuleSets = Map.of(DATE, TAX_RULE_SET);
-
-        assertThatThrownBy(() -> calculator.calculate(VEHICLE_TYPE, null, applicableTaxRuleSets))
+        assertThatThrownBy(() -> calculator.calculate(VEHICLE_TYPE, null, TAX_RULE_SET))
                 .isInstanceOf(NullPointerException.class);
     }
 
     @Test
-    void rejectsNullApplicableTaxRuleSets() {
+    void rejectsNullTaxRuleSet() {
         var passage = new Passage(
                 Instant.parse("2013-02-08T05:20:27Z"), LocalDateTime.of(2013, Month.FEBRUARY, 8, 6, 20, 27));
         var passages = List.of(passage);
 
-        assertThatThrownBy(() -> calculator.calculate(VEHICLE_TYPE, passages, null))
+        assertThatThrownBy(() -> calculator.calculate(VEHICLE_TYPE, passages, (TaxRuleSet) null))
                 .isInstanceOf(NullPointerException.class);
     }
 }
