@@ -16,9 +16,10 @@ flowchart LR
     RULE_REPO --> DB[("PostgreSQL")]
 ```
 
-- The HTTP controller validates the transport shape, passes the raw Passage timestamp strings to `CalculationCommand`, and maps service results to HTTP. The HTTP exception handler maps service exceptions to HTTP.
+- Jackson and Bean Validation create and validate the typed request before the controller method runs. A property-specific Jackson content deserializer strictly converts each Passage timestamp string to `LocalDateTime`.
+- The HTTP controller has no parsing or validation logic. It forwards the City Local Time list in `CalculationCommand` and maps service results to HTTP. The HTTP exception handler maps service exceptions and timestamp deserialization failures to HTTP.
 - `CalculationService` defines the operation that coordinates one complete Congestion Tax Calculation.
-- `CalculationServiceImpl` strictly parses Passage timestamps, validates the supported Passage year, derives Passage instants with the stored City time zone, and calls the Tax Rule Service, pure calculator, and metrics component.
+- `CalculationServiceImpl` validates the supported Passage year, derives Passage instants with the stored City time zone, and calls the Tax Rule Service, pure calculator, and metrics component.
 - `TaxRuleService` confirms that the City exists, validates its stored IANA time zone, and loads the Vehicle Type and Applicable Tax Rule Sets.
 - The pure calculator applies the Tax Rules without Spring, database, HTTP, logging, or metrics behavior.
 - `TaxRuleServiceImpl` loads stored rows and maps them to immutable calculation values.
@@ -71,16 +72,14 @@ The domain does not:
 
 `CalculationService` coordinates the complete use case. It performs this sequence:
 
-1. Strictly parse each raw Passage timestamp in request order.
-2. Stop at the first malformed timestamp.
-3. After all timestamps parse, collect all unsupported-year indexes and reject the command if any exist.
-4. Record the accepted Passage count and start the calculation timer.
-5. Get the calculation dates from the parsed City Local Times.
-6. Ask `TaxRuleService` to load the stored City time zone and Applicable Tax Rule Sets for the calculation dates.
-7. Derive complete Passages with the stored City time zone.
-8. Ask `TaxRuleService` to load the Vehicle Type.
-9. Call `TaxCalculator`.
-10. Return the calculated City and calculation result.
+1. Collect all unsupported-year indexes and reject the command if any exist.
+2. Record the accepted Passage count and start the calculation timer.
+3. Get the calculation dates from the City Local Times.
+4. Ask `TaxRuleService` to load the stored City time zone and Applicable Tax Rule Sets for the calculation dates.
+5. Derive complete Passages with the stored City time zone.
+6. Ask `TaxRuleService` to load the Vehicle Type.
+7. Call `TaxCalculator`.
+8. Return the calculated City and calculation result.
 
 `CalculationServiceImpl` translates expected collaborator lookup failures into calculation-owned exceptions after metrics records the outcome. It also translates invalid stored Tax Rule Option content to a calculation-owned failure with the safe option type code. It preserves the lower exception as the cause. This keeps the Calculation module interface independent of its collaborator implementations.
 
@@ -113,13 +112,13 @@ The domain can use Lombok `@NonNull` as a compile-time annotation. It has no Lom
 
 Micrometer instrumentation stays at the Calculation Service boundary. It measures application coordination without adding Micrometer, Spring, or monitoring behavior to the pure calculator.
 
-The top-level `metrics` package owns the calculation timer, the accepted Passage-count distribution, their metric-name constants, and the timer's bounded outcome values. The Calculation Service starts custom metric recording after timestamp parsing and supported-year validation. It records the Passage count before City lookup, Vehicle Type lookup, stored-content loading, and Tax calculation. HTTP and database integrations use the standard meters that Spring Boot supplies.
+The top-level `metrics` package owns the calculation timer, the accepted Passage-count distribution, their metric-name constants, and the timer's bounded outcome values. The Calculation Service starts custom metric recording after supported-year validation. It records the Passage count before City lookup, Vehicle Type lookup, stored-content loading, and Tax calculation. HTTP and database integrations use the standard meters that Spring Boot supplies.
 
 A metrics failure cannot change the calculation result.
 
 ## Logging
 
-Application logging stays at boundaries that know an event's operational outcome. `CalculationServiceImpl` owns calculation start and successful completion. The HTTP exception handler owns expected request rejection and failed HTTP operations. A component that suppresses an internal failure logs it where it catches the failure. Persistence services can log feature decisions at `DEBUG` when the related feature issue requires that detail.
+Application logging stays at boundaries that know an event's operational outcome. `CalculationServiceImpl` owns calculation start and successful completion after supported-year validation. The HTTP exception handler owns expected request rejection and failed HTTP operations. A component that suppresses an internal failure logs it where it catches the failure. Persistence services can log feature decisions at `DEBUG` when the related feature issue requires that detail.
 
 The pure calculator, Domain values, JPA entities, and repositories do not log. One exception or event has one logging owner. A feature issue adds its required context to the owning boundary instead of logging the same event in several layers. `CONTRIBUTING.md` defines the level meanings and safe-data rules.
 

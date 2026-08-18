@@ -92,10 +92,8 @@ This test stays in the `taxrule.persistence` test package because it uses packag
 `CalculationServiceImplTest` proves:
 
 - coordination of Passages, stored Tax Rules, and the pure calculator;
-- strict parsing of raw Passage timestamp strings in request order;
-- fail-fast rejection of a malformed Passage timestamp before Tax Rule lookup;
-- acceptance of `2013-01-01 00:00:00` and `2013-12-31 23:59:59` as the supported-year boundaries;
-- collection of every unsupported-year Passage index before Tax Rule lookup;
+- acceptance of City Local Times `2013-01-01T00:00:00` and `2013-12-31T23:59:59` as the supported-year boundaries;
+- collection of every unsupported-year Passage index before Tax Rule lookup, calculation logs, and custom metrics;
 - derivation of winter and summer instants with the stored City time zone;
 - translation of unknown City and Vehicle Type failures into calculation-owned exceptions while preserving their causes;
 - translation of an invalid stored Tax Rule Option into a calculation-owned failure with its safe type code.
@@ -107,10 +105,13 @@ This test stays in the `taxrule.persistence` test package because it uses packag
 - rejection of a null or blank Vehicle Type;
 - rejection of a null or empty Passage list;
 - rejection of a null Passage value;
-- mapping of a malformed-timestamp service exception to HTTP `400`;
+- strict deserialization of exact `uuuu-MM-dd HH:mm:ss` Passage string tokens before the controller method runs;
+- rejection of values with leading or trailing whitespace and other Jackson `LocalDateTime` shapes;
+- rejection of an invalid second Passage before the Calculation Service runs;
+- mapping of a timestamp deserialization failure to the existing safe HTTP `400` response;
 - rejection of unknown JSON properties, including the removed `timeZone` property;
 - rejection of malformed JSON;
-- forwarding of raw Passage timestamp strings to `CalculationCommand`;
+- forwarding of `List<LocalDateTime>` to `CalculationCommand`;
 - mapping of an unsupported-year service exception to one HTTP `400` Problem Details response that reports all affected zero-based Passage indexes in request order;
 - the top-level `INVALID_REQUEST` code and the `UNSUPPORTED_PASSAGE_YEAR` code for each affected Passage;
 - a safe HTTP `500` response for an unexpected failure.

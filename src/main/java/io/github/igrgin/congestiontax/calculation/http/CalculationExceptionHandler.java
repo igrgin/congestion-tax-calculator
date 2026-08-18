@@ -1,11 +1,12 @@
 package io.github.igrgin.congestiontax.calculation.http;
 
 import io.github.igrgin.congestiontax.calculation.exception.CityNotFoundException;
-import io.github.igrgin.congestiontax.calculation.exception.InvalidPassageTimestampException;
 import io.github.igrgin.congestiontax.calculation.exception.InvalidStoredTaxRuleOptionException;
 import io.github.igrgin.congestiontax.calculation.exception.UnsupportedPassageYearException;
 import io.github.igrgin.congestiontax.calculation.exception.VehicleTypeNotFoundException;
 import io.github.igrgin.congestiontax.calculation.http.dto.UnsupportedPassageYearResponse;
+import java.time.LocalDateTime;
+import java.util.OptionalInt;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -15,6 +16,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.exc.MismatchedInputException;
 
 @RestControllerAdvice(assignableTypes = CalculationController.class)
 @Slf4j
@@ -38,15 +41,6 @@ public class CalculationExceptionHandler {
                 exception.vehicleTypeCode());
     }
 
-    @ExceptionHandler(InvalidPassageTimestampException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public void handleInvalidPassageTimestamp(InvalidPassageTimestampException exception) {
-        log.warn(
-                "Rejected Congestion Tax Calculation request. reason={} passageIndex={}",
-                "invalid-passage-timestamp",
-                exception.passageIndex());
-    }
-
     @ExceptionHandler(UnsupportedPassageYearException.class)
     public ResponseEntity<UnsupportedPassageYearResponse> handleUnsupportedPassageYear(
             UnsupportedPassageYearException exception) {
@@ -68,7 +62,16 @@ public class CalculationExceptionHandler {
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public void handleInvalidJson() {
+    public void handleInvalidJson(HttpMessageNotReadableException exception) {
+        var invalidPassageIndex = invalidPassageIndex(exception);
+        if (invalidPassageIndex.isPresent()) {
+            log.warn(
+                    "Rejected Congestion Tax Calculation request. reason={} passageIndex={}",
+                    "invalid-passage-timestamp",
+                    invalidPassageIndex.getAsInt());
+            return;
+        }
+
         log.warn("Rejected Congestion Tax Calculation request. reason={}", "invalid-json");
     }
 
@@ -86,5 +89,25 @@ public class CalculationExceptionHandler {
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public void handleUnexpectedFailure(Exception exception) {
         log.error("Congestion Tax Calculation failed unexpectedly.", exception);
+    }
+
+    private static OptionalInt invalidPassageIndex(Throwable exception) {
+        for (var cause = exception; cause != null; cause = cause.getCause()) {
+            if (cause instanceof MismatchedInputException mismatch
+                    && mismatch.getTargetType() == LocalDateTime.class
+                    && hasPassagesProperty(mismatch)) {
+                return mismatch.getPath().stream()
+                        .mapToInt(JacksonException.Reference::getIndex)
+                        .filter(index -> index >= 0)
+                        .findFirst();
+            }
+        }
+        return OptionalInt.empty();
+    }
+
+    private static boolean hasPassagesProperty(MismatchedInputException exception) {
+        return exception.getPath().stream()
+                .map(JacksonException.Reference::getPropertyName)
+                .anyMatch("passages"::equals);
     }
 }

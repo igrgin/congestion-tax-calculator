@@ -63,6 +63,8 @@ Each feature issue owns the events required by that feature. One boundary logs e
 
 Supported-year rejection uses the `unsupported-passage-year` category at `WARN` without a stack trace. This event contains no Passage timestamp.
 
+Timestamp deserialization failure uses the `invalid-passage-timestamp` category at `WARN` without a stack trace. The HTTP exception handler owns this event.
+
 Issue 5 will use `missing-applicable-tax-rule-set` and `mixed-tax-rule-set-currencies` at `ERROR` with their causes. These events will contain no Passage timestamp or Tax Amount.
 
 ## Metrics
@@ -78,7 +80,7 @@ congestion.tax.calculation
 congestion.tax.calculation.passages
 ```
 
-The timer surrounds the Calculation Service operation. It records these bounded `outcome` tag values:
+The timer surrounds the Calculation Service work after supported-year validation. It records these bounded `outcome` tag values:
 
 ```text
 success
@@ -90,7 +92,7 @@ The configured Prometheus histogram supports aggregate latency analysis.
 
 The timer does not use Tax Amounts, Passage timestamps, City codes, Vehicle Type codes, exception messages, or other unbounded values as tags. Standard HTTP metrics supply request count, duration, outcome, and status.
 
-The `congestion.tax.calculation.passages` distribution records the Passage count once for each command that passes timestamp parsing and supported-year validation in the Calculation Service. It records the count even when later lookup, stored-content, or calculation behavior fails. It has no tags and publishes these boundaries:
+The `congestion.tax.calculation.passages` distribution records the Passage count once for each request that passes Jackson timestamp deserialization and Calculation Service supported-year validation. It records the count even when later lookup, stored-content, or calculation behavior fails. It has no tags and publishes these boundaries:
 
 ```text
 1

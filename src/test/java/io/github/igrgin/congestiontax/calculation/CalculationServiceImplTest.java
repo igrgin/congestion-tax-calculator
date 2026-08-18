@@ -6,7 +6,6 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import io.github.igrgin.congestiontax.calculation.exception.CityNotFoundException;
-import io.github.igrgin.congestiontax.calculation.exception.InvalidPassageTimestampException;
 import io.github.igrgin.congestiontax.calculation.exception.InvalidStoredTaxRuleOptionException;
 import io.github.igrgin.congestiontax.calculation.exception.UnsupportedPassageYearException;
 import io.github.igrgin.congestiontax.calculation.exception.VehicleTypeNotFoundException;
@@ -68,8 +67,7 @@ class CalculationServiceImplTest {
 
     @ParameterizedTest
     @MethodSource("cityTimes")
-    void calculatesTaxWithStoredCityTimeZone(
-            String passageTimestamp, LocalDateTime cityDateTime, Instant passageInstant) {
+    void calculatesTaxWithStoredCityTimeZone(LocalDateTime cityDateTime, Instant passageInstant) {
         var cityCode = "gothenburg";
         var vehicleTypeCode = "OTHER";
         var calculationDate = cityDateTime.toLocalDate();
@@ -94,8 +92,8 @@ class CalculationServiceImplTest {
         given(taxCalculator.calculate(vehicleType, passages, applicableTaxRuleSets))
                 .willReturn(calculationResult);
 
-        var result = calculationService.calculate(
-                new CalculationCommand(cityCode, vehicleTypeCode, List.of(passageTimestamp)));
+        var result =
+                calculationService.calculate(new CalculationCommand(cityCode, vehicleTypeCode, List.of(cityDateTime)));
 
         assertThat(result).isEqualTo(new CalculatedTax(cityCode, calculationResult));
     }
@@ -104,7 +102,7 @@ class CalculationServiceImplTest {
     void translatesUnknownCity() {
         var cityCode = "unknown";
         var cityDateTime = LocalDateTime.of(2013, Month.FEBRUARY, 8, 6, 20, 27);
-        var command = new CalculationCommand(cityCode, "OTHER", List.of("2013-02-08 06:20:27"));
+        var command = new CalculationCommand(cityCode, "OTHER", List.of(cityDateTime));
         var calculationDates = Set.of(cityDateTime.toLocalDate());
         var cause = new UnknownCityException(cityCode);
 
@@ -122,7 +120,7 @@ class CalculationServiceImplTest {
         var cityCode = "gothenburg";
         var vehicleTypeCode = "UNKNOWN";
         var cityDateTime = LocalDateTime.of(2013, Month.FEBRUARY, 8, 6, 20, 27);
-        var command = new CalculationCommand(cityCode, vehicleTypeCode, List.of("2013-02-08 06:20:27"));
+        var command = new CalculationCommand(cityCode, vehicleTypeCode, List.of(cityDateTime));
         var calculationDate = LocalDate.of(2013, Month.FEBRUARY, 8);
         var applicableTaxRuleSets = Map.<LocalDate, TaxRuleSet>of();
         var cause = new UnknownVehicleTypeException(vehicleTypeCode);
@@ -141,7 +139,7 @@ class CalculationServiceImplTest {
     void propagatesUnexpectedFailure() {
         var cityCode = "gothenburg";
         var cityDateTime = LocalDateTime.of(2013, Month.FEBRUARY, 8, 6, 20, 27);
-        var command = new CalculationCommand(cityCode, "OTHER", List.of("2013-02-08 06:20:27"));
+        var command = new CalculationCommand(cityCode, "OTHER", List.of(cityDateTime));
         var calculationDates = Set.of(cityDateTime.toLocalDate());
         var exception = new IllegalStateException("Unexpected failure.");
 
@@ -155,7 +153,7 @@ class CalculationServiceImplTest {
     void translatesInvalidStoredTaxRuleOption() {
         var cityCode = "gothenburg";
         var cityDateTime = LocalDateTime.of(2013, Month.FEBRUARY, 8, 6, 20, 27);
-        var command = new CalculationCommand(cityCode, "OTHER", List.of("2013-02-08 06:20:27"));
+        var command = new CalculationCommand(cityCode, "OTHER", List.of(cityDateTime));
         var calculationDates = Set.of(cityDateTime.toLocalDate());
         var cause = new InvalidTaxRuleOptionException("CHARGE_WINDOW");
 
@@ -170,24 +168,15 @@ class CalculationServiceImplTest {
     }
 
     @Test
-    void rejectsFirstMalformedPassageBeforeYearValidationAndTaxRuleLookup() {
-        var command = new CalculationCommand(
-                "gothenburg", "OTHER", List.of("2012-02-08 06:20:27", "invalid", "2013-02-08T07:20:27"));
-
-        assertThatThrownBy(() -> calculationService.calculate(command))
-                .isInstanceOfSatisfying(
-                        InvalidPassageTimestampException.class,
-                        exception -> assertThat(exception.passageIndex()).isEqualTo(1));
-
-        verifyNoInteractions(taxRuleService, taxCalculator);
-    }
-
-    @Test
     void rejectsEveryUnsupportedPassageYearBeforeTaxRuleLookup() {
         var command = new CalculationCommand(
                 "gothenburg",
                 "OTHER",
-                List.of("2012-12-31 23:59:59", "2013-06-15 12:00:00", "2014-01-01 00:00:00", "2020-02-29 18:30:00"));
+                List.of(
+                        LocalDateTime.of(2012, Month.DECEMBER, 31, 23, 59, 59),
+                        LocalDateTime.of(2013, Month.JUNE, 15, 12, 0),
+                        LocalDateTime.of(2014, Month.JANUARY, 1, 0, 0),
+                        LocalDateTime.of(2020, Month.FEBRUARY, 29, 18, 30)));
 
         assertThatThrownBy(() -> calculationService.calculate(command))
                 .isInstanceOfSatisfying(
@@ -199,21 +188,11 @@ class CalculationServiceImplTest {
 
     private static Stream<Arguments> cityTimes() {
         return Stream.of(
+                Arguments.of(LocalDateTime.of(2013, Month.JANUARY, 1, 0, 0), Instant.parse("2012-12-31T23:00:00Z")),
                 Arguments.of(
-                        "2013-01-01 00:00:00",
-                        LocalDateTime.of(2013, Month.JANUARY, 1, 0, 0),
-                        Instant.parse("2012-12-31T23:00:00Z")),
+                        LocalDateTime.of(2013, Month.FEBRUARY, 8, 6, 20, 27), Instant.parse("2013-02-08T05:20:27Z")),
+                Arguments.of(LocalDateTime.of(2013, Month.JULY, 8, 6, 20, 27), Instant.parse("2013-07-08T04:20:27Z")),
                 Arguments.of(
-                        "2013-02-08 06:20:27",
-                        LocalDateTime.of(2013, Month.FEBRUARY, 8, 6, 20, 27),
-                        Instant.parse("2013-02-08T05:20:27Z")),
-                Arguments.of(
-                        "2013-07-08 06:20:27",
-                        LocalDateTime.of(2013, Month.JULY, 8, 6, 20, 27),
-                        Instant.parse("2013-07-08T04:20:27Z")),
-                Arguments.of(
-                        "2013-12-31 23:59:59",
-                        LocalDateTime.of(2013, Month.DECEMBER, 31, 23, 59, 59),
-                        Instant.parse("2013-12-31T22:59:59Z")));
+                        LocalDateTime.of(2013, Month.DECEMBER, 31, 23, 59, 59), Instant.parse("2013-12-31T22:59:59Z")));
     }
 }

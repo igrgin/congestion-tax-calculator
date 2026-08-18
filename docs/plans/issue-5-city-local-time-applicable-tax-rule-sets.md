@@ -12,9 +12,9 @@ Read `CONTEXT.md`, `CONTRIBUTING.md`, and `docs/design/README.md` before impleme
 
 This issue implements or proves:
 
-- transport-shape validation in the HTTP controller;
-- raw Passage timestamp transfer through `CalculationCommand`;
-- strict Passage parsing as City Local Time in `uuuu-MM-dd HH:mm:ss` format;
+- transport-shape validation before the HTTP controller method runs;
+- strict Passage deserialization from exact `uuuu-MM-dd HH:mm:ss` JSON string tokens to City Local Time;
+- typed City Local Time transfer through `CalculationCommand`;
 - Passage instant derivation with the selected City's stored IANA time zone;
 - rejection of each Passage whose City Local Time date is outside 2013;
 - one complete request rejection that reports all unsupported-year Passage indexes;
@@ -52,9 +52,9 @@ The supported year is an API validation rule. It is not a new project term or Do
 
 ## Time and date rules
 
-Each Passage timestamp is City Local Time. The HTTP controller validates the transport shape and passes the raw Passage timestamps in `CalculationCommand`. The controller does not parse the timestamps.
+Each Passage timestamp is a JSON string that gives City Local Time. A property-specific Jackson content deserializer strictly converts each value to `LocalDateTime` before the controller method runs. It accepts only the exact `uuuu-MM-dd HH:mm:ss` format, does not trim, and rejects other Jackson `LocalDateTime` shapes. Deserialization stops at the first invalid Passage. Jackson adds its collection index to the error path.
 
-`CalculationServiceImpl` strictly parses each timestamp without an offset and in request order. The selected City supplies one stored IANA time zone. The Calculation module uses that time zone to derive the Passage instant.
+The controller has no parsing or validation logic. It forwards `List<LocalDateTime>` in `CalculationCommand`. The selected City supplies one stored IANA time zone. The Calculation module uses that time zone to derive the Passage instant.
 
 City Local Time supplies:
 
@@ -71,18 +71,16 @@ Only Passage City Local Time dates in 2013 are valid. Stored Tax Rule Set effect
 
 ## Supported-year validation
 
-`CalculationServiceImpl` parses each Passage timestamp in request order. It stops at the first malformed timestamp and keeps the existing malformed-timestamp rejection behavior.
-
-After all timestamps parse, `CalculationServiceImpl`:
+After successful timestamp deserialization, `CalculationServiceImpl`:
 
 1. checks each City Local Time year;
 2. collects each affected zero-based Passage index;
 3. keeps the indexes in request order;
 4. rejects the complete request when the collection is not empty.
 
-This issue does not combine malformed-timestamp errors with unsupported-year errors. The HTTP exception handler maps both Calculation Service exceptions to the agreed HTTP errors.
+This issue does not combine malformed-timestamp errors with unsupported-year errors. The HTTP exception handler maps timestamp deserialization failures and Calculation Service supported-year exceptions to the agreed HTTP errors. A timestamp deserialization failure keeps the existing safe HTTP `400` response and the `invalid-passage-timestamp` `WARN` category.
 
-Malformed-timestamp and unsupported-year requests stop before Tax Rule Service access, PostgreSQL access, and the Calculation Service metrics recorder.
+Timestamp deserialization failures occur before the controller method runs. Unsupported-year requests stop before Tax Rule Service access, PostgreSQL access, calculation logs, and the Calculation Service metrics recorder.
 
 ## Unsupported-year response
 
@@ -158,7 +156,7 @@ Safe context can contain the City code and calculation date. The response contai
 
 This issue adds no custom metric. Standard HTTP metrics, the calculation outcome timer, the accepted Passage-count distribution, and safe logs answer the issue's operational questions.
 
-`CalculationServiceImpl` completes timestamp parsing and supported-year validation before it calls the calculation metrics recorder. The calculation outcome timer and Passage-count distribution record only requests that pass this input validation. Standard HTTP metrics continue to record rejected HTTP requests.
+Jackson completes timestamp deserialization before the controller method runs. `CalculationServiceImpl` completes supported-year validation before calculation logs and the calculation metrics recorder. The calculation outcome timer and Passage-count distribution record only requests that pass both checks. Standard HTTP metrics continue to record rejected HTTP requests.
 
 The existing calculation events keep their owners and levels. A metrics failure cannot change the calculation result.
 
@@ -167,7 +165,8 @@ The existing calculation events keep their owners and levels. A metrics failure 
 Use these public boundaries:
 
 - the calculation HTTP operation for supported-year validation and its Problem Details response;
-- `CalculationService.calculate` for strict timestamp parsing, fail-fast malformed-timestamp rejection, complete unsupported-year index collection, and the pre-Tax-Rule validation boundary;
+- the calculation HTTP operation for strict timestamp deserialization and safe malformed-timestamp rejection;
+- `CalculationService.calculate` for complete unsupported-year index collection and the pre-Tax-Rule validation boundary;
 - `TaxCalculator.calculate` for local-midnight Charge Window behavior and mixed currencies;
 - `CalculationService.calculate` for calculation-owned stored-content failure translation;
 - the HTTP-to-PostgreSQL operation for successive snapshots, historical results, and future-snapshot exclusion.
@@ -182,8 +181,9 @@ Do not test private methods, exact SQL, JPA internals, or log output.
 
 This group adds:
 
-- raw Passage timestamp transfer through `CalculationCommand`;
-- strict parsing and supported-year validation in `CalculationServiceImpl` before Tax Rule Service and metrics access;
+- property-specific strict Passage timestamp deserialization before the controller method runs;
+- typed City Local Time transfer through `CalculationCommand`;
+- supported-year validation in `CalculationServiceImpl` before Tax Rule Service, calculation logs, and metrics access;
 - complete supported-year index collection;
 - the narrow Problem Details response;
 - top-level and per-error response codes;

@@ -3,13 +3,13 @@ package io.github.igrgin.congestiontax.calculation.http;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.github.igrgin.congestiontax.calculation.CalculationService;
-import io.github.igrgin.congestiontax.calculation.exception.InvalidPassageTimestampException;
 import io.github.igrgin.congestiontax.calculation.exception.UnsupportedPassageYearException;
 import io.github.igrgin.congestiontax.calculation.model.CalculatedTax;
 import io.github.igrgin.congestiontax.calculation.model.CalculationCommand;
@@ -28,7 +28,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
@@ -57,8 +56,7 @@ class CalculationControllerTest {
         var calculationResult =
                 new CalculationResult(vehicleType, List.of(new DailyTax(calculationDate, taxAmount)), taxAmount);
 
-        given(calculationService.calculate(
-                        new CalculationCommand(cityCode, vehicleType.code(), List.of("2013-02-08 06:20:27"))))
+        given(calculationService.calculate(new CalculationCommand(cityCode, vehicleType.code(), List.of(cityDateTime))))
                 .willReturn(new CalculatedTax(cityCode, calculationResult));
 
         mockMvc.perform(post("/api/v1/cities/{cityCode}" + "/congestion-tax/calculations", cityCode)
@@ -149,7 +147,11 @@ class CalculationControllerTest {
                 new CalculationResult(vehicleType, List.of(new DailyTax(calculationDate, taxAmount)), taxAmount);
 
         given(calculationService.calculate(new CalculationCommand(
-                        cityCode, vehicleType.code(), List.of("2013-02-08 05:20:27", "2013-02-08 06:20:27"))))
+                        cityCode,
+                        vehicleType.code(),
+                        List.of(
+                                LocalDateTime.of(2013, Month.FEBRUARY, 8, 5, 20, 27),
+                                LocalDateTime.of(2013, Month.FEBRUARY, 8, 6, 20, 27)))))
                 .willReturn(new CalculatedTax(cityCode, calculationResult));
 
         mockMvc.perform(post("/api/v1/cities/{cityCode}" + "/congestion-tax/calculations", cityCode)
@@ -191,7 +193,7 @@ class CalculationControllerTest {
         var calculationResult = new CalculationResult(
                 vehicleType, List.of(new DailyTax(cityDateTime.toLocalDate(), taxAmount)), taxAmount);
 
-        given(calculationService.calculate(new CalculationCommand(cityCode, vehicleType.code(), List.of(timestamp))))
+        given(calculationService.calculate(new CalculationCommand(cityCode, vehicleType.code(), List.of(cityDateTime))))
                 .willReturn(new CalculatedTax(cityCode, calculationResult));
 
         mockMvc.perform(post("/api/v1/cities/{cityCode}" + "/congestion-tax/calculations", cityCode)
@@ -216,9 +218,12 @@ class CalculationControllerTest {
     @Test
     void rejectsEveryPassageOutsideSupportedYear() throws Exception {
         var cityCode = "gothenburg";
-        var passageTimestamps =
-                List.of("2012-12-31 23:59:59", "2013-06-15 12:00:00", "2014-01-01 00:00:00", "2020-02-29 18:30:00");
-        var command = new CalculationCommand(cityCode, "OTHER", passageTimestamps);
+        var passageCityDateTimes = List.of(
+                LocalDateTime.of(2012, Month.DECEMBER, 31, 23, 59, 59),
+                LocalDateTime.of(2013, Month.JUNE, 15, 12, 0),
+                LocalDateTime.of(2014, Month.JANUARY, 1, 0, 0),
+                LocalDateTime.of(2020, Month.FEBRUARY, 29, 18, 30));
+        var command = new CalculationCommand(cityCode, "OTHER", passageCityDateTimes);
 
         given(calculationService.calculate(command)).willThrow(new UnsupportedPassageYearException(List.of(0, 2, 3)));
 
@@ -255,27 +260,35 @@ class CalculationControllerTest {
         verify(calculationService).calculate(command);
     }
 
-    @ParameterizedTest
-    @ValueSource(strings = {"2013-02-08T05:20:27Z", "2013-02-08T06:20:27", "2013-02-08 06:20", "2013-02-30 06:20:27"})
-    void rejectsInvalidPassageTimestamp(String timestamp) throws Exception {
-        var command = new CalculationCommand("gothenburg", "OTHER", List.of(timestamp));
-
-        given(calculationService.calculate(command))
-                .willThrow(new InvalidPassageTimestampException(0, new IllegalArgumentException()));
-
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("invalidPassageValues")
+    void rejectsInvalidPassageValue(String scenario, String passagesJson) throws Exception {
         mockMvc.perform(post("/api/v1/cities/{cityCode}" + "/congestion-tax/calculations", "gothenburg")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
                                   "vehicleType": "OTHER",
-                                  "passages": [
-                                    "%s"
-                                  ]
+                                  "passages": %s
                                 }
-                                """.formatted(timestamp)))
+                                """.formatted(passagesJson)))
                 .andExpect(status().isBadRequest());
 
-        verify(calculationService).calculate(command);
+        verifyNoInteractions(calculationService);
+    }
+
+    private static Stream<Arguments> invalidPassageValues() {
+        return Stream.of(
+                Arguments.of("UTC offset", "[\"2013-02-08 06:20:27Z\"]"),
+                Arguments.of("numeric offset", "[\"2013-02-08 06:20:27+01:00\"]"),
+                Arguments.of("T separator", "[\"2013-02-08T06:20:27\"]"),
+                Arguments.of("missing seconds", "[\"2013-02-08 06:20\"]"),
+                Arguments.of("invalid calendar date", "[\"2013-02-30 06:20:27\"]"),
+                Arguments.of("leading space", "[\" 2013-02-08 06:20:27\"]"),
+                Arguments.of("trailing space", "[\"2013-02-08 06:20:27 \"]"),
+                Arguments.of("number", "[20130208062027]"),
+                Arguments.of("Boolean", "[true]"),
+                Arguments.of("array form", "[[2013, 2, 8, 6, 20, 27]]"),
+                Arguments.of("invalid second Passage", "[\"2013-02-08 06:20:27\", \"invalid\"]"));
     }
 
     @Test
