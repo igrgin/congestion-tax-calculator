@@ -36,6 +36,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 
 @ActiveProfiles("test")
 @WebMvcTest(CalculationController.class)
@@ -61,16 +62,7 @@ class CalculationControllerTest {
         given(calculationService.calculate(new CalculationCommand(cityCode, vehicleType.code(), List.of(cityDateTime))))
                 .willReturn(new CalculatedTax(cityCode, calculationResult));
 
-        mockMvc.perform(post("/api/v1/cities/{cityCode}" + "/congestion-tax/calculations", cityCode)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "vehicleType": "OTHER",
-                                  "passages": [
-                                    "2013-02-08 06:20:27"
-                                  ]
-                                }
-                                """))
+        performOnePassageOtherRequest()
                 .andExpect(status().isOk())
                 .andExpect(content().json("""
                         {
@@ -103,16 +95,7 @@ class CalculationControllerTest {
         given(calculationService.calculate(new CalculationCommand(cityCode, vehicleType.code(), List.of(cityDateTime))))
                 .willReturn(new CalculatedTax(cityCode, calculationResult));
 
-        mockMvc.perform(post("/api/v1/cities/{cityCode}" + "/congestion-tax/calculations", cityCode)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "vehicleType": "OTHER",
-                                  "passages": [
-                                    "2013-02-08 06:20:27"
-                                  ]
-                                }
-                                """))
+        performOnePassageOtherRequest()
                 .andExpect(status().isOk())
                 .andExpect(content().json("""
                         {
@@ -142,6 +125,19 @@ class CalculationControllerTest {
                 .andExpect(jsonPath("$.dailyTaxes[0].taxExemptionReasons[2]").value("MONTH"))
                 .andExpect(jsonPath("$.dailyTaxes[0].taxExemptionReasons[3]").value("PUBLIC_HOLIDAY"))
                 .andExpect(jsonPath("$.dailyTaxes[0].taxExemptionReasons[4]").value("DATE_BEFORE_PUBLIC_HOLIDAY"));
+    }
+
+    private ResultActions performOnePassageOtherRequest() throws Exception {
+        return mockMvc.perform(post("/api/v1/cities/{cityCode}" + "/congestion-tax/calculations", "gothenburg")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "vehicleType": "OTHER",
+                          "passages": [
+                            "2013-02-08 06:20:27"
+                          ]
+                        }
+                        """));
     }
 
     @ParameterizedTest(name = "{0}")
