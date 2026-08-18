@@ -1,3 +1,3 @@
 package io.github.igrgin.congestiontax.domain.rule;
 
-public sealed interface TaxRuleOption permits ChargeWindow, DailyMaximum {}
+public sealed interface TaxRuleOption permits ChargeWindow, DailyMaximum, HolidayPreceding {}
