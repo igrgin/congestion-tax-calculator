@@ -42,7 +42,21 @@ Daily results are ordered by date and include zero amounts. Each Daily Tax conta
 
 One response has one currency from the selected City's Tax Rule Set.
 
-The city code in the path selects the stored rules without changing the API contract. OpenAPI JSON and Swagger UI are planned for the later API documentation work.
+The city code in the path selects the stored rules without changing the API contract.
+
+## API documentation
+
+The application publishes the current public contract at these endpoints:
+
+```text
+OpenAPI JSON:  GET /v3/api-docs
+Swagger entry: GET /swagger-ui.html
+Swagger UI:    GET /swagger-ui/index.html
+```
+
+The Swagger entry redirects to the Swagger UI. The OpenAPI title is `Congestion Tax Calculator API`, and its version is `v1`.
+
+The controller owns the operation, path input, response status, and response examples. The HTTP DTOs own their field schemas. A small API-wide configuration owns the title and version. The OpenAPI request schema documents the exact Passage timestamp format, its supported year, and an example. The four named HTTP `400` examples are `invalidRequest`, `invalidJson`, `invalidPassageTimestamp`, and `unsupportedPassageYear`.
 
 ## Request validation
 
@@ -61,7 +75,7 @@ For a calculation request:
 - The Calculation module derives each Passage instant with the stored City time zone.
 - Missing and repeated local times during daylight-saving changes are outside the supported input contract.
 
-Bean Validation checks the reusable transport-shape invariants. Jackson completes timestamp deserialization before the controller method runs. Supported-year validation belongs to the Calculation Service and runs before Tax Rule lookup, calculation logs, and custom metrics. Complete validation aggregation for other request failures belongs to the later API validation work.
+Bean Validation checks the reusable transport-shape invariants. Jackson completes timestamp deserialization before the controller method runs. Supported-year validation belongs to the Calculation Service and runs before Tax Rule lookup, calculation logs, and custom metrics. A Bean Validation failure returns the generic invalid-request Problem Details response. It does not add field errors.
 
 `CalculationRequest` stays inside the HTTP adapter and contains `List<LocalDateTime>`. The controller has no parsing or validation logic. It forwards the City Local Time list in `CalculationCommand` and maps the service result to the HTTP response.
 
@@ -145,7 +159,7 @@ The supported-year error shape is:
 }
 ```
 
-The supported-year response uses the top-level code `INVALID_REQUEST`. Each field error uses the code `UNSUPPORTED_PASSAGE_YEAR`. Several unsupported Passages produce one error entry for each affected zero-based index, in request order. The supported-year response does not combine unsupported-year errors with other validation failure types. Complete field-error aggregation for the other validation types belongs to the later API issue.
+The supported-year response uses the top-level code `INVALID_REQUEST`. Each field error uses the code `UNSUPPORTED_PASSAGE_YEAR`. Several unsupported Passages produce one error entry for each affected zero-based index, in request order. The supported-year response does not combine unsupported-year errors with other validation failure types.
 
 An internal failure response is:
 

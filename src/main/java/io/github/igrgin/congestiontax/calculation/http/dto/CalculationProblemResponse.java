@@ -1,14 +1,26 @@
 package io.github.igrgin.congestiontax.calculation.http.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 
 public record CalculationProblemResponse(
-        String title,
+        @Schema(description = "Short problem summary.") String title,
+
+        @Schema(description = "HTTP status code.", example = "400")
         int status,
-        String detail,
+
+        @Schema(description = "Safe problem explanation.") String detail,
+
+        @Schema(description = "Stable application problem code.", example = "INVALID_REQUEST")
         String code,
-        @JsonInclude(JsonInclude.Include.NON_EMPTY) List<RequestError> errors) {
+
+        @JsonInclude(JsonInclude.Include.NON_EMPTY)
+        @ArraySchema(
+                arraySchema = @Schema(description = "Specific request errors when they are available."),
+                schema = @Schema(implementation = RequestError.class))
+        List<RequestError> errors) {
 
     public static CalculationProblemResponse forInvalidRequest() {
         return new CalculationProblemResponse(
@@ -62,7 +74,15 @@ public record CalculationProblemResponse(
                 errors);
     }
 
-    public record RequestError(String field, String code, String message) {
+    public record RequestError(
+            @Schema(description = "Request field or Passage index.", example = "passages[1]")
+            String field,
+
+            @Schema(description = "Stable request error code.", example = "INVALID_PASSAGE_TIMESTAMP")
+            String code,
+
+            @Schema(description = "Request error explanation.")
+            String message) {
 
         private static RequestError unsupportedYear(int passageIndex) {
             return new RequestError(

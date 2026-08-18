@@ -259,6 +259,21 @@ An `@AfterEach` method removes the synthetic rows. The test does not use a test 
 - database health is `UP`;
 - health component details are hidden.
 
+## API documentation integration test
+
+`ApiDocumentationITest` starts the complete Spring Boot application and tests the public documentation endpoints through HTTP.
+
+The test verifies:
+
+- OpenAPI JSON title and version;
+- the calculation operation, City path input, request schema, and success schema;
+- the exact Passage timestamp format, example, and supported-year rule;
+- Problem Details schemas and examples for HTTP `400`, `404`, `500`, and `503`;
+- the four named HTTP `400` examples and their current response shapes;
+- the Swagger entry redirect and the Swagger UI page.
+
+The test resolves local OpenAPI schema references without requiring generated component names. It does not assert generated JSON order, springdoc classes, log output, or other implementation details.
+
 ## Test execution
 
 Maven Surefire runs regular test classes with the suffix `Test`. It excludes classes with the suffix `ITest`.
@@ -287,9 +302,6 @@ Tests that start Spring without PostgreSQL use the `test` profile. Full Spring B
 
 Later calculation issues will add focused tests for:
 
-- remaining validation-detail aggregation and API documentation;
 - a second City with different stored Tax Rules.
 
 Issue 5 owns the one-Tax-Rule-Set tests, Tax Time Band boundary and overlap tests, cross-date Charge Window tests, and the shared calculation Problem Details structure.
-
-The complete assignment full-path test will be added when the related calculation behavior and seed data exist.
