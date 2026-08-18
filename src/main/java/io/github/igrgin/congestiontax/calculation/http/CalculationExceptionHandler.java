@@ -108,49 +108,25 @@ public class CalculationExceptionHandler {
     @ExceptionHandler(MissingStoredTaxRuleSetException.class)
     public ResponseEntity<CalculationProblemResponse> handleMissingTaxRuleSet(
             MissingStoredTaxRuleSetException exception) {
-        log.error(
-                "Congestion Tax Calculation failed. reason={} cityCode={}",
-                "missing-tax-rule-set",
-                exception.cityCode(),
-                exception);
-
-        return internalFailure();
+        return storedCityFailure("missing-tax-rule-set", exception.cityCode(), exception);
     }
 
     @ExceptionHandler(MissingStoredTaxTimeBandsException.class)
     public ResponseEntity<CalculationProblemResponse> handleMissingTaxTimeBands(
             MissingStoredTaxTimeBandsException exception) {
-        log.error(
-                "Congestion Tax Calculation failed. reason={} cityCode={}",
-                "missing-tax-time-bands",
-                exception.cityCode(),
-                exception);
-
-        return internalFailure();
+        return storedCityFailure("missing-tax-time-bands", exception.cityCode(), exception);
     }
 
     @ExceptionHandler(InvalidStoredCityTimeZoneException.class)
     public ResponseEntity<CalculationProblemResponse> handleInvalidCityTimeZone(
             InvalidStoredCityTimeZoneException exception) {
-        log.error(
-                "Congestion Tax Calculation failed. reason={} cityCode={}",
-                "invalid-city-time-zone",
-                exception.cityCode(),
-                exception);
-
-        return internalFailure();
+        return storedCityFailure("invalid-city-time-zone", exception.cityCode(), exception);
     }
 
     @ExceptionHandler(InvalidStoredTaxTimeBandsException.class)
     public ResponseEntity<CalculationProblemResponse> handleInvalidTaxTimeBands(
             InvalidStoredTaxTimeBandsException exception) {
-        log.error(
-                "Congestion Tax Calculation failed. reason={} cityCode={}",
-                "overlapping-tax-time-bands",
-                exception.cityCode(),
-                exception);
-
-        return internalFailure();
+        return storedCityFailure("overlapping-tax-time-bands", exception.cityCode(), exception);
     }
 
     @ExceptionHandler({DataAccessResourceFailureException.class, CannotCreateTransactionException.class})
@@ -169,6 +145,13 @@ public class CalculationExceptionHandler {
 
     private static ResponseEntity<CalculationProblemResponse> internalFailure() {
         return problem(HttpStatus.INTERNAL_SERVER_ERROR, CalculationProblemResponse.forCalculationFailure());
+    }
+
+    private static ResponseEntity<CalculationProblemResponse> storedCityFailure(
+            String reason, String cityCode, RuntimeException exception) {
+        log.error("Congestion Tax Calculation failed. reason={} cityCode={}", reason, cityCode, exception);
+
+        return internalFailure();
     }
 
     private static ResponseEntity<CalculationProblemResponse> problem(

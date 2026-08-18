@@ -148,6 +148,7 @@ classDiagram
         +add(other) TaxAmount
         +min(other) TaxAmount
         +max(other) TaxAmount
+        +isGreaterThan(other) boolean
     }
 
     class TaxExemptionReason {
@@ -187,11 +188,11 @@ classDiagram
     DailyTax *-- TaxAmount
 ```
 
-`TaxAmount` contains a `BigDecimal` and a Java `Currency`. Its constructor rejects null values and negative amounts. Its `add`, `min`, and `max` operations reject Tax Amounts that use different currencies.
+`TaxAmount` contains a `BigDecimal` and a Java `Currency`. Its constructor rejects null values and negative amounts. Its arithmetic and comparison operations reject Tax Amounts that use different currencies.
 
 Collection-owning calculation values receive unmodifiable collections from their producers. They store the supplied collections without making another copy.
 
-`TaxTimeBand` rejects null values and a negative Tax Amount. It interprets an end before the start as a cross-midnight band and equal start and end times as a full-day band.
+`TaxTimeBand` rejects null values. `TaxAmount` rejects negative amounts before they can enter a Tax Time Band. `TaxTimeBand` interprets an end before the start as a cross-midnight band and equal start and end times as a full-day band.
 
 `TaxRuleSet` rejects null fields and requires at least one Tax Time Band. Its Tax Rule Options can contain one Charge Window and one Daily Maximum.
 

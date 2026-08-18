@@ -86,7 +86,7 @@ public final class TaxCalculator {
                 assign(winner, assignedAmounts);
                 windowStart = passage.occurredAt();
                 winner = passageCharge;
-            } else if (passageCharge.amount().amount().compareTo(winner.amount().amount()) > 0) {
+            } else if (passageCharge.amount().isGreaterThan(winner.amount())) {
                 winner = passageCharge;
             }
         }

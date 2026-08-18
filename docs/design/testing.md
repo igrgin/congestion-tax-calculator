@@ -23,6 +23,7 @@ Application logging remains active when a test uses a Spring profile. Test code 
 - addition;
 - minimum selection;
 - maximum selection;
+- greater-than comparison;
 - zero creation;
 - rejection of null values;
 - rejection of negative amounts;
@@ -36,8 +37,7 @@ Application logging remains active when a test uses a Spring profile. Test code 
 - rejection of null values;
 - matching every City Local Time when the start and end are equal;
 - matching on both sides of midnight when the end is before the start;
-- acceptance of a zero Tax Amount;
-- rejection of a negative Tax Amount.
+- acceptance of a zero Tax Amount.
 
 `TaxRuleSetTest` proves:
 
