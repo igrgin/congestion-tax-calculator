@@ -71,7 +71,7 @@ The domain does not:
 
 `CalculationService` coordinates the complete use case. It performs this sequence:
 
-1. Record the calculation timer.
+1. Record the accepted Passage count and start the calculation timer.
 2. Get the calculation dates from the supplied City Local Times.
 3. Ask `TaxRuleService` to load the stored City time zone and Applicable Tax Rule Sets for the calculation dates.
 4. Derive complete Passages with the stored City time zone.
@@ -79,7 +79,7 @@ The domain does not:
 6. Call `TaxCalculator`.
 7. Return the calculated City and calculation result.
 
-`CalculationServiceImpl` translates expected collaborator lookup failures into calculation-owned exceptions after metrics records the outcome. It preserves the lower exception as the cause. This keeps the Calculation module interface independent of its collaborator implementations.
+`CalculationServiceImpl` translates expected collaborator lookup failures into calculation-owned exceptions after metrics records the outcome. It also translates invalid stored Tax Rule Option content to a calculation-owned failure with the safe option type code. It preserves the lower exception as the cause. This keeps the Calculation module interface independent of its collaborator implementations.
 
 `TaxRuleService` owns City existence, stored City time-zone validation, Vehicle Type, and Tax Rule loading. It returns one immutable result that contains the validated City time zone and the Applicable Tax Rule Set map. Its interface and implementation are in `taxrule`. Its entities and repositories are in `taxrule.persistence`. One business responsibility can use one repository or several repositories. The service seam follows the business responsibility, not the number of tables.
 
@@ -110,7 +110,7 @@ The domain can use Lombok `@NonNull` as a compile-time annotation. It has no Lom
 
 Micrometer instrumentation stays at the Calculation Service boundary. It measures application coordination without adding Micrometer, Spring, or monitoring behavior to the pure calculator.
 
-The top-level `metrics` package owns the calculation timer, its metric-name constants, and its bounded outcome values. HTTP and database integrations use the standard meters that Spring Boot supplies.
+The top-level `metrics` package owns the calculation timer, the accepted Passage-count distribution, their metric-name constants, and the timer's bounded outcome values. The Calculation Service records the Passage count once at the start of every call. It records the count before City lookup, Vehicle Type lookup, stored-content loading, or calculation can fail. HTTP and database integrations use the standard meters that Spring Boot supplies.
 
 A metrics failure cannot change the calculation result.
 

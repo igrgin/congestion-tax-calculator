@@ -15,15 +15,15 @@ The instant provides chronological order and measures actual elapsed time. City 
 
 The Tax Rule module validates the stored City time zone as an IANA identifier when it loads the City. The Calculation module uses that time zone to create complete Passage values. Missing and repeated local times during daylight-saving changes are outside the supported input contract.
 
-## One-Passage calculation
+## Calculation flow
 
-The current HTTP operation requires exactly one Passage. The controller enforces this limit before it calls the Calculation Service.
+The HTTP operation requires one or more Passages. The Passages can use one or more City Local Time dates.
 
 The Calculation Service:
 
-1. gets the calculation date from the supplied City Local Time;
-2. asks the Tax Rule Service for the stored City time zone and the Applicable Tax Rule Set;
-3. creates the complete Passage with the City Local Time and its derived instant;
+1. gets the distinct calculation dates from the supplied City Local Times;
+2. asks the Tax Rule Service for the stored City time zone and the Applicable Tax Rule Sets;
+3. creates each complete Passage with its City Local Time and derived instant;
 4. asks the Tax Rule Service for the Vehicle Type;
 5. calls the pure `TaxCalculator`;
 6. returns the calculated City and result.
@@ -32,12 +32,15 @@ The Tax Calculator:
 
 1. checks that the Passage list is not empty;
 2. checks that the Applicable Tax Rule Set map is not empty;
-3. checks that the map contains an Applicable Tax Rule Set for the Passage date;
-4. gets the Applicable Tax Rule Set for the Passage date;
-5. finds the Tax Time Band that contains the Passage local time;
-6. uses the Tax Amount from the matching band;
+3. checks that the map contains an Applicable Tax Rule Set for each Passage date;
+4. groups the Passages by City Local Time date and orders the date groups;
+5. orders the Passages in each date group by instant;
+6. finds the Tax Time Band amount for each Passage;
 7. uses a zero Tax Amount in the Tax Rule Set currency when no band matches;
-8. returns one Daily Tax and the same amount as the total Tax Amount.
+8. applies the optional Charge Window;
+9. applies the optional Daily Maximum;
+10. returns one Daily Tax for each input date;
+11. adds the Daily Taxes to produce the total Tax Amount.
 
 The Tax Rule Service requires each Applicable Tax Rule Set to contain at least one Tax Time Band. It throws `MissingTaxTimeBandsException` when stored Tax Rules do not meet this requirement.
 
@@ -61,24 +64,27 @@ PUBLIC_HOLIDAY
 DATE_BEFORE_PUBLIC_HOLIDAY
 ```
 
-The current one-Passage calculation does not apply these Tax Exemptions. It creates a Daily Tax with an empty reason set.
+The current calculation does not apply these Tax Exemptions. It creates each Daily Tax with an empty reason set.
 
 Later issues can apply the stored Tax Exemptions and add every applicable reason to this set. The HTTP response can then explain why a Daily Tax is zero without adding one Boolean field for each Tax Exemption.
 
-## Later calculation behavior
+## Charge Window and Daily Maximum
 
-Later issues will extend the calculator with the remaining assignment behavior:
+When the Applicable Tax Rule Set has no Charge Window, each Passage contributes its Tax Amount to its Daily Tax.
 
-1. Sort Passages by instant and group them by City Local Time date.
-2. Select the Applicable Tax Rule Set for each date.
-3. Apply Vehicle Type, weekday, month, public-holiday, and pre-holiday Tax Exemptions.
-4. Calculate the Tax Amount for each taxable Passage.
-5. Apply the Charge Window rule.
-6. Apply the Daily Tax limit.
-7. Return one Daily Tax for each input date.
-8. Add the Daily Taxes to produce the total Tax Amount.
+When a Charge Window is present:
 
-A Charge Window does not slide forward when a later Passage occurs. It starts with its first Passage and uses actual elapsed time between instants. It cannot cross a City Local Time date boundary.
+1. the first Passage starts the window;
+2. the configured duration defines an inclusive boundary from that first Passage instant;
+3. later Passages do not move the boundary;
+4. the window contributes its highest Tax Amount;
+5. the first Passage after the boundary starts the next window.
+
+Zero Tax Amount Passages and repeated Passages participate. A Charge Window uses actual elapsed time between instants. Date grouping prevents a Charge Window from crossing a City Local Time date boundary.
+
+After Charge Window calculation, the optional Daily Maximum limits the Daily Tax. When the Applicable Tax Rule Set has no Daily Maximum, the calculated daily amount is unchanged.
+
+Later issues will apply Vehicle Type, weekday, month, public-holiday, and pre-holiday Tax Exemptions.
 
 ## Java calculation model
 
@@ -103,6 +109,20 @@ classDiagram
         +LocalDate effectiveFrom
         +Currency currency
         +List~TaxTimeBand~ taxTimeBands
+        +TaxRuleOptions taxRuleOptions
+    }
+
+    class TaxRuleOptions {
+        +chargeWindow() Optional~ChargeWindow~
+        +dailyMaximum() Optional~DailyMaximum~
+    }
+
+    class ChargeWindow {
+        +Duration duration
+    }
+
+    class DailyMaximum {
+        +TaxAmount amount
     }
 
     class TaxTimeBand {
@@ -118,6 +138,7 @@ classDiagram
         +zero(currency) TaxAmount
         +add(other) TaxAmount
         +min(other) TaxAmount
+        +max(other) TaxAmount
     }
 
     class TaxExemptionReason {
@@ -146,19 +167,23 @@ classDiagram
     TaxCalculator --> TaxRuleSet
     TaxCalculator --> CalculationResult
     TaxRuleSet *-- TaxTimeBand
+    TaxRuleSet *-- TaxRuleOptions
+    TaxRuleOptions o-- ChargeWindow
+    TaxRuleOptions o-- DailyMaximum
     TaxTimeBand *-- TaxAmount
+    DailyMaximum *-- TaxAmount
     CalculationResult *-- DailyTax
     CalculationResult *-- TaxAmount
     DailyTax *-- TaxExemptionReason
     DailyTax *-- TaxAmount
 ```
 
-`TaxAmount` contains a `BigDecimal` and a Java `Currency`. Its constructor rejects null values and negative amounts. Its `add` and `min` operations reject Tax Amounts that use different currencies.
+`TaxAmount` contains a `BigDecimal` and a Java `Currency`. Its constructor rejects null values and negative amounts. Its `add`, `min`, and `max` operations reject Tax Amounts that use different currencies.
 
 Collection-owning calculation values receive unmodifiable collections from their producers. They store the supplied collections without making another copy.
 
 `TaxTimeBand` rejects null values, an end time that is equal to or before its start time, and a non-positive Tax Amount.
 
-`TaxRuleSet` rejects null fields and requires at least one Tax Time Band.
+`TaxRuleSet` rejects null fields and requires at least one Tax Time Band. Its Tax Rule Options can contain one Charge Window and one Daily Maximum.
 
 The calculator has no Spring annotations, repository calls, database calls, system-clock access, logging, or metrics. The same inputs produce the same result.

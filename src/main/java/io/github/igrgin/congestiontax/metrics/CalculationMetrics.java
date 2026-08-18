@@ -1,10 +1,12 @@
 package io.github.igrgin.congestiontax.metrics;
 
 import static io.github.igrgin.congestiontax.metrics.CalculationMetricConstants.OUTCOME_TAG;
+import static io.github.igrgin.congestiontax.metrics.CalculationMetricConstants.PASSAGE_COUNT_NAME;
 import static io.github.igrgin.congestiontax.metrics.CalculationMetricConstants.TIMER_NAME;
 
 import io.github.igrgin.congestiontax.taxrule.exception.UnknownCityException;
 import io.github.igrgin.congestiontax.taxrule.exception.UnknownVehicleTypeException;
+import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
@@ -18,13 +20,18 @@ public final class CalculationMetrics {
 
     private final MeterRegistry meterRegistry;
     private final Meter.MeterProvider<Timer> calculationTimer;
+    private final Meter.MeterProvider<DistributionSummary> passageCount;
 
     public CalculationMetrics(MeterRegistry meterRegistry) {
         this.meterRegistry = meterRegistry;
         this.calculationTimer = Timer.builder(TIMER_NAME).withRegistry(meterRegistry);
+        this.passageCount = DistributionSummary.builder(PASSAGE_COUNT_NAME)
+                .serviceLevelObjectives(1, 10, 100, 1000, 10000)
+                .withRegistry(meterRegistry);
     }
 
-    public <T> T recordCalculation(Supplier<T> calculation) {
+    public <T> T recordCalculation(int acceptedPassageCount, Supplier<T> calculation) {
+        recordPassageCount(acceptedPassageCount);
         var timerSample = startTimer();
         var outcome = Outcome.FAILED;
 
@@ -37,6 +44,14 @@ public final class CalculationMetrics {
             throw exception;
         } finally {
             stopTimer(timerSample, outcome);
+        }
+    }
+
+    private void recordPassageCount(int acceptedPassageCount) {
+        try {
+            passageCount.withTags().record(acceptedPassageCount);
+        } catch (RuntimeException exception) {
+            log.warn("Could not record the Congestion Tax Calculation Passage count.", exception);
         }
     }
 

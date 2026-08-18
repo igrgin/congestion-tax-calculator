@@ -1,5 +1,6 @@
 package io.github.igrgin.congestiontax.taxrule.persistence;
 
+import io.github.igrgin.congestiontax.domain.rule.TaxRuleOptions;
 import io.github.igrgin.congestiontax.domain.rule.TaxRuleSet;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -34,6 +35,7 @@ public class TaxRuleSetEntity {
     private LocalDate effectiveFrom;
 
     @JdbcTypeCode(SqlTypes.CHAR)
+    @Getter
     @Column(name = "currency_code", nullable = false, length = 3)
     private String currencyCode;
 
@@ -43,13 +45,14 @@ public class TaxRuleSetEntity {
         this.currencyCode = currencyCode;
     }
 
-    public TaxRuleSet toTaxRuleSet(String cityCode, List<TaxTimeBandEntity> taxTimeBandEntities) {
+    public TaxRuleSet toTaxRuleSet(
+            String cityCode, List<TaxTimeBandEntity> taxTimeBandEntities, TaxRuleOptions taxRuleOptions) {
         var currency = Currency.getInstance(currencyCode);
 
         var taxTimeBands = taxTimeBandEntities.stream()
                 .map(entity -> entity.toTaxTimeBand(currency))
                 .toList();
 
-        return new TaxRuleSet(cityCode, effectiveFrom, currency, taxTimeBands);
+        return new TaxRuleSet(cityCode, effectiveFrom, currency, taxTimeBands, taxRuleOptions);
     }
 }

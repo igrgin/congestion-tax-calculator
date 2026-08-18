@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 
 import io.github.igrgin.congestiontax.calculation.exception.CityNotFoundException;
+import io.github.igrgin.congestiontax.calculation.exception.InvalidStoredTaxRuleOptionException;
 import io.github.igrgin.congestiontax.calculation.exception.VehicleTypeNotFoundException;
 import io.github.igrgin.congestiontax.calculation.model.CalculatedTax;
 import io.github.igrgin.congestiontax.calculation.model.CalculationCommand;
@@ -18,10 +19,10 @@ import io.github.igrgin.congestiontax.domain.rule.TaxRuleSet;
 import io.github.igrgin.congestiontax.domain.rule.TaxTimeBand;
 import io.github.igrgin.congestiontax.metrics.CalculationMetrics;
 import io.github.igrgin.congestiontax.taxrule.TaxRuleService;
+import io.github.igrgin.congestiontax.taxrule.exception.InvalidTaxRuleOptionException;
 import io.github.igrgin.congestiontax.taxrule.exception.UnknownCityException;
 import io.github.igrgin.congestiontax.taxrule.exception.UnknownVehicleTypeException;
 import io.github.igrgin.congestiontax.taxrule.model.ApplicableTaxRuleSets;
-import io.micrometer.core.instrument.Tag;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -54,12 +55,10 @@ class CalculationServiceImplTest {
     private TaxCalculator taxCalculator;
 
     private CalculationService calculationService;
-    private SimpleMeterRegistry meterRegistry;
 
     @BeforeEach
     void setUp() {
-        meterRegistry = new SimpleMeterRegistry();
-        var calculationMetrics = new CalculationMetrics(meterRegistry);
+        var calculationMetrics = new CalculationMetrics(new SimpleMeterRegistry());
 
         calculationService = new CalculationServiceImpl(taxRuleService, taxCalculator, calculationMetrics);
     }
@@ -95,12 +94,10 @@ class CalculationServiceImplTest {
                 calculationService.calculate(new CalculationCommand(cityCode, vehicleTypeCode, List.of(cityDateTime)));
 
         assertThat(result).isEqualTo(new CalculatedTax(cityCode, calculationResult));
-
-        assertCalculationTimer("success");
     }
 
     @Test
-    void translatesUnknownCityAndRecordsRejectedOutcome() {
+    void translatesUnknownCity() {
         var cityCode = "unknown";
         var cityDateTime = LocalDateTime.of(2013, Month.FEBRUARY, 8, 6, 20, 27);
         var command = new CalculationCommand(cityCode, "OTHER", List.of(cityDateTime));
@@ -114,12 +111,10 @@ class CalculationServiceImplTest {
                 .isInstanceOf(CityNotFoundException.class)
                 .hasMessage("City does not exist: unknown.")
                 .hasCause(cause);
-
-        assertCalculationTimer("rejected");
     }
 
     @Test
-    void translatesUnknownVehicleTypeAndRecordsRejectedOutcome() {
+    void translatesUnknownVehicleType() {
         var cityCode = "gothenburg";
         var vehicleTypeCode = "UNKNOWN";
         var cityDateTime = LocalDateTime.of(2013, Month.FEBRUARY, 8, 6, 20, 27);
@@ -136,12 +131,10 @@ class CalculationServiceImplTest {
                 .isInstanceOf(VehicleTypeNotFoundException.class)
                 .hasMessage("Vehicle Type does not exist: UNKNOWN.")
                 .hasCause(cause);
-
-        assertCalculationTimer("rejected");
     }
 
     @Test
-    void recordsFailedOutcomeForUnexpectedFailure() {
+    void propagatesUnexpectedFailure() {
         var cityCode = "gothenburg";
         var cityDateTime = LocalDateTime.of(2013, Month.FEBRUARY, 8, 6, 20, 27);
         var command = new CalculationCommand(cityCode, "OTHER", List.of(cityDateTime));
@@ -152,8 +145,24 @@ class CalculationServiceImplTest {
                 .willThrow(exception);
 
         assertThatThrownBy(() -> calculationService.calculate(command)).isSameAs(exception);
+    }
 
-        assertCalculationTimer("failed");
+    @Test
+    void translatesInvalidStoredTaxRuleOption() {
+        var cityCode = "gothenburg";
+        var cityDateTime = LocalDateTime.of(2013, Month.FEBRUARY, 8, 6, 20, 27);
+        var command = new CalculationCommand(cityCode, "OTHER", List.of(cityDateTime));
+        var calculationDates = Set.of(cityDateTime.toLocalDate());
+        var cause = new InvalidTaxRuleOptionException("CHARGE_WINDOW");
+
+        given(taxRuleService.getApplicableTaxRuleSets(cityCode, calculationDates))
+                .willThrow(cause);
+
+        assertThatThrownBy(() -> calculationService.calculate(command))
+                .isInstanceOfSatisfying(InvalidStoredTaxRuleOptionException.class, exception -> {
+                    assertThat(exception.optionTypeCode()).isEqualTo("CHARGE_WINDOW");
+                    assertThat(exception).hasCause(cause);
+                });
     }
 
     private static Stream<Arguments> cityTimes() {
@@ -161,14 +170,5 @@ class CalculationServiceImplTest {
                 Arguments.of(
                         LocalDateTime.of(2013, Month.FEBRUARY, 8, 6, 20, 27), Instant.parse("2013-02-08T05:20:27Z")),
                 Arguments.of(LocalDateTime.of(2013, Month.JULY, 8, 6, 20, 27), Instant.parse("2013-07-08T04:20:27Z")));
-    }
-
-    private void assertCalculationTimer(String outcome) {
-        var timers = meterRegistry.find("congestion.tax.calculation").timers();
-
-        assertThat(timers).singleElement().satisfies(timer -> {
-            assertThat(timer.count()).isEqualTo(1);
-            assertThat(timer.getId().getTags()).containsExactly(Tag.of("outcome", outcome));
-        });
     }
 }

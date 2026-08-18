@@ -14,7 +14,7 @@ The project uses these test levels:
 
 Tests call public operations. They do not test private methods.
 
-Application logging remains active when a test uses a Spring profile. Test code does not write log messages, and tests do not assert log output. Metric tests use the highest practical public seam and assert only the required meter, tags, and boundaries.
+Application logging remains active when a test uses a Spring profile. Test code does not write log messages, and tests do not assert log output.
 
 ## Current domain tests
 
@@ -22,6 +22,7 @@ Application logging remains active when a test uses a Spring profile. Test code 
 
 - addition;
 - minimum selection;
+- maximum selection;
 - zero creation;
 - rejection of null values;
 - rejection of negative amounts;
@@ -42,11 +43,26 @@ Application logging remains active when a test uses a Spring profile. Test code 
 - rejection of null fields;
 - rejection of an empty Tax Time Band list.
 
+`ChargeWindowTest` proves rejection of a null, zero, or negative duration.
+
+`DailyMaximumTest` proves rejection of a null or zero Tax Amount.
+
+`TaxRuleOptionsTest` proves rejection of duplicate option types.
+
 `DailyTaxTest` proves that the convenience constructor uses an empty Tax Exemption Reason set.
 
 `TaxCalculatorTest` proves:
 
 - one taxed Passage;
+- addition of all Passage Tax Amounts when the Charge Window is absent;
+- date grouping and ascending Daily Tax order;
+- rejection of a missing Applicable Tax Rule Set for any Passage date;
+- Passage instant ordering and highest Tax Amount selection in a Charge Window;
+- the inclusive configured Charge Window boundary;
+- non-sliding Charge Window behavior;
+- participation of zero-amount and repeated Passages;
+- Daily Maximum application after Charge Window calculation;
+- Tax Time Band selection at second precision, including adjacent boundaries;
 - zero Tax outside the Tax Time Bands;
 - rejection of an empty Passage list;
 - rejection of an empty Applicable Tax Rule Set map;
@@ -66,7 +82,9 @@ Application logging remains active when a test uses a Spring profile. Test code 
 - loading of adjacent Tax Time Bands;
 - rejection of a missing Applicable Tax Rule Set;
 - rejection of a Tax Rule Set without Tax Time Bands;
-- rejection of overlapping Tax Time Bands independent of repository order.
+- rejection of overlapping Tax Time Bands independent of repository order;
+- safe rejection of invalid stored Charge Window and Daily Maximum content;
+- safe rejection of duplicate stored Tax Rule Option types.
 
 This test stays in the `taxrule.persistence` test package because it uses package-access entity constructors to prepare repository results. It calls the implementation through the `TaxRuleService` interface.
 
@@ -75,18 +93,15 @@ This test stays in the `taxrule.persistence` test package because it uses packag
 - coordination of Passages, stored Tax Rules, and the pure calculator;
 - derivation of winter and summer instants with the stored City time zone;
 - translation of unknown City and Vehicle Type failures into calculation-owned exceptions while preserving their causes;
-- the `rejected` metric outcome for known lookup failures;
-- the `failed` metric outcome for an unexpected failure.
-
-`CalculationMetricsTest` proves that timer start and stop failures do not change the calculation result.
+- translation of an invalid stored Tax Rule Option into a calculation-owned failure with its safe type code.
 
 `CalculationControllerTest` proves:
 
 - the one-Passage HTTP request and response mapping;
+- the several-Passage HTTP request and response mapping;
 - rejection of a null or blank Vehicle Type;
 - rejection of a null or empty Passage list;
 - rejection of a null Passage value;
-- rejection of multiple Passages;
 - rejection of a Passage timestamp that does not use `uuuu-MM-dd HH:mm:ss`;
 - rejection of unknown JSON properties, including the removed `timeZone` property;
 - rejection of malformed JSON;
@@ -152,10 +167,9 @@ The test verifies this response:
 
 This test proves that HTTP parsing, stored City time-zone handling, Flyway data, JPA loading, Tax calculation, and JSON output work together.
 
-It also verifies that Prometheus publishes the calculation timer with the bounded `success` outcome.
-
 The test also verifies:
 
+- several Passages are calculated from stored Tax Rules;
 - a Passage outside the stored Tax Time Bands returns zero Tax;
 - invalid request bodies return HTTP `400`;
 - an unknown City returns HTTP `404`;
@@ -169,6 +183,8 @@ The test also verifies:
 - stored Vehicle Type lookup;
 - Applicable Tax Rule Set selection by City and calculation date;
 - isolation between Cities;
+- stored Charge Window loading as a typed Domain value;
+- stored Daily Maximum loading as a typed Domain value in the Tax Rule Set currency;
 - rejection of a selected Tax Rule Set with no Tax Time Bands;
 - rejection of overlapping Tax Time Bands.
 
@@ -180,8 +196,7 @@ An `@AfterEach` method removes the synthetic rows. The test does not use a test 
 
 - application health is `UP`;
 - database health is `UP`;
-- health component details are hidden;
-- Prometheus publishes standard JVM, process, HTTP, and connection-pool metrics.
+- health component details are hidden.
 
 ## Test execution
 
@@ -211,14 +226,8 @@ Tests that start Spring without PostgreSQL use the `test` profile. Full Spring B
 
 Later calculation issues will add focused tests for:
 
-- multiple Passage ordering and date grouping;
-- Charge Window boundaries and non-sliding behavior;
-- zero-amount Passages in a Charge Window;
-- repeated Passages;
 - weekday, month, public-holiday, and preceding-date Tax Exemptions;
 - Vehicle Type Tax Exemptions;
-- Daily Tax limits;
-- missing optional Tax Rules;
 - successive Applicable Tax Rule Sets;
 - mixed currencies in one calculation;
 - complete transport validation and Problem Details;

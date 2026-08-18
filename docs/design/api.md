@@ -8,7 +8,7 @@ This document defines how a caller requests one Congestion Tax Calculation and r
 POST /api/v1/cities/{cityCode}/congestion-tax/calculations
 ```
 
-One request contains one database-defined Vehicle Type and exactly one Passage for one vehicle. The request uses the final collection-based shape so that later issues can add multiple-Passage calculations without changing the request structure.
+One request contains one database-defined Vehicle Type and one or more Passages for one vehicle.
 
 The calculator does not store registration plates, owners, Passages, or results.
 
@@ -16,7 +16,8 @@ The calculator does not store registration plates, owners, Passages, or results.
 {
   "vehicleType": "OTHER",
   "passages": [
-    "2013-02-08 06:20:27"
+    "2013-02-08 06:10:00",
+    "2013-02-08 06:20:00"
   ]
 }
 ```
@@ -26,12 +27,12 @@ The calculator does not store registration plates, owners, Passages, or results.
   "cityCode": "gothenburg",
   "vehicleType": "OTHER",
   "currency": "SEK",
-  "totalAmount": 8.00,
+  "totalAmount": 16.00,
   "dailyTaxes": [
     {
       "date": "2013-02-08",
       "taxExemptionReasons": [],
-      "amount": 8.00
+      "amount": 16.00
     }
   ]
 }
@@ -45,34 +46,33 @@ The city code in the path selects the stored rules without changing the API cont
 
 ## Request validation
 
-For the one-Passage calculation:
+For a calculation request:
 
 - `vehicleType` is required and must not be blank.
 - `passages` is required and must not be empty.
 - Each Passage value is required.
-- The request must contain exactly one Passage.
 - The Passage must use `uuuu-MM-dd HH:mm:ss` format.
 - Unknown JSON properties are invalid. A removed `timeZone` property is not accepted or ignored.
 - The controller parses each Passage value as City Local Time.
 - The Calculation module derives each Passage instant with the stored City time zone.
 - Missing and repeated local times during daylight-saving changes are outside the supported input contract.
 
-Bean Validation checks the reusable request invariants. The controller checks the temporary exact-one rule. Complete Problem Details and validation of all Passage indexes belong to the later API validation work.
+Bean Validation checks the reusable request invariants. Complete Problem Details and validation of all Passage indexes belong to the later API validation work.
 
 `CalculationRequest` stays inside the HTTP adapter. The controller parses its Passage values and creates a new unmodifiable City Local Time list for `CalculationCommand`. `CalculationCommand` stores this list without making another copy. The mutable transport collection does not cross into the Calculation module.
 
 ## Error responses
 
-The one-Passage implementation returns:
+The current implementation returns:
 
-- HTTP `400` for an invalid request shape, unknown property, Passage count, Passage timestamp, or unknown Vehicle Type;
+- HTTP `400` for an invalid request shape, unknown property, Passage timestamp, or unknown Vehicle Type;
 - HTTP `404` for an unknown City.
 
 An invalid stored City time zone is invalid server content and returns HTTP `500`.
 
 `CalculationServiceImpl` translates lower lookup failures into calculation-owned exceptions and preserves their causes. `CalculationExceptionHandler` maps `CityNotFoundException` to HTTP `404` and `VehicleTypeNotFoundException` to HTTP `400`. Spring handles request-body and Bean Validation failures. The domain and Tax Rule areas do not depend on Spring Web.
 
-The HTTP exception boundary logs each handled `4xx` response at `WARN` with a stable failure category, safe context, and no stack trace. It logs each handled `5xx` response once at `ERROR` with an internal stack trace. This rule applies to the calculation API exception handler, not to unrelated framework or servlet responses. The response does not contain internal failure data. The first calculation slice returns an empty HTTP `500` response for an unexpected failure. The later API validation issue replaces that body with the final safe Problem Details response.
+The HTTP exception boundary logs each handled `4xx` response at `WARN` with a stable failure category, safe context, and no stack trace. It logs each handled `5xx` response once at `ERROR` with an internal stack trace. Invalid stored Charge Window or Daily Maximum content uses the `invalid-tax-rule-option` category and includes only the safe option type code. This rule applies to the calculation API exception handler, not to unrelated framework or servlet responses. The response does not contain internal failure data. The first calculation slice returns an empty HTTP `500` response for an unexpected failure. The later API validation issue replaces that body with the final safe Problem Details response.
 
 The final API will use Problem Details JSON with a stable `code` and an optional `errors` list. It will not expose exception class names, SQL, credentials, or stack traces.
 

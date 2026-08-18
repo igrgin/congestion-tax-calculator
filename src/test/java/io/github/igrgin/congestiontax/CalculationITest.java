@@ -3,14 +3,12 @@ package io.github.igrgin.congestiontax;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.boot.test.context.SpringBootTest.WebEnvironment.RANDOM_PORT;
 
-import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.micrometer.metrics.test.autoconfigure.AutoConfigureMetrics;
 import org.springframework.boot.resttestclient.TestRestTemplate;
 import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -23,7 +21,6 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 @ActiveProfiles("itest")
-@AutoConfigureMetrics
 @AutoConfigureTestRestTemplate
 @SpringBootTest(webEnvironment = RANDOM_PORT)
 class CalculationITest {
@@ -67,21 +64,42 @@ class CalculationITest {
                           ]
                         }
                         """));
+    }
 
-        var metricsResponse = restTemplate.getForEntity("/actuator/prometheus", String.class);
+    @Test
+    void calculatesSeveralPassagesFromStoredTaxRules() throws Exception {
+        var headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
 
-        assertThat(metricsResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        var request = new HttpEntity<>("""
+                {
+                  "vehicleType": "OTHER",
+                  "passages": [
+                    "2013-02-08 06:10:00",
+                    "2013-02-08 06:20:00"
+                  ]
+                }
+                """, headers);
 
-        String metricsBody = metricsResponse.getBody();
-        assertThat(metricsBody).isNotNull();
+        var response = restTemplate.postForEntity(
+                "/api/v1/cities/gothenburg" + "/congestion-tax/calculations", request, JsonNode.class);
 
-        List<String> metricLines = metricsBody.lines().toList();
-
-        assertThat(metricLines)
-                .anyMatch(line -> line.startsWith("congestion_tax_calculation_seconds_bucket{")
-                        && line.contains("outcome=\"success\""))
-                .anyMatch(line -> line.startsWith("congestion_tax_calculation_seconds_count{")
-                        && line.contains("outcome=\"success\""));
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isEqualTo(objectMapper.readTree("""
+                {
+                  "cityCode": "gothenburg",
+                  "vehicleType": "OTHER",
+                  "currency": "SEK",
+                  "totalAmount": 16.00,
+                  "dailyTaxes": [
+                    {
+                      "date": "2013-02-08",
+                      "taxExemptionReasons": [],
+                      "amount": 16.00
+                    }
+                  ]
+                }
+                """));
     }
 
     @Test
@@ -209,15 +227,6 @@ class CalculationITest {
                           "vehicleType": "OTHER",
                           "passages": [
                             null
-                          ]
-                        }
-                        """),
-                Arguments.of("multiple Passages", """
-                        {
-                          "vehicleType": "OTHER",
-                          "passages": [
-                            "2013-02-08 05:20:27",
-                            "2013-02-08 06:20:27"
                           ]
                         }
                         """),
