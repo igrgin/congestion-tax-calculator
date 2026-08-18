@@ -8,6 +8,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.Month;
+import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtensionContext;
@@ -69,6 +70,99 @@ class TaxRuleSchemaITest {
 
         assertThat(timeBandCount).isEqualTo(1);
         assertThat(optionCount).isEqualTo(1);
+    }
+
+    @Test
+    void acceptsValidTaxExemptionRowsAndDefinesClosedTypeVocabulary() {
+        long cityId = insertCity("valid-tax-exemptions");
+        insertVehicleType("VALID_EXEMPT_VEHICLE");
+        long ruleSetId = insertTaxRuleSet(cityId, LocalDate.of(2020, Month.JANUARY, 1));
+
+        insertTaxExemption(ruleSetId, "WEEKDAY", (short) 1, null, null, null);
+        insertTaxExemption(ruleSetId, "MONTH", null, (short) 12, null, null);
+        insertTaxExemption(ruleSetId, "PUBLIC_HOLIDAY", null, null, LocalDate.of(2020, Month.MAY, 1), null);
+        insertTaxExemption(ruleSetId, "VEHICLE_TYPE", null, null, null, "VALID_EXEMPT_VEHICLE");
+
+        List<String> typeCodes =
+                jdbcTemplate.queryForList("SELECT code FROM tax_exemption_type ORDER BY code", String.class);
+        Integer exemptionCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM tax_exemption WHERE rule_set_id = ?", Integer.class, ruleSetId);
+
+        assertThat(typeCodes).containsExactly("MONTH", "PUBLIC_HOLIDAY", "VEHICLE_TYPE", "WEEKDAY");
+        assertThat(exemptionCount).isEqualTo(4);
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @ArgumentsSource(InvalidTaxExemptionShapes.class)
+    void rejectsInvalidTaxExemptionValueShape(
+            String scenario,
+            String typeCode,
+            Short dayOfWeek,
+            Short monthNumber,
+            LocalDate holidayDate,
+            String vehicleTypeCode) {
+        long cityId = insertCity("invalid-exemption-shape-" + scenario);
+        insertVehicleType("SHAPE_VEHICLE");
+        long ruleSetId = insertTaxRuleSet(cityId, LocalDate.of(2020, Month.JANUARY, 1));
+
+        assertThatThrownBy(() ->
+                        insertTaxExemption(ruleSetId, typeCode, dayOfWeek, monthNumber, holidayDate, vehicleTypeCode))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @ArgumentsSource(InvalidTaxExemptionRanges.class)
+    void rejectsTaxExemptionValueOutsideAcceptedRange(
+            String scenario, String typeCode, Short dayOfWeek, Short monthNumber) {
+        long cityId = insertCity("invalid-exemption-range-" + scenario);
+        long ruleSetId = insertTaxRuleSet(cityId, LocalDate.of(2020, Month.JANUARY, 1));
+
+        assertThatThrownBy(() -> insertTaxExemption(ruleSetId, typeCode, dayOfWeek, monthNumber, null, null))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void rejectsTaxExemptionForUnknownTaxRuleSet() {
+        assertThatThrownBy(() -> insertTaxExemption(Long.MAX_VALUE, "WEEKDAY", (short) 1, null, null, null))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void rejectsUnknownTaxExemptionType() {
+        long cityId = insertCity("unknown-exemption-type");
+        long ruleSetId = insertTaxRuleSet(cityId, LocalDate.of(2020, Month.JANUARY, 1));
+
+        assertThatThrownBy(() -> insertTaxExemption(ruleSetId, "UNKNOWN", null, null, null, null))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void rejectsVehicleTypeTaxExemptionForUnknownVehicleType() {
+        long cityId = insertCity("unknown-exempt-vehicle");
+        long ruleSetId = insertTaxRuleSet(cityId, LocalDate.of(2020, Month.JANUARY, 1));
+
+        assertThatThrownBy(() -> insertTaxExemption(ruleSetId, "VEHICLE_TYPE", null, null, null, "UNKNOWN_VEHICLE"))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @ArgumentsSource(DuplicateTaxExemptions.class)
+    void rejectsDuplicateTypedTaxExemptionForOneTaxRuleSet(
+            String scenario,
+            String typeCode,
+            Short dayOfWeek,
+            Short monthNumber,
+            LocalDate holidayDate,
+            String vehicleTypeCode) {
+        long cityId = insertCity("duplicate-exemption-" + scenario);
+        insertVehicleType("DUPLICATE_EXEMPT_VEHICLE");
+        long ruleSetId = insertTaxRuleSet(cityId, LocalDate.of(2020, Month.JANUARY, 1));
+
+        insertTaxExemption(ruleSetId, typeCode, dayOfWeek, monthNumber, holidayDate, vehicleTypeCode);
+
+        assertThatThrownBy(() ->
+                        insertTaxExemption(ruleSetId, typeCode, dayOfWeek, monthNumber, holidayDate, vehicleTypeCode))
+                .isInstanceOf(DataIntegrityViolationException.class);
     }
 
     @Test
@@ -236,6 +330,26 @@ class TaxRuleSchemaITest {
                 """, ruleSetId, typeCode, amount, durationMinutes, precedingDays);
     }
 
+    private void insertTaxExemption(
+            long ruleSetId,
+            String typeCode,
+            Short dayOfWeek,
+            Short monthNumber,
+            LocalDate holidayDate,
+            String vehicleTypeCode) {
+        jdbcTemplate.update("""
+                INSERT INTO tax_exemption (
+                    rule_set_id,
+                    type_code,
+                    day_of_week,
+                    month_number,
+                    holiday_date,
+                    vehicle_type_code
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
+                """, ruleSetId, typeCode, dayOfWeek, monthNumber, holidayDate, vehicleTypeCode);
+    }
+
     private static final class NonPositiveAmounts implements ArgumentsProvider {
 
         @Override
@@ -268,6 +382,52 @@ class TaxRuleSchemaITest {
                     Arguments.of("non-positive-charge-window", "CHARGE_WINDOW", null, 0, null),
                     Arguments.of("non-positive-holiday-preceding", "HOLIDAY_PRECEDING", null, null, (short) 0),
                     Arguments.of("unknown-option-type", "UNKNOWN", new BigDecimal("60.00"), null, null));
+        }
+    }
+
+    private static final class InvalidTaxExemptionShapes implements ArgumentsProvider {
+
+        @Override
+        public Stream<? extends Arguments> provideArguments(
+                ParameterDeclarations parameters, ExtensionContext context) {
+            return Stream.of(
+                    Arguments.of("weekday-without-day", "WEEKDAY", null, null, null, null),
+                    Arguments.of("month-with-weekday", "MONTH", (short) 1, null, null, null),
+                    Arguments.of(
+                            "public-holiday-with-month",
+                            "PUBLIC_HOLIDAY",
+                            null,
+                            (short) 5,
+                            LocalDate.of(2020, Month.MAY, 1),
+                            null),
+                    Arguments.of("vehicle-type-without-code", "VEHICLE_TYPE", null, null, null, null));
+        }
+    }
+
+    private static final class InvalidTaxExemptionRanges implements ArgumentsProvider {
+
+        @Override
+        public Stream<? extends Arguments> provideArguments(
+                ParameterDeclarations parameters, ExtensionContext context) {
+            return Stream.of(
+                    Arguments.of("weekday-zero", "WEEKDAY", (short) 0, null),
+                    Arguments.of("weekday-eight", "WEEKDAY", (short) 8, null),
+                    Arguments.of("month-zero", "MONTH", null, (short) 0),
+                    Arguments.of("month-thirteen", "MONTH", null, (short) 13));
+        }
+    }
+
+    private static final class DuplicateTaxExemptions implements ArgumentsProvider {
+
+        @Override
+        public Stream<? extends Arguments> provideArguments(
+                ParameterDeclarations parameters, ExtensionContext context) {
+            return Stream.of(
+                    Arguments.of("weekday", "WEEKDAY", (short) 5, null, null, null),
+                    Arguments.of("month", "MONTH", null, (short) 6, null, null),
+                    Arguments.of(
+                            "public-holiday", "PUBLIC_HOLIDAY", null, null, LocalDate.of(2020, Month.JUNE, 19), null),
+                    Arguments.of("vehicle-type", "VEHICLE_TYPE", null, null, null, "DUPLICATE_EXEMPT_VEHICLE"));
         }
     }
 }
