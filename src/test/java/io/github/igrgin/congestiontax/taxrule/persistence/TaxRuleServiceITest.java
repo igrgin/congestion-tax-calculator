@@ -43,6 +43,7 @@ import org.springframework.test.context.ActiveProfiles;
 class TaxRuleServiceITest {
 
     private static final Currency SEK = Currency.getInstance("SEK");
+    private static final Currency GBP = Currency.getInstance("GBP");
 
     private final List<Long> insertedCityIds = new ArrayList<>();
 
@@ -235,6 +236,22 @@ class TaxRuleServiceITest {
 
         assertThat(taxRuleService.getCityTaxRuleSet("gothenburg"))
                 .isEqualTo(new CityTaxRuleSet(ZoneId.of("Europe/Stockholm"), expectedTaxRuleSet));
+    }
+
+    @Test
+    void loadsCompleteSeededLondonTaxRuleSet() {
+        var expectedTaxRuleSet = new TaxRuleSet(
+                "london-test",
+                GBP,
+                List.of(
+                        new TaxTimeBand(LocalTime.MIDNIGHT, LocalTime.NOON, new TaxAmount(new BigDecimal("4.00"), GBP)),
+                        new TaxTimeBand(
+                                LocalTime.NOON, LocalTime.MIDNIGHT, new TaxAmount(new BigDecimal("7.00"), GBP))),
+                new TaxExemptions(List.of(new WeekdayTaxExemption(DayOfWeek.MONDAY))),
+                new TaxRuleOptions(List.of(new DailyMaximum(new TaxAmount(new BigDecimal("10.00"), GBP)))));
+
+        assertThat(taxRuleService.getCityTaxRuleSet("london-test"))
+                .isEqualTo(new CityTaxRuleSet(ZoneId.of("Europe/London"), expectedTaxRuleSet));
     }
 
     @Test

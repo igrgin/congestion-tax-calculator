@@ -131,6 +131,50 @@ class CalculationITest {
     }
 
     @Test
+    void calculatesPassagesFromStoredLondonTaxRules() {
+        var headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        var request = new HttpEntity<>("""
+                {
+                  "vehicleType": "OTHER",
+                  "passages": [
+                    "2013-02-04 12:15:00",
+                    "2013-02-05 11:45:00",
+                    "2013-02-05 12:15:00"
+                  ]
+                }
+                """, headers);
+
+        var response = restTemplate.postForEntity(
+                "/api/v1/cities/london-test" + "/congestion-tax/calculations", request, JsonNode.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isEqualTo(objectMapper.readTree("""
+                {
+                  "cityCode": "london-test",
+                  "vehicleType": "OTHER",
+                  "currency": "GBP",
+                  "totalAmount": 10.00,
+                  "dailyTaxes": [
+                    {
+                      "date": "2013-02-04",
+                      "taxExemptionReasons": [
+                        "WEEKDAY"
+                      ],
+                      "amount": 0.00
+                    },
+                    {
+                      "date": "2013-02-05",
+                      "taxExemptionReasons": [],
+                      "amount": 10.00
+                    }
+                  ]
+                }
+                """));
+    }
+
+    @Test
     void rejectsUnknownCity() {
         var headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
