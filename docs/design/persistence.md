@@ -235,29 +235,68 @@ These failures are stored-content or lookup failures. The pure calculator does n
 
 Invalid Tax Exemption content produces `InvalidTaxExemptionException`. It contains only the safe Tax Exemption Type code or `UNKNOWN`. The Calculation Service translates this failure before it reaches the HTTP exception boundary. Stored values and SQL do not cross these boundaries.
 
-## Current seed data
+## Current Gothenburg data
 
-Flyway inserts the minimum stored content for the initial calculation path:
+Flyway inserts the complete Gothenburg Tax Rule Set for the assignment:
 
 ```text
 City code: gothenburg
 City name: Gothenburg
 City time zone: Europe/Stockholm
-Vehicle Type: OTHER
 Currency: SEK
-Tax Time Band: 06:00–06:30
-Tax Amount: 8.00 SEK
-Public holiday supporting date: 2014-01-01
+
+Vehicle Types:
+OTHER
+EMERGENCY
+BUS
+DIPLOMAT
+MOTORCYCLE
+MILITARY
+FOREIGN
+
+Tax Time Bands:
+06:00-06:30  8.00 SEK
+06:30-07:00 13.00 SEK
+07:00-08:00 18.00 SEK
+08:00-08:30 13.00 SEK
+08:30-15:00  8.00 SEK
+15:00-15:30 13.00 SEK
+15:30-17:00 18.00 SEK
+17:00-18:00 13.00 SEK
+18:00-18:30  8.00 SEK
+18:30-06:00  0.00 SEK
+
+Tax Rule Options:
+CHARGE_WINDOW      60 minutes
+DAILY_MAXIMUM      60.00 SEK
+HOLIDAY_PRECEDING   1 calendar date
+
+Tax Exemptions:
+Saturday
+Sunday
+July
+EMERGENCY
+BUS
+DIPLOMAT
+MOTORCYCLE
+MILITARY
+FOREIGN
 ```
 
-This data supports the issue acceptance path:
+The last Tax Time Band crosses midnight. Its zero Tax Amount makes all City Local Times match one stored Tax Time Band.
+
+Flyway also inserts the thirteen Swedish public holidays in 2013. The stored `2014-01-01` supporting date lets the Public Holiday Preceding-Date Option make `2013-12-31` tax-free.
+
+This content supports the supplied calculation:
 
 ```text
-Passage: 2013-02-08 06:20:27
-    -> 06:00–06:30 Tax Time Band
-    -> 8.00 SEK
+2013-01-14   0.00 SEK
+2013-01-15   0.00 SEK
+2013-02-07  21.00 SEK
+2013-02-08  60.00 SEK
+2013-03-26   8.00 SEK
+2013-03-28   0.00 SEK  DATE_BEFORE_PUBLIC_HOLIDAY
+Total       89.00 SEK
 ```
 
-The current seed does not contain Tax Rule Options. Flyway installs the closed Tax Exemption Type vocabulary and one public-holiday Tax Exemption for `2014-01-01`. Tests use synthetic option and other Tax Exemption rows. A later migration will add the complete Gothenburg Tax Rule Options with the remaining Vehicle Types, Tax Time Bands, and Tax Exemption data.
-
-The pre-release Flyway migrations use the one-set schema. A developer must remove the local database volume before the application applies the rewritten migrations. Later work can complete the initial assignment seed before the first release.
+The pre-release Flyway migrations use the one-set schema. A developer must remove the local database volume if its Flyway history does not match these migrations.
