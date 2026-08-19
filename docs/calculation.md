@@ -48,9 +48,7 @@ An exemption can specify a weekday, month, public holiday, or vehicle type. The 
 
 ## Charge windows
 
-A charge window is a fixed period in which the calculator charges only the highest applicable amount. For Gothenburg, the first passage starts a 60-minute window. The calculator checks every passage in that window and adds the highest amount to the daily tax once.
-
-A passage exactly 60 minutes after the first passage remains in the same window. The next passage after that starts a new window. Passages inside a window do not extend its end.
+A charge window is a fixed-length period in which the calculator charges only the highest applicable amount. For Gothenburg, the first passage starts a 60-minute window. The window includes every passage up to and including its end. The calculator adds the highest amount to the daily tax once. The first passage after the window ends starts a new window.
 
 A window can cross midnight. An exempt passage or a passage with a zero amount still belongs to its window. If two passages have the same highest amount, the earlier passage wins. The calculator assigns the window amount to the local date of the winning passage.
 
@@ -64,6 +62,6 @@ The response contains one daily tax for every date in the request, including dat
 
 ## Input and failure behavior
 
-Passage times must use the exact `uuuu-MM-dd HH:mm:ss` format and have a date in 2013. The request does not contain a time zone. During a daylight-saving-time change, Java applies the stored time-zone rules without application-specific validation.
+Passage times must use the exact `uuuu-MM-dd HH:mm:ss` format and have a date in 2013. The request does not contain a time zone.
 
 A non-exempt passage must match a tax time band. If it does not, the complete calculation fails. Missing or invalid stored rules also fail the complete calculation. The API returns one error response and never returns a partial result.

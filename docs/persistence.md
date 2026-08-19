@@ -85,18 +85,16 @@ PostgreSQL constraints protect required values, unique codes, foreign keys, vali
 
 The migrations contain the complete runtime data for Gothenburg. [Calculation](calculation.md) describes the implemented rules.
 
-## JPA loading
+Flyway SQL handles schema creation, seed content, check constraints, and the time-band exclusion constraint. PostgreSQL integration tests verify this behavior because Hibernate validation does not cover the complete schema.
 
-Spring Data JPA and Hibernate handle the small read-only persistence model. They were selected instead of `JdbcTemplate` because generated repository operations and entity mapping cover most of the required reads with less custom mapping code. Repository methods load the selected city, vehicle type, rule set, time bands, options, and exemptions. The tax rule service maps those rows to immutable domain values inside read-only transactions.
+## JPA, entities, and repositories
 
-The entities store foreign-key identifiers as scalar fields. They do not use `@ManyToOne`, `@OneToMany`, or `@ManyToMany` associations. The service controls every read, and no entity association can start an implicit fetch or cascade. PostgreSQL foreign keys remain the source of relational integrity.
+Spring Data JPA repositories read cities, vehicle types, tax rule sets, tax time bands, tax rule options, and tax exemptions. Hibernate maps one entity to each of these tables. The option-type and exemption-type tables constrain the supported codes in PostgreSQL and do not need JPA entities.
 
-This model also avoids entity graphs that the calculation does not need. A tax exemption is an explicit row with its own type and values, not a many-to-many link hidden behind two entity collections.
+The entities store foreign-key identifiers as scalar fields. Repositories perform explicit reads, and the tax rule service maps the rows to immutable calculation values inside read-only transactions. Most repositories use Spring Data method queries. `TaxRuleSetRepository` uses one native SQL join through JPA to find a rule set by city code.
 
-Most repositories use Spring Data method queries. `TaxRuleSetRepository` uses one native SQL join to find a rule set by city code because the entities do not contain a navigable city association. Spring Data JPA still executes that query and maps its result.
-
-Flyway SQL handles database-specific work, including schema creation, seed content, check constraints, and the time-band exclusion constraint. PostgreSQL integration tests verify this behavior because Hibernate validation does not cover the complete schema.
+JPA and Hibernate were selected instead of `JdbcTemplate` because standard repository operations and entity mapping cover this small read model. The entities do not use `@ManyToOne`, `@OneToMany`, or `@ManyToMany` associations because the application does not need entity navigation, cascades, or association fetch plans. This keeps each database read explicit.
 
 ## Other cities
 
-Adding another city needs stored city and rule rows, not a change to the calculator. Different cities can use different currencies, time bands, exemptions, charge-window durations, and daily maximums. A rule option can also be absent.
+To add another city, add a city row with its time zone and a tax rule set with its currency. Add at least one tax time band. Tax rule options and exemptions are optional and must use the supported types. This does not require a Java or schema change unless the city needs a new type of option or exemption.

@@ -29,7 +29,7 @@ An optional rule with one value, such as a duration or maximum amount.
 _Avoid_: Parameter, setting
 
 **Charge Window**:
-A period that groups passages for the single charge rule.
+A fixed-length period that groups passages for the single charge rule. Only the highest applicable amount in the period is charged.
 _Avoid_: Sliding window, chained group
 
 **Daily Maximum**:
