@@ -1,41 +1,30 @@
-# Issue Tracker: GitHub
+# GitHub workflow
 
-Issues and specifications for this repository live in GitHub Issues:
+Issues and specifications live in the [GitHub repository](https://github.com/igrgin/congestion-tax-calculator). Use the `gh` CLI for issue operations.
 
-https://github.com/igrgin/congestion-tax-calculator
+## Planning
 
-Use the `gh` CLI for issue operations.
+- Use one parent issue for a specification.
+- Use vertical-slice sub-issues for implementation work.
+- Record blocking relationships in GitHub.
+- Keep the parent issue status table current.
+- Do not use triage labels or a GitHub Project board.
 
-## Conventions
+Use `grill-with-docs` when an issue needs design decisions. Use `to-spec` for a new specification and `to-tickets` for its implementation issues.
 
-- Publish a specification as one parent issue.
-- Publish implementation tickets as sub-issues of the specification.
-- Use GitHub issue dependencies for blocking relationships.
-- Do not create or apply triage labels.
-- Do not treat pull requests as requests for new work.
-- Do not use a GitHub Project board for this repository.
-- Keep an issue and status summary table in the parent specification.
+## Implementation
 
-## Development Workflow
+1. Assign the issue to `igrgin` after its blockers are closed.
+2. Create a branch named `<issue-number>-<short-description>`.
+3. Implement and verify the issue on that branch.
+4. Use small commits and include the issue number in each commit message.
+5. Push the branch and open a pull request into `main`.
+6. Wait for required GitHub Actions checks and user approval.
+7. Merge with a normal merge commit.
+8. Comment on the issue with the completed work, then close it.
 
-- After planning is complete, the user runs `to-spec` to publish the parent specification. The user then runs `to-tickets` to propose, review, and publish its vertical-slice sub-issues and native blocking relationships.
-- The repository decision to use no triage labels overrides skill defaults that request a `ready-for-agent` label.
-- Create tickets as vertical slices of the specification.
-- Assign each ticket to the GitHub account `igrgin` before work starts.
-- Create one branch for each ticket. Use `<issue-number>-<short-description>` in kebab case, with no namespace prefix.
-- Each feature ticket owns the logs and metrics required by its behavior. Add a custom metric only when existing metrics cannot answer the feature's operational question. Follow `CONTRIBUTING.md` for event levels, safe context, and metric design.
-- Implement and verify the ticket on its branch.
-- Use small coherent commits and include the issue number in each commit message.
-- When the user and agent agree that the ticket is complete, push the branch and open a pull request into `main`.
-- GitHub Actions must run the required verification for each pull request.
-- The user owns pull-request review. Merge only after required checks pass and the user approves the pull request. Preserve the useful branch history with a normal merge commit.
-- After merge, add an issue comment that states what was completed, and close the ticket.
-- Keep the parent specification's status summary current.
+The user owns pull-request review and merge approval.
 
-More than one issue can be active when its blocking issues are complete. Each active issue uses its own branch and pull request. Do not start an issue while any declared blocker remains open.
+## Completion
 
-Use `grill-with-docs` when an issue needs more design work. Use `implement` when an issue is ready for development. The implementation workflow uses test-driven development at the agreed seams where practical, runs regular focused verification, runs the full test suite at the end, performs a code review, and commits to the current issue branch.
-
-## Definition of Complete
-
-The application is complete when all agreed assignment behavior is implemented, the application starts and works correctly, local and GitHub Actions tests pass, all documentation is correct and current, `README.md` and `questions.md` are complete, all pull requests are merged, and all implementation issues are closed.
+An issue is complete when its behavior works, `./mvnw verify` passes, affected documents are current, and the pull request is approved and merged.
