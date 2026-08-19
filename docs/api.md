@@ -20,6 +20,8 @@ One request contains a vehicle type and one or more passage times for one vehicl
 }
 ```
 
+`vehicleType` identifies the vehicle category for every passage in the request. The calculator uses the stored code to check vehicle-type exemptions.
+
 The request has these rules:
 
 - `vehicleType` is required and must contain a stored code.
@@ -49,7 +51,7 @@ The runtime database contains the city code `gothenburg`. Vehicle type codes are
 }
 ```
 
-The response contains one daily tax for each date in the request and one total. Daily results are ordered by date and include zero amounts. The `currency` value applies to every amount in the response.
+The response repeats `vehicleType` to identify the vehicle category used for the calculation. It contains one daily tax for each date in the request and one total. Daily results are ordered by date and include zero amounts. The `currency` value applies to every amount in the response.
 
 An exempt date can contain one or more of these reasons:
 

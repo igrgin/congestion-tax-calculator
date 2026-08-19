@@ -46,8 +46,6 @@ LOGGING_LEVEL_ROOT
 LOGGING_LEVEL_APPLICATION
 ```
 
-The root `.env.example` lists the same names without values.
-
 ## Logging
 
 The application uses `DEBUG` for calculation start details, loaded rule options, and applied exemption summaries. It uses `INFO` when a calculation completes.
