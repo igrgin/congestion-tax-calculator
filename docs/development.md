@@ -6,6 +6,31 @@ Regular tests use the `Test` suffix. They cover the pure calculator, rule values
 
 Integration tests use the `ITest` suffix and PostgreSQL through Testcontainers. They verify the Flyway schema, stored rules, complete HTTP path, health endpoint, metrics, OpenAPI output, and Swagger UI. London is used only in tests to show that the application supports rules for multiple cities.
 
+### Verification flow
+
+```mermaid
+sequenceDiagram
+    actor developer as Developer
+    participant maven as Maven
+    participant regular as Regular tests
+    participant integration as Integration tests
+    participant containers as Testcontainers
+    participant postgres as PostgreSQL
+    participant spotless as Spotless
+
+    developer->>maven: Run ./mvnw verify
+    maven->>regular: Run *Test
+    regular-->>maven: Return results
+    maven->>integration: Run *ITest
+    integration->>containers: Request a test database
+    containers->>postgres: Start the container
+    postgres-->>integration: Report ready
+    integration-->>maven: Return results
+    maven->>spotless: Check Java formatting
+    spotless-->>maven: Return result
+    maven-->>developer: Return the build result
+```
+
 Run regular tests:
 
 ```bash
